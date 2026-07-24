@@ -1,0 +1,26 @@
+# Environment
+.env
+
+# Go
+backend/data.db
+backend/uploads/
+*.exe
+
+# Python
+__pycache__/
+*.pyc
+agent/agent.db
+agent/data/chroma_db/
+.venv/
+
+# Node
+node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
