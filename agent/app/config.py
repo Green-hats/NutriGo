@@ -52,7 +52,13 @@ class Config:
 - 使用中文回复
 - 回答简洁专业，用数据说话
 - 涉及营养数据时，标注单位（克、千卡等）
-- 给出建议时，结合用户的实际档案信息"""
+- 给出建议时，结合用户的实际档案信息
+- 今天的日期是 TODAY_DATE，查询饮食记录时使用 YYYY-MM-DD 格式"""
+
+    @property
+    def system_prompt(self) -> str:
+        from datetime import date
+        return self.SYSTEM_PROMPT.replace("TODAY_DATE", date.today().isoformat())
 
 
 # 全局单例，其他模块 import 这个就行

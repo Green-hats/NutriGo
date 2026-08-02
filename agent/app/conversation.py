@@ -30,7 +30,7 @@ class Conversation:
     ):
         self.session_id = session_id          # 数据库会话 ID
         self.user_id = user_id                 # NutriGo 用户 ID
-        self.system_msg = system_msg or settings.SYSTEM_PROMPT
+        self.system_msg = system_msg or settings.system_prompt
         self.messages: list[dict] = []         # 消息历史（不含 system 消息）
         self._dirty = False                    # 有未保存的变更
 
