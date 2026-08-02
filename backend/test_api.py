@@ -342,6 +342,22 @@ status, body = request("GET", "/api/internal/diet/logs?user_id=2&date=2026-08-01
 check("内部查 other 的空记录 → 200", status, 200)
 check("空列表", body, [])
 
+# ---------- 10. 每日汇总 ----------
+print("\n📌 10. 每日汇总")
+
+# 10a. 查汇总（还没有聚合的数据，返回空）
+status, body = request("GET", "/api/diet/summaries?start=2026-01-01&end=2026-12-31", headers=auth)
+check("查汇总 → 200", status, 200)
+check("汇总初始为空", len(body), 0)
+
+# 10b. 缺少参数
+status, body = request("GET", "/api/diet/summaries", headers=auth)
+check("缺少 start/end → 400", status, 400)
+
+# 10c. 无 token
+status, body = request("GET", "/api/diet/summaries?start=2026-01-01&end=2026-12-31")
+check("无 token → 401", status, 401)
+
 # ============================================================
 total = passed + failed
 print(f"\n{'=' * 55}")

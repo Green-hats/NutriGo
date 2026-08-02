@@ -21,10 +21,11 @@ func main() {
 	}
 
 	// 自动建表
-	config.DB.AutoMigrate(&model.User{}, &model.UserProfile{}, &model.FoodImage{}, &model.FoodDiary{})
+	config.DB.AutoMigrate(&model.User{}, &model.UserProfile{}, &model.FoodImage{}, &model.FoodDiary{}, &model.DailySummary{})
 
-	// 启动后台清理任务：每 1 小时删除 7 天前的图片
-	service.StartImageCleanup(config.DB)
+	// 启动后台任务
+	service.StartImageCleanup(config.DB)    // 每 1 小时删除 7 天前的图片
+	service.StartDietAggregator(config.DB)  // 每 24 小时聚合 7 天前的饮食记录
 
 	r := gin.Default()
 
@@ -33,6 +34,7 @@ func main() {
 	profileHandler := &handler.ProfileHandler{DB: config.DB}
 	imageHandler := &handler.ImageHandler{DB: config.DB}
 	dietHandler := &handler.DietHandler{DB: config.DB}
+	summaryHandler := &handler.SummaryHandler{DB: config.DB}
 
 	// 公共路由：无需认证
 	r.GET("/api/health", func(c *gin.Context) {
@@ -62,6 +64,8 @@ func main() {
 		protected.POST("/diet/logs", dietHandler.Create)
 		protected.GET("/diet/logs", dietHandler.List)
 		protected.DELETE("/diet/logs/:id", dietHandler.Delete)
+		// 每日汇总
+		protected.GET("/diet/summaries", summaryHandler.List)
 	}
 
 	// 内部路由：供 Python Agent 调用
