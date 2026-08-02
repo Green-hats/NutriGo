@@ -40,7 +40,7 @@ async def main():
         ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    time.sleep(3)
+    time.sleep(6)  # torch 首次加载较慢
 
     try:
         async with httpx.AsyncClient() as client:
@@ -98,6 +98,23 @@ async def main():
             # ---- 7. 不存在的会话 ----
             resp = await client.get(f"{BASE}/api/sessions/999")
             check("不存在的会话返回 404", resp.status_code, 404)
+
+            # ---- 5. 营养计算端点 ----
+            print("\n📌 5. 营养计算端点")
+            resp = await client.post(
+                f"{BASE}/api/calculate-intake",
+                json={"food_name": "苹果", "grams": 200},
+            )
+            body = resp.json()
+            check("calculate-intake → 200", resp.status_code, 200)
+            check("苹果200g热量", body["calories"], 104.0)
+            check("per_100g存在", "per_100g" in body, True)
+
+            resp = await client.post(
+                f"{BASE}/api/calculate-intake",
+                json={"food_name": "不存在", "grams": 100},
+            )
+            check("不存在的菜 → 404", resp.status_code, 404)
 
     finally:
         proc.terminate()

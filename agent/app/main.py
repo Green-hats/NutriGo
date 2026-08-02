@@ -2,22 +2,23 @@
 FastAPI 应用入口
 
 启动方式：
-  uv run python -m app.main
-
-或：
   uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 API 路由：
-  GET  /api/chat?message=xxx&session_id=123    — SSE 流式对话
-  GET  /api/sessions                            — 列出会话
-  GET  /api/sessions/:id                        — 获取会话详情
-  DELETE /api/sessions/:id                      — 删除会话
+  GET  /api/chat            — SSE 流式对话
+  GET  /api/sessions         — 列出会话
+  GET  /api/sessions/:id     — 获取会话详情
+  DELETE /api/sessions/:id   — 删除会话
+  POST /api/identify-food    — 图片识别食物（新增）
 """
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app import db
 from app.chat_io import SSEChatIO
@@ -27,6 +28,14 @@ from app.llm_client import run_agent_loop
 from app.models import SessionInfo, SessionDetail
 from app.tools import registry as tool_registry
 
+# recognition 模块
+from recognition.db import init_db as init_nutrition_db, seed_data, get_by_name, get_portion, list_names
+from recognition.go_client import go_client
+from recognition.multimodal import identify
+from recognition.nutrition import calculate_intake
+
+logger = logging.getLogger("uvicorn")
+
 
 # ============================================================
 # 应用生命周期
@@ -34,47 +43,30 @@ from app.tools import registry as tool_registry
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """服务启动/关闭时的钩子"""
-    await db.init_db()  # 启动时建表
-    print(f"  LLM 模型: {settings.LLM_MODEL}")
-    print(f"  Go 后端:  {settings.GO_BACKEND_URL}")
-    yield  # 服务运行中...
-    # 关闭时清理（目前无需操作）
+    """服务启动/关闭"""
+    await db.init_db()                 # agent.db — sessions 表
+    await init_nutrition_db()          # nutrition.db — food_nutrition + food_portion 表
+    await seed_data()                  # 首次启动插入种子数据
+    logger.info(f"LLM 模型: {settings.LLM_MODEL}")
+    logger.info(f"Go 后端:  {settings.GO_BACKEND_URL}")
+    yield
 
 
-app = FastAPI(
-    title="NutriGo Agent",
-    version="0.1.0",
-    lifespan=lifespan,
-)
+app = FastAPI(title="NutriGo Agent", version="0.1.0", lifespan=lifespan)
+
 
 # ============================================================
-# SSE 对话路由 — 核心接口
+# SSE 对话路由
 # ============================================================
 
 @app.get("/api/chat")
 async def chat(
     request: Request,
     message: str = Query(..., description="用户消息"),
-    session_id: int | None = Query(None, description="会话ID，不传则创建新会话"),
+    session_id: int | None = Query(None, description="会话ID"),
 ):
-    """
-    发起一次对话，以 SSE 流式返回 AI 回复。
+    """SSE 流式对话"""
 
-    前端使用 EventSource 连接这个接口：
-      const sse = new EventSource('/api/chat?message=今天吃什么');
-      sse.addEventListener('chunk', e => output.textContent += e.data);
-      sse.addEventListener('done', () => sse.close());
-
-    SSE 事件类型：
-      chunk       — AI 回复的一个文字片段
-      tool_call   — Agent 正在调用工具
-      tool_result — 工具执行结果
-      done        — 本轮对话结束
-      error       — 发生错误
-    """
-
-    # 1. 加载或创建会话
     if session_id:
         conv = await Conversation.load(session_id)
         if conv is None:
@@ -82,27 +74,15 @@ async def chat(
     else:
         conv = await Conversation.create_new()
 
-    # 2. 把用户消息加入对话并保存
     conv.add_user_message(message)
     await conv.save()
 
-    # 3. 创建 SSE 输出通道
     chat_io = SSEChatIO()
 
-    # 4. 启动 Agent Loop（后台运行，结果通过 chat_io 输出）
-    #    由于 StreamingResponse 需要同步消费 generator，
-    #    我们用事件机制让 run_agent_loop 和 stream 并行工作
-
     async def event_generator():
-        """把 run_agent_loop 和 SSE 流桥接起来"""
-        import asyncio
-        # 启动 Agent Loop 作为后台任务
         task = asyncio.create_task(run_agent_loop(conv, tool_registry, chat_io))
-        # 等待 Agent Loop 完成
         await task
-        # Agent 完成后，输出所有缓冲的 SSE 事件
         async for sse_event in chat_io.stream():
-            # 检查客户端是否断开
             if await request.is_disconnected():
                 break
             yield sse_event
@@ -113,7 +93,7 @@ async def chat(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",     # 禁用 nginx 缓冲
+            "X-Accel-Buffering": "no",
         },
     )
 
@@ -124,13 +104,11 @@ async def chat(
 
 @app.get("/api/sessions", response_model=list[SessionInfo])
 async def list_sessions():
-    """列出所有会话（按更新时间倒序）"""
     return await db.list_sessions()
 
 
 @app.get("/api/sessions/{session_id}", response_model=SessionDetail)
 async def get_session(session_id: int):
-    """获取指定会话的完整消息历史"""
     row = await db.get_session(session_id)
     if row is None:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -148,7 +126,79 @@ async def get_session(session_id: int):
 
 @app.delete("/api/sessions/{session_id}")
 async def delete_session(session_id: int):
-    """删除会话"""
     if not await db.delete_session(session_id):
         raise HTTPException(status_code=404, detail="会话不存在")
     return {"message": "删除成功"}
+
+
+# ============================================================
+# 食物识别路由（新增）
+# ============================================================
+
+class IdentifyRequest(BaseModel):
+    image_id: int
+
+
+@app.post("/api/identify-food")
+async def identify_food(req: IdentifyRequest):
+    """
+    识别食物图片，返回 Top-5 候选 + 营养数据 + 默认份量。
+
+    流程：
+      1. 从 Go 后端获取图片二进制
+      2. Chinese-CLIP 识别
+      3. 查 nutrition.db 获取营养和份量
+    """
+    # 1. 从 Go 获取图片
+    try:
+        image_bytes = await go_client.get_image_data(req.image_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"获取图片失败 (image_id={req.image_id}): {e}")
+
+    # 2. CLIP 识别
+    labels = await list_names()
+    if not labels:
+        raise HTTPException(status_code=500, detail="营养数据库为空，请先补充食物数据")
+
+    try:
+        candidates = identify(image_bytes, labels, top_k=5)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"图片识别失败: {e}")
+
+    # 3. 查询营养 + 份量
+    results = []
+    for c in candidates:
+        name = c["name"]
+        nutrition = await get_by_name(name) or {}
+        portion = await get_portion(name)
+        results.append({
+            "name": name,
+            "confidence": c["confidence"],
+            "nutrition_per_100g": {
+                "calories": nutrition.get("calories", 0),
+                "protein_g": nutrition.get("protein_g", 0),
+                "fat_g": nutrition.get("fat_g", 0),
+                "carbs_g": nutrition.get("carbs_g", 0),
+            },
+            "default_portion": portion,
+        })
+
+    return results
+
+
+# ============================================================
+# 营养计算辅助路由（前端计算实际摄入用）
+# ============================================================
+
+class IntakeRequest(BaseModel):
+    food_name: str
+    grams: float
+
+
+@app.post("/api/calculate-intake")
+async def calc_intake(req: IntakeRequest):
+    """根据食物名和克数计算实际摄入营养"""
+    result = await calculate_intake(req.food_name, req.grams)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
