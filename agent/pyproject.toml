@@ -1,0 +1,22 @@
+[project]
+name = "nutrigo-agent"
+version = "0.1.0"
+description = "NutriGo AI Agent — 营养分析、食物识别、RAG 对话"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "litellm>=1.50",
+    "aiosqlite>=0.20",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "pydantic>=2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

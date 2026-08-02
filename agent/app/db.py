@@ -1,0 +1,106 @@
+"""
+异步 SQLite 数据库操作 — 管理对话会话的持久化
+
+sessions 表结构：
+  id          INTEGER PRIMARY KEY
+  name        TEXT     会话名称（取第一条用户消息截断）
+  system_msg  TEXT     系统提示词
+  messages    TEXT     完整消息历史（JSON 数组）
+  user_id     INTEGER  NutriGo 用户 ID（可选，未来关联 Go 后端）
+  created_at  TEXT     创建时间
+  updated_at  TEXT     最后更新时间
+"""
+
+import json
+from datetime import datetime
+from typing import Optional
+
+import aiosqlite
+
+from app.config import settings
+
+
+async def init_db() -> None:
+    """初始化数据库：创建 sessions 表（如果不存在）"""
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT NOT NULL DEFAULT '',
+                system_msg  TEXT NOT NULL DEFAULT '',
+                messages    TEXT NOT NULL DEFAULT '[]',
+                user_id     INTEGER,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+            )
+        """)
+        await db.commit()
+
+
+async def create_session(
+    name: str = "",
+    system_msg: str = "",
+    user_id: Optional[int] = None,
+) -> int:
+    """创建新会话，返回 session_id"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO sessions (name, system_msg, user_id, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (name, system_msg, user_id, now, now),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_session(session_id: int) -> Optional[dict]:
+    """根据 ID 查询会话，返回 dict 或 None"""
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row  # 让结果可以用列名访问
+        cursor = await db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+
+async def save_messages(session_id: int, messages: list[dict]) -> None:
+    """更新会话的消息历史和时间戳"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    messages_json = json.dumps(messages, ensure_ascii=False)
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE sessions SET messages = ?, updated_at = ? WHERE id = ?",
+            (messages_json, now, session_id),
+        )
+        await db.commit()
+
+
+async def update_session_name(session_id: int, name: str) -> None:
+    """更新会话名称（取用户第一条消息的前 30 字符）"""
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE sessions SET name = ? WHERE id = ?",
+            (name[:30], session_id),
+        )
+        await db.commit()
+
+
+async def list_sessions(limit: int = 20) -> list[dict]:
+    """列出最近的会话列表"""
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT id, name, created_at FROM sessions ORDER BY updated_at DESC LIMIT ?",
+            (limit,),
+        )
+        return [dict(row) for row in await cursor.fetchall()]
+
+
+async def delete_session(session_id: int) -> bool:
+    """删除会话，返回是否成功"""
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        cursor = await db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        await db.commit()
+        return cursor.rowcount > 0
