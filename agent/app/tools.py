@@ -57,13 +57,27 @@ class RegisteredTool:
         }
 
     def execute(self, arguments_json: str) -> str:
-        """执行工具，返回字符串结果"""
+        """同步执行（async 工具请用 execute_async）"""
         try:
             args = json.loads(arguments_json)
         except json.JSONDecodeError:
             return f"参数解析失败: {arguments_json}"
         try:
             result = self.func(**args)
+            return result
+        except Exception as e:
+            return f"工具执行出错: {e}"
+
+    async def execute_async(self, arguments_json: str) -> str:
+        """异步执行"""
+        try:
+            args = json.loads(arguments_json)
+        except json.JSONDecodeError:
+            return f"参数解析失败: {arguments_json}"
+        try:
+            result = self.func(**args)
+            if inspect.iscoroutine(result):
+                result = await result
             return result
         except Exception as e:
             return f"工具执行出错: {e}"

@@ -119,7 +119,7 @@ async def _handle_tool_calls(
 
         registered = tools.get(tool_name)
         if registered:
-            result = registered.execute(arguments)
+            result = await registered.execute_async(arguments)
         else:
             result = f"未知工具: {tool_name}"
 
