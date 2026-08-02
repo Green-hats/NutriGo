@@ -105,3 +105,25 @@ func (h *DietHandler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }
+
+// ListInternal GET /api/diet/logs?user_id=1&date=2026-08-01（内部路由）
+func (h *DietHandler) ListInternal(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Query("user_id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 user_id 参数"})
+		return
+	}
+
+	date := c.Query("date")
+	if date == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 date 参数，格式 YYYY-MM-DD"})
+		return
+	}
+
+	var records []model.FoodDiary
+	h.DB.Where("user_id = ? AND date = ?", userID, date).
+		Order("created_at DESC").
+		Find(&records)
+
+	c.JSON(http.StatusOK, records)
+}

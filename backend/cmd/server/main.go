@@ -74,6 +74,10 @@ func main() {
 		// Python 通过 image_id 获取图片信息和二进制数据
 		internal.GET("/images/:id", imageHandler.GetMeta)
 		internal.GET("/images/:id/data", imageHandler.GetData)
+		// 健康档案查询（Python 需要了解用户过敏原、目标等）
+		internal.GET("/internal/users/:id/profile", profileHandler.GetProfileInternal)
+		// 饮食记录查询（Python 需要用户历史饮食来做分析）
+		internal.GET("/internal/diet/logs", dietHandler.ListInternal)
 	}
 
 	r.Run(":3333")

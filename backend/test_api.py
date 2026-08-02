@@ -315,6 +315,33 @@ check("无 token 查看 → 401", status, 401)
 status, body = request("POST", "/api/diet/logs", body={"meal_type": "snack"}, headers=auth)
 check("缺少 date/food_name → 400", status, 400)
 
+# ---------- 9. 内部路由（Python Agent 用）----------
+print("\n📌 9. 内部路由（健康档案 + 饮食记录）")
+
+# 9a. 内部查档案
+status, body = request("GET", "/api/internal/users/1/profile", headers=internal)
+check("内部查档案 → 200", status, 200)
+check("身高 175", body.get("height_cm"), 175)
+
+# 9b. 内部查不存在的用户档案
+status, body = request("GET", "/api/internal/users/999/profile", headers=internal)
+check("内部查不存在用户 → 200 返回空值", body.get("height_cm"), 0)
+
+# 9c. 内部查饮食记录
+status, body = request("GET", f"/api/internal/diet/logs?user_id=1&date={today}", headers=internal)
+check("内部查饮食 → 200", status, 200)
+check("查到红烧肉", len(body), 1)
+check("食物名 红烧肉", body[0].get("food_name"), "红烧肉")
+
+# 9d. 内部查饮食缺少 user_id
+status, body = request("GET", f"/api/internal/diet/logs?date={today}", headers=internal)
+check("内部查饮食缺 user_id → 400", status, 400)
+
+# 9e. 内部查其他用户的记录
+status, body = request("GET", "/api/internal/diet/logs?user_id=2&date=2026-08-01", headers=internal)
+check("内部查 other 的空记录 → 200", status, 200)
+check("空列表", body, [])
+
 # ============================================================
 total = passed + failed
 print(f"\n{'=' * 55}")

@@ -107,3 +107,25 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, profile)
 }
+
+// GetProfileInternal GET /api/users/:id/profile（内部路由，无归属权校验）
+func (h *ProfileHandler) GetProfileInternal(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
+
+	var profile model.UserProfile
+	result := h.DB.Where("user_id = ?", userID).First(&profile)
+	if result.Error != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"height_cm": 0, "weight_kg": 0, "age": 0,
+			"gender": "", "goal": "",
+			"allergies": []string{}, "dietary_habits": []string{},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, profile)
+}
