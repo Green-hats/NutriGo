@@ -3,16 +3,19 @@ import ReactMarkdown from 'react-markdown'
 import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 import { createChatStream } from '../api/sse'
-import { Loader2 } from 'lucide-react'
+import { Loader2, History } from 'lucide-react'
 import { ChatErrorBoundary } from '../components/ui/ChatErrorBoundary'
+import HistorySidebar from '../components/chat/HistorySidebar'
+import type { ChatMessage } from '../types'
 
 const QUICK_CHIPS = ['分析我今天吃什么', '推荐午餐', '这个有多少热量', '帮我算BMI']
 
 export default function Chat() {
   const [input, setInput] = useState('')
   const [error, setError] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const { messages, addMessage, appendToLast, updateToolResult, sessionId, isStreaming, setStreaming } = useChatStore()
+  const { messages, addMessage, appendToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming } = useChatStore()
   const userId = useAuthStore((s) => s.user?.id || 0)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -35,9 +38,19 @@ export default function Chat() {
     })
   }
 
+  const handleHistorySelect = (id: number, msgs: ChatMessage[]) => {
+    setMessages(msgs)
+    setSessionId(id)
+    setShowHistory(false)
+  }
+
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)]">
-      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold">NutriGo AI 营养师</div>
+    <div className="flex flex-col h-[calc(100vh-5rem)] relative">
+      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative">
+        NutriGo AI 营养师
+        <button onClick={() => setShowHistory(true)} className="absolute left-4 top-1/2 -translate-y-1/2"><History size={22} /></button>
+      </div>
+      {showHistory && <HistorySidebar onSelect={handleHistorySelect} onClose={() => setShowHistory(false)} />}
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         <ChatErrorBoundary>

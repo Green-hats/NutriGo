@@ -3,6 +3,7 @@
 
 # Go
 backend/data.db
+data.db
 backend/uploads/
 *.exe
 

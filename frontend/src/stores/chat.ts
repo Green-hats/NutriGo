@@ -8,6 +8,7 @@ interface ChatState {
   addMessage: (msg: ChatMessage) => void
   appendToLast: (text: string) => void
   updateToolResult: (toolName: string, result: string) => void
+  setMessages: (msgs: ChatMessage[]) => void
   setSessionId: (id: number) => void
   setStreaming: (v: boolean) => void
   clearMessages: () => void
@@ -48,5 +49,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setSessionId: (id) => set({ sessionId: id }),
   setStreaming: (v) => set({ isStreaming: v }),
+  setMessages: (msgs) => set({ messages: msgs }),
   clearMessages: () => set({ messages: [], sessionId: null }),
 }))

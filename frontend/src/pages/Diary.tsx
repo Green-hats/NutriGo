@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { goApi } from '../api/go'
 import { agentApi } from '../api/agent'
-import { Plus, Camera, Trash2, ChevronLeft, ChevronRight, Loader2, Check } from 'lucide-react'
+import { Plus, Camera, Trash2, ChevronLeft, ChevronRight, Loader2, Check, BarChart3 } from 'lucide-react'
 import { toast } from '../components/ui/Toast'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
+import NutritionChart from '../components/diary/NutritionChart'
 import type { DietRecord, IdentifyResult } from '../types'
 
 function todayStr(): string { return new Date().toISOString().slice(0, 10) }
@@ -17,6 +18,7 @@ export default function Diary() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showFlow, setShowFlow] = useState(false)
+  const [showChart, setShowChart] = useState(false)
 
   const loadRecords = useCallback(() => {
     setLoading(true)
@@ -32,8 +34,12 @@ export default function Diary() {
   const totalCal = records.reduce((s, r) => s + (r.calories || 0), 0)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold">饮食日记</div>
+    <div className="min-h-screen bg-gray-50 relative">
+      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative">
+        饮食日记
+        <button onClick={() => setShowChart(true)} className="absolute right-4 top-1/2 -translate-y-1/2"><BarChart3 size={22} /></button>
+      </div>
+      {showChart && <NutritionChart onClose={() => setShowChart(false)} />}
       <div className="bg-white px-4 py-3 flex items-center justify-between border-b">
         <button onClick={() => setDate(addDays(date, -1))}><ChevronLeft /></button>
         <span className="font-medium">{fmt(date)}</span>
