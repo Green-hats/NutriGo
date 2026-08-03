@@ -11,17 +11,17 @@ export interface SSECallbacks {
 export function createChatStream(
   message: string,
   sessionId: number | null,
+  userId: number,
   callbacks: SSECallbacks
 ): EventSource {
   const params = new URLSearchParams({ message })
   if (sessionId) params.set('session_id', String(sessionId))
+  if (userId) params.set('user_id', String(userId))
   const url = `${AGENT_URL}/chat?${params}`
 
   const es = new EventSource(url)
 
-  es.addEventListener('chunk', (e: MessageEvent) => {
-    callbacks.onChunk(e.data)
-  })
+  es.addEventListener('chunk', (e: MessageEvent) => callbacks.onChunk(e.data))
 
   es.addEventListener('tool_call', (e: MessageEvent) => {
     try {
@@ -43,9 +43,7 @@ export function createChatStream(
   })
 
   es.addEventListener('error', (e: MessageEvent) => {
-    if (e.data) {
-      callbacks.onError(e.data)
-    }
+    if (e.data) callbacks.onError(e.data)
     es.close()
   })
 

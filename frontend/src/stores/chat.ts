@@ -26,6 +26,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const last = msgs[msgs.length - 1]
       if (last && last.role === 'assistant') {
         msgs[msgs.length - 1] = { ...last, content: last.content + text }
+      } else {
+        // 工具调用后第一个 chunk：创建新的 assistant 消息
+        msgs.push({ role: 'assistant', content: text })
       }
       return { messages: msgs }
     }),

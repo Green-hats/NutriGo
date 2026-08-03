@@ -2,6 +2,12 @@ import { useAuthStore } from '../stores/auth'
 
 const GO_URL = '/api'
 
+function getUserId(): number {
+  const user = useAuthStore.getState().user
+  if (!user) throw new Error('未登录')
+  return user.id
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = useAuthStore.getState().token
   const headers: Record<string, string> = {
@@ -35,11 +41,11 @@ export const goApi = {
       body: JSON.stringify({ username, password }),
     }),
 
-  getProfile: (userId: number) =>
-    request<any>(`/users/${userId}/profile`),
+  getProfile: () =>
+    request<any>(`/users/${getUserId()}/profile`),
 
-  updateProfile: (userId: number, data: any) =>
-    request<any>(`/users/${userId}/profile`, {
+  updateProfile: (data: any) =>
+    request<any>(`/users/${getUserId()}/profile`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),

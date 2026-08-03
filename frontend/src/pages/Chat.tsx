@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useChatStore } from '../stores/chat'
+import { useAuthStore } from '../stores/auth'
 import { createChatStream } from '../api/sse'
 
 export default function Chat() {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const { messages, addMessage, appendToLast, sessionId, setSessionId, isStreaming, setStreaming } = useChatStore()
+  const userId = useAuthStore((s) => s.user?.id || 0)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -21,7 +23,7 @@ export default function Chat() {
     addMessage({ role: 'assistant', content: '' })
     setStreaming(true)
 
-    createChatStream(text, sessionId, {
+    createChatStream(text, sessionId, userId, {
       onChunk: (t) => appendToLast(t),
       onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
       onToolResult: (name, result) => {},

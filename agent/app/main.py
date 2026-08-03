@@ -64,6 +64,7 @@ async def chat(
     request: Request,
     message: str = Query(..., description="用户消息"),
     session_id: int | None = Query(None, description="会话ID"),
+    user_id: int | None = Query(None, description="用户ID"),
 ):
     """SSE 流式对话"""
 
@@ -72,7 +73,7 @@ async def chat(
         if conv is None:
             raise HTTPException(status_code=404, detail="会话不存在")
     else:
-        conv = await Conversation.create_new()
+        conv = await Conversation.create_new(user_id=user_id)
 
     conv.add_user_message(message)
     await conv.save()
@@ -155,10 +156,10 @@ async def identify_food(req: IdentifyRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"获取图片失败 (image_id={req.image_id}): {e}")
 
-    # 2. CLIP 识别
-    labels = await list_names()
+    # 2. CLIP 识别（仅用家常菜，避免 8407 个 labels 太慢）
+    labels = await list_names(category="家常菜")
     if not labels:
-        raise HTTPException(status_code=500, detail="营养数据库为空，请先补充食物数据")
+        raise HTTPException(status_code=500, detail="营养数据库中无家常菜数据")
 
     try:
         candidates = identify(image_bytes, labels, top_k=5)
@@ -176,9 +177,9 @@ async def identify_food(req: IdentifyRequest):
             "confidence": c["confidence"],
             "nutrition_per_100g": {
                 "calories": nutrition.get("calories", 0),
-                "protein_g": nutrition.get("protein_g", 0),
-                "fat_g": nutrition.get("fat_g", 0),
-                "carbs_g": nutrition.get("carbs_g", 0),
+                "protein_g": nutrition.get("protein", 0),
+                "fat_g": nutrition.get("fat", 0),
+                "carbs_g": nutrition.get("carbohydrate", 0),
             },
             "default_portion": portion,
         })

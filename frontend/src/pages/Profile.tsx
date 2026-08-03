@@ -17,12 +17,12 @@ export default function Profile() {
 
   useEffect(() => {
     if (!user) return
-    goApi.getProfile(user.id).then(setForm).catch(() => {})
+    goApi.getProfile().then(setForm).catch(() => {})
   }, [user])
 
   const handleSave = async () => {
     if (!user) return
-    await goApi.updateProfile(user.id, form)
+    await goApi.updateProfile(form)
     setProfile(form)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
