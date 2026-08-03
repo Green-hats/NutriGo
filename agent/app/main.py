@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app import db
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="NutriGo Agent", version="0.1.0", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 # ============================================================
@@ -81,12 +83,14 @@ async def chat(
     chat_io = SSEChatIO()
 
     async def event_generator():
+        # Agent 作为后台任务运行
         task = asyncio.create_task(run_agent_loop(conv, tool_registry, chat_io))
-        await task
+        # 同时从队列实时读取 SSE 事件并 yield
         async for sse_event in chat_io.stream():
             if await request.is_disconnected():
                 break
             yield sse_event
+        await task
 
     return StreamingResponse(
         event_generator(),

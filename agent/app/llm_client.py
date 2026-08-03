@@ -1,6 +1,7 @@
 """
-LLM 客户端 — Agent Loop 核心实现
+LLM 客户端 — Agent Loop（流式版本）
 """
+import json
 import logging
 import litellm
 from app.config import settings
@@ -12,16 +13,13 @@ logger = logging.getLogger("uvicorn")
 litellm.drop_params = True
 
 
-async def run_agent_loop(
-    conv: Conversation,
-    tools: ToolRegistry,
-    chat_io: ChatIO,
-) -> None:
+async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatIO) -> None:
     tools_list = tools.to_openai_format() if tools._tools else None
 
     for iteration in range(settings.MAX_AGENT_ITERATIONS):
-        logger.info(f"[Agent] 第 {iteration+1} 轮 LLM 调用")
-        kwargs = _build_llm_kwargs(conv.to_messages(), tools_list)
+        logger.info(f"[Agent] 第 {iteration+1} 轮")
+        kwargs = _build_kwargs(conv.to_messages(), tools_list, stream=True)
+
         try:
             response = await litellm.acompletion(**kwargs)
         except Exception as e:
@@ -29,36 +27,82 @@ async def run_agent_loop(
             await chat_io.emit_error(f"LLM 调用失败: {str(e)}")
             return
 
-        choice = response.choices[0]
+        # 收集流式响应
+        content = ""
+        tool_call_buffer: dict[int, dict] = {}
 
-        if choice.message.tool_calls:
-            tool_names = [tc.function.name for tc in choice.message.tool_calls]
+        async for chunk in response:
+            delta = chunk.choices[0].delta
+
+            # 文字内容 → 直接推送
+            if delta.content:
+                content += delta.content
+                await chat_io.emit_chunk(delta.content)
+
+            # 工具调用 → 累积（可能跨多个 chunk）
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_call_buffer:
+                        tool_call_buffer[idx] = {
+                            "id": tc.id or "",
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    buf = tool_call_buffer[idx]
+                    if tc.id:
+                        buf["id"] = tc.id
+                    if tc.function and tc.function.name:
+                        buf["function"]["name"] += tc.function.name
+                    if tc.function and tc.function.arguments:
+                        buf["function"]["arguments"] += tc.function.arguments
+
+        # 流式输出完成 → 有工具调用则执行
+        if tool_call_buffer:
+            tool_calls_list = list(tool_call_buffer.values())
+            tool_names = [t["function"]["name"] for t in tool_calls_list]
             logger.info(f"[Agent] 工具调用: {tool_names}")
-            await _handle_tool_calls(conv, tools, chat_io, choice.message.tool_calls)
+
+            conv.add_assistant_message(content or None)
+
+            openai_tool_calls = []
+            for tc in tool_calls_list:
+                openai_tool_calls.append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": tc["function"],
+                })
+            conv.messages[-1] = {**conv.messages[-1], "tool_calls": openai_tool_calls}
+
+            await chat_io.emit_thinking("正在查询数据...")
+            for tc in tool_calls_list:
+                name = tc["function"]["name"]
+                args = tc["function"]["arguments"]
+                await chat_io.emit_tool_call(name, args)
+                registered = tools.get(name)
+                if registered:
+                    result = await registered.execute_async(args)
+                else:
+                    result = f"未知工具: {name}"
+                await chat_io.emit_tool_result(name, result)
+                conv.add_tool_result(tc["id"], name, result)
             continue
 
-        if choice.message.content:
-            logger.info(f"[Agent] 最终回复, 长度 {len(choice.message.content)}")
-            conv.add_assistant_message(choice.message.content)
-            # 直接推送内容（不做第二次流式调用，避免卡住）
-            await chat_io.emit_chunk(choice.message.content)
+        # 有内容 → 最终回复
+        if content:
+            conv.add_assistant_message(content)
             await conv.save()
             await chat_io.emit_done()
             return
 
-        logger.warning(f"[Agent] LLM 返回空内容")
+        # 空响应
         await chat_io.emit_error("LLM 未返回有效内容")
         return
 
-    logger.warning(f"[Agent] 超过 {settings.MAX_AGENT_ITERATIONS} 次上限")
-    await chat_io.emit_error(f"Agent 循环超过 {settings.MAX_AGENT_ITERATIONS} 次上限，已停止")
+    await chat_io.emit_error(f"Agent 循环超过 {settings.MAX_AGENT_ITERATIONS} 次上限")
 
 
-def _build_llm_kwargs(messages: list[dict], tools: list[dict] | None) -> dict:
-    kwargs = {
-        "model": settings.LLM_MODEL,
-        "messages": messages,
-    }
+def _build_kwargs(messages: list[dict], tools: list[dict] | None, stream: bool) -> dict:
+    kwargs = {"model": settings.LLM_MODEL, "messages": messages, "stream": stream}
     if settings.LLM_API_KEY:
         kwargs["api_key"] = settings.LLM_API_KEY
     if settings.LLM_BASE_URL:
@@ -66,35 +110,3 @@ def _build_llm_kwargs(messages: list[dict], tools: list[dict] | None) -> dict:
     if tools:
         kwargs["tools"] = tools
     return kwargs
-
-
-async def _handle_tool_calls(
-    conv: Conversation,
-    tools: ToolRegistry,
-    chat_io: ChatIO,
-    tool_calls: list,
-) -> None:
-    await chat_io.emit_thinking("正在查询数据...")
-
-    openai_tool_calls = []
-    for tc in tool_calls:
-        openai_tool_calls.append({
-            "id": tc.id,
-            "type": "function",
-            "function": {"name": tc.function.name, "arguments": tc.function.arguments},
-        })
-    conv.add_assistant_tool_calls(openai_tool_calls)
-
-    for tc in tool_calls:
-        tool_name = tc.function.name
-        arguments = tc.function.arguments
-        await chat_io.emit_tool_call(tool_name, arguments)
-
-        registered = tools.get(tool_name)
-        if registered:
-            result = await registered.execute_async(arguments)
-        else:
-            result = f"未知工具: {tool_name}"
-
-        await chat_io.emit_tool_result(tool_name, result)
-        conv.add_tool_result(tc.id, tool_name, result)

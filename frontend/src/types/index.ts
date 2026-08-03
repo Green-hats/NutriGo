@@ -83,4 +83,5 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool'
   content: string
   toolName?: string
+  toolResult?: string
 }

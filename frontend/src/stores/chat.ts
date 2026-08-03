@@ -7,6 +7,7 @@ interface ChatState {
   isStreaming: boolean
   addMessage: (msg: ChatMessage) => void
   appendToLast: (text: string) => void
+  updateToolResult: (toolName: string, result: string) => void
   setSessionId: (id: number) => void
   setStreaming: (v: boolean) => void
   clearMessages: () => void
@@ -17,8 +18,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessionId: null,
   isStreaming: false,
 
-  addMessage: (msg) =>
-    set((s) => ({ messages: [...s.messages, msg] })),
+  addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
 
   appendToLast: (text) =>
     set((s) => {
@@ -27,9 +27,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (last && last.role === 'assistant') {
         msgs[msgs.length - 1] = { ...last, content: last.content + text }
       } else {
-        // 工具调用后第一个 chunk：创建新的 assistant 消息
         msgs.push({ role: 'assistant', content: text })
       }
+      return { messages: msgs }
+    }),
+
+  updateToolResult: (toolName, result) =>
+    set((s) => {
+      const msgs = [...s.messages]
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === 'tool' && msgs[i].toolName === toolName) {
+          msgs[i] = { ...msgs[i], toolResult: result }
+          return { messages: msgs }
+        }
+      }
+      // 找不到对应的 tool 消息，追加一个新的
+      msgs.push({ role: 'tool', content: '', toolName, toolResult: result })
       return { messages: msgs }
     }),
 

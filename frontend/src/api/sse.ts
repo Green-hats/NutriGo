@@ -1,4 +1,4 @@
-const AGENT_URL = '/agent-api'
+const AGENT_URL = 'http://localhost:8000/api'
 
 export interface SSECallbacks {
   onChunk: (text: string) => void
