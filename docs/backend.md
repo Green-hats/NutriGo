@@ -25,9 +25,9 @@ backend/
 │   │   └── jwt.go              # JWT 签发/验证
 │   ├── handler/
 │   │   ├── auth.go             # 注册/登录
-│   │   ├── profile.go          # 健康档案
-│   │   ├── image.go            # 图片上传/删除/获取
-│   │   ├── diet.go             # 饮食记录 CRUD
+│   │   ├── profile.go          # 健康档案（用户+内部）
+│   │   ├── image.go            # 图片上传/删除/元信息/二进制
+│   │   ├── diet.go             # 饮食记录 CRUD + 内部查询
 │   │   └── summary.go          # 每日汇总查询
 │   ├── middleware/
 │   │   ├── jwt.go              # JWT 认证中间件
@@ -38,14 +38,14 @@ backend/
 │   │   ├── food_diary.go       # FoodDiary
 │   │   └── daily_summary.go    # DailySummary
 │   └── service/
-│       ├── cleanup.go          # 图片定时清理
-│       └── aggregator.go       # 饮食记录定时聚合
+│       ├── cleanup.go          # 图片定时清理（每 1h）
+│       └── aggregator.go       # 饮食记录定时聚合（每 24h）
 ├── uploads/                    # 图片存储目录
 ├── API.md                      # API 文档
 └── test_api.py                 # 66 个测试用例
 ```
 
-## 路由
+## 路由（17 条）
 
 ### 公共路由（无需认证）
 
@@ -79,20 +79,20 @@ backend/
 
 ## 数据库表
 
-| 表 | 说明 |
-|----|------|
-| `users` | 用户账号 |
-| `user_profiles` | 健康档案（1:1） |
-| `food_images` | 食物图片记录 |
-| `food_diaries` | 每日饮食明细（7 天内） |
-| `daily_summaries` | 每日营养汇总（7 天以上） |
+| 表 | 说明 | 生命周期 |
+|----|------|---------|
+| `users` | 用户账号 | 永久 |
+| `user_profiles` | 健康档案（1:1） | 永久 |
+| `food_images` | 食物图片记录 | 7 天后清理 |
+| `food_diaries` | 每日饮食明细 | 7 天后聚合删除 |
+| `daily_summaries` | 每日营养汇总 | 永久 |
 
 ## 后台任务
 
 | 任务 | 频率 | 功能 |
 |------|------|------|
-| ImageCleanup | 每 1h | 删除 7 天前的图片 |
-| DietAggregator | 每 24h | 聚合 7 天前记录为每日汇总 |
+| ImageCleanup | 每 1h | 删除 7 天前图片（磁盘+数据库） |
+| DietAggregator | 每 24h | 聚合 7 天前记录 → daily_summaries + 删除原记录 |
 
 ## 测试
 
@@ -100,4 +100,4 @@ backend/
 cd backend && python3 test_api.py
 ```
 
-共 66 个测试用例，覆盖所有路由和鉴权逻辑。
+66 个测试用例，覆盖所有路由和鉴权逻辑。

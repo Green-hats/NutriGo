@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 import { createChatStream } from '../api/sse'
-import { Loader2, History } from 'lucide-react'
+import { Loader2, History, Plus } from 'lucide-react'
 import { ChatErrorBoundary } from '../components/ui/ChatErrorBoundary'
 import HistorySidebar from '../components/chat/HistorySidebar'
 import type { ChatMessage } from '../types'
@@ -15,7 +15,7 @@ export default function Chat() {
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const { messages, addMessage, appendToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming } = useChatStore()
+  const { messages, addMessage, appendToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming, clearMessages } = useChatStore()
   const userId = useAuthStore((s) => s.user?.id || 0)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -47,8 +47,9 @@ export default function Chat() {
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] relative">
       <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative">
-        NutriGo AI 营养师
         <button onClick={() => setShowHistory(true)} className="absolute left-4 top-1/2 -translate-y-1/2"><History size={22} /></button>
+        NutriGo AI 营养师
+        <button onClick={clearMessages} title="新建会话" className="absolute right-4 top-1/2 -translate-y-1/2"><Plus size={24} /></button>
       </div>
       {showHistory && <HistorySidebar onSelect={handleHistorySelect} onClose={() => setShowHistory(false)} />}
 

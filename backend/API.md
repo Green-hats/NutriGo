@@ -23,7 +23,8 @@
   - [5.1 创建记录](#51-创建记录)
   - [5.2 按日期查询](#52-按日期查询)
   - [5.3 删除记录](#53-删除记录)
-- [6. 开发调试接口](#6-开发调试接口)
+- [6. 每日汇总](#6-每日汇总)
+- [7. 开发调试接口](#7-开发调试接口)
 - [附录 A：HTTP 状态码速查](#附录-ahttp-状态码速查)
 - [附录 B：curl 全流程测试](#附录-bcurl-全流程测试)
 
@@ -489,7 +490,40 @@ curl -X DELETE http://localhost:3333/api/diet/logs/1 \
 
 ---
 
-## 6. 开发调试接口
+## 6. 每日汇总
+
+```
+GET /api/diet/summaries?start=2026-01-01&end=2026-08-01
+```
+
+| 认证 | JWT |
+|------|-----|
+| 参数 | `start`（必填）、`end`（必填），格式 `YYYY-MM-DD` |
+
+返回用户指定日期范围内的每日营养汇总（7 天后自动聚合）。
+
+**`200 OK`**
+
+```json
+[
+  {
+    "id": 1, "user_id": 1,
+    "date": "2026-08-01",
+    "total_calories": 1850, "total_protein_g": 72,
+    "total_fat_g": 55, "total_carbs_g": 210,
+    "meal_count": 3
+  }
+]
+```
+
+```bash
+curl "http://localhost:3333/api/diet/summaries?start=2026-01-01&end=2026-08-31" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+---
+
+## 7. 开发调试接口
 
 以下接口仅用于开发阶段调试中间件，后续可移除。
 
@@ -544,8 +578,11 @@ curl http://localhost:3333/api/internal/example \
 | `POST` | `/api/diet/logs` | JWT | 创建饮食记录 |
 | `GET` | `/api/diet/logs` | JWT | 按日期查询记录 |
 | `DELETE` | `/api/diet/logs/:id` | JWT | 删除记录 |
+| `GET` | `/api/diet/summaries?start=&end=` | JWT | 每日营养汇总 |
 | `GET` | `/api/images/:id` | Internal | Python 取图片元信息 |
 | `GET` | `/api/images/:id/data` | Internal | Python 取图片二进制 |
+| `GET` | `/api/internal/users/:id/profile` | Internal | Python 查档案 |
+| `GET` | `/api/internal/diet/logs?user_id=&date=` | Internal | Python 查记录 |
 
 ---
 
