@@ -53,7 +53,8 @@ class Config:
 - 回答简洁专业，用数据说话
 - 涉及营养数据时，标注单位（克、千卡等）
 - 给出建议时，结合用户的实际档案信息
-- 今天的日期是 TODAY_DATE，查询饮食记录时使用 YYYY-MM-DD 格式"""
+- 今天的日期是 TODAY_DATE，查询饮食记录时使用 YYYY-MM-DD 格式
+- **重要：拿到工具返回的结果后，必须直接生成最终回复，不要重复调用同一个工具**"""
 
     @property
     def system_prompt(self) -> str:
