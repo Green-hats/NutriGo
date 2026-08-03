@@ -34,6 +34,7 @@ from recognition.db import init_db as init_nutrition_db, seed_data, get_by_name,
 from recognition.go_client import go_client
 from recognition.multimodal import identify
 from recognition.nutrition import calculate_intake
+from recognition.rag import init_rag
 
 logger = logging.getLogger("uvicorn")
 
@@ -46,8 +47,9 @@ logger = logging.getLogger("uvicorn")
 async def lifespan(app: FastAPI):
     """服务启动/关闭"""
     await db.init_db()                 # agent.db — sessions 表
-    await init_nutrition_db()          # nutrition.db — food_nutrition + food_portion 表
+    await init_nutrition_db()          # nutrition.db — 食物营养
     await seed_data()                  # 首次启动插入种子数据
+    init_rag()                         # ChromaDB — 营养知识库
     logger.info(f"LLM 模型: {settings.LLM_MODEL}")
     logger.info(f"Go 后端:  {settings.GO_BACKEND_URL}")
     yield

@@ -25,3 +25,5 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+agent/chroma_db
+agent/nutrition_rag.tar.gz

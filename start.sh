@@ -57,7 +57,6 @@ start_services() {
     # 先停旧进程
     stop_services
     sleep 1
-    rm -f "$ROOT/backend/data.db" "$ROOT/agent/agent.db"
 
     # ---- Go ----
     echo "  [1/3] 编译 Go..."
@@ -76,7 +75,7 @@ start_services() {
     echo "  [2/3] 启动 Python Agent..."
     cd "$ROOT/agent"
     LITELLM_LOCAL_MODEL_COST_MAP=true nohup uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/nutrigo-py.log 2>&1 &
-    sleep 5
+    sleep 20
     if curl -s --max-time 3 http://localhost:8000/api/sessions > /dev/null 2>&1; then
         echo -e "  [2/3] Python Agent ${GREEN}✅${NC}  :8000"
     else

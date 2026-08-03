@@ -16,6 +16,7 @@ dependencies = [
     "torch>=2.0",
     "pillow>=10.0",
     "chromadb>=0.5",
+    "sentence-transformers>=5.6.1",
 ]
 
 [build-system]

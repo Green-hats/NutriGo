@@ -121,6 +121,7 @@ registry = ToolRegistry()
 
 # 从 recognition.nutrition 导入工具函数
 from recognition.nutrition import lookup_food_nutrition, get_user_profile, get_diet_history
+from recognition.rag import search_nutrition_knowledge
 
 registry.register(
     lookup_food_nutrition,
@@ -140,4 +141,12 @@ registry.register(
     name="get_diet_history",
     description="获取用户某一天的饮食记录。"
                 "当用户询问'我今天吃了什么'、'分析我的饮食'或需要结合已有饮食给出建议时调用。",
+)
+
+registry.register(
+    search_nutrition_knowledge,
+    name="search_nutrition_knowledge",
+    description="搜索《营养学》专业知识库，获取疾病营养治疗、膳食原则、营养素功能等权威知识。"
+                "当用户询问专业营养学问题（如糖尿病饮食、孕期营养、痛风禁忌等）时调用。"
+                "参数 query 为搜索关键词或问题。",
 )
