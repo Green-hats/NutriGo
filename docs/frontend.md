@@ -28,8 +28,8 @@ frontend/src/
 │   └── chat.ts                 # Zustand: messages, sessionId, toolResults
 ├── api/
 │   ├── go.ts                   # Go REST (自动带 JWT + userId)
-│   ├── agent.ts                # Python REST
-│   └── sse.ts                  # SSE 直连 :8000（真流式）
+│   ├── agent.ts                # Python REST (自动带 JWT)
+│   └── sse.ts                  # fetch + ReadableStream 解析 SSE（带 JWT）
 ├── components/
 │   ├── ui/
 │   │   ├── LoadingButton.tsx   # 按钮 + spinner
@@ -48,7 +48,7 @@ frontend/src/
 ├── pages/
 │   ├── Login.tsx               # 登录（LoadingButton）
 │   ├── Register.tsx            # 注册（LoadingButton）
-│   ├── Chat.tsx                # SSE 流式对话 + 工具展示 + 历史
+│   ├── Chat.tsx                # SSE 流式对话 + 思考面板 + 工具展示 + 历史
 │   ├── Diary.tsx               # 日期选择 + 5步拍照流程 + 图表
 │   └── Profile.tsx             # 档案表单 + 骨架屏
 └── pages/
@@ -75,7 +75,8 @@ frontend/src/
 API 层自动注入：
 - `go.ts` 自动从 authStore 取 token 加 `Authorization` 头
 - `go.ts` 自动从 authStore 取 userId 拼到 profile 路径
-- `Chat.tsx` 自动从 authStore 取 userId 传给 SSE
+- `agent.ts` 自动从 authStore 取 token 加 `Authorization` 头
+- `Chat.tsx` 自动从 authStore 取 token 传给 SSE（`user_id` 由后端从 JWT 解出，不再传 URL 参数）
 
 ### chatStore
 
@@ -84,7 +85,14 @@ API 层自动注入：
 ```
 
 `appendToLast` 处理流式场景：最后一条是 `assistant` 则追加，否则新建。
+`appendThinkingToLast` 把思维链流式追加到最后一条 assistant 消息的 `thinking` 字段。
 `updateToolResult` 按 toolName 匹配更新对应工具消息卡片。
+
+`ChatMessage` 结构：
+```typescript
+{ role: 'user' | 'assistant' | 'tool', content: string,
+  toolName?: string, toolResult?: string, thinking?: string }
+```
 
 ## 拍照识别流程（5 步进度条）
 
@@ -101,9 +109,19 @@ API 层自动注入：
 
 ## SSE 流式对话
 
-- `EventSource` 直连 Python `:8000/api/chat`
-- 流式输出中渲染纯文本（快），结束后自动切换 ReactMarkdown
-- 工具调用显示折叠卡片 `<details>`，可展开查看返回值
+- `sse.ts` 用 `fetch` + `ReadableStream` 解析 SSE，连接 Python `/agent-api/chat`（经 Vite 代理到 :8000）
+- 使用 fetch 而非 `EventSource` 的原因：`EventSource` 无法自定义 `Authorization` 头，而对话接口要求 JWT
+- 返回 `{ cancel }` 句柄，可手动中断连接
+- 监听 5 类事件：
+
+| 事件 | 处理 |
+|------|------|
+| `thinking` | 折叠面板「🤔 思考过程」流式展示思维链 |
+| `chunk` | 流式输出中渲染纯文本（快），结束后自动切换 ReactMarkdown |
+| `tool_call` / `tool_result` | 工具卡片：`<details>` 折叠展示调用与返回值 |
+| `done` / `error` | 收尾 / 错误提示 |
+
+- 思维链仅在模型返回 `reasoning_content` 时出现，无思维链时面板自动隐藏
 - `ChatErrorBoundary` 捕获崩溃，显示错误+重试
 
 ## 交互规范
