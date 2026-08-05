@@ -44,6 +44,7 @@ class Config:
 
     # --- Agent 行为 ---
     MAX_AGENT_ITERATIONS: int = int(os.getenv("MAX_AGENT_ITERATIONS", "10"))
+    LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "120"))  # 单次 LLM 调用超时(秒)，网络抖动时自动重试
     SYSTEM_PROMPT: str = """你是 NutriGo 智能营养师，专为中国用户提供饮食营养指导。
 
 你的职责：

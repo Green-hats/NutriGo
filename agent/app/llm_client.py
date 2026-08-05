@@ -1,6 +1,7 @@
 """
 LLM 客户端 — Agent Loop（流式版本）
 """
+import asyncio
 import json
 import logging
 import litellm
@@ -19,12 +20,22 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
     for iteration in range(settings.MAX_AGENT_ITERATIONS):
         logger.info(f"[Agent] 第 {iteration+1} 轮")
         kwargs = _build_kwargs(conv.to_messages(), tools_list, stream=True)
-
-        try:
-            response = await litellm.acompletion(**kwargs)
-        except Exception as e:
-            logger.error(f"[Agent] LLM 调用失败: {e}")
-            await chat_io.emit_error(f"LLM 调用失败: {str(e)}")
+        # 网络抖动时自动重试，最多 2 次
+        response = None
+        for attempt in range(3):
+            try:
+                response = await asyncio.wait_for(
+                    litellm.acompletion(**kwargs),
+                    timeout=settings.LLM_TIMEOUT,
+                )
+                break
+            except asyncio.TimeoutError:
+                logger.warning(f"[Agent] 第 {iteration+1} 轮 LLM 超时 (尝试 {attempt+1}/3)")
+            except Exception as e:
+                logger.warning(f"[Agent] 第 {iteration+1} 轮 LLM 调用失败: {e} (尝试 {attempt+1}/3)")
+                await asyncio.sleep(1)
+        if response is None:
+            await chat_io.emit_error("LLM 调用多次失败，请稍后重试")
             return
 
         # 收集流式响应
