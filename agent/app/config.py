@@ -50,6 +50,7 @@ class Config:
     MAX_CONTEXT_MESSAGES: int = int(os.getenv("MAX_CONTEXT_MESSAGES", "40"))  # 发给 LLM 的最大消息条数
     TOOL_TIMEOUT: int = int(os.getenv("TOOL_TIMEOUT", "30"))  # 单个工具执行超时(秒)
     MAX_ACTIVE_PER_USER: int = int(os.getenv("MAX_ACTIVE_PER_USER", "1"))  # 同一用户同时最多 N 个活跃对话
+    MAX_MESSAGE_LENGTH: int = int(os.getenv("MAX_MESSAGE_LENGTH", "2000"))  # 单条用户消息最大字符数
     SYSTEM_PROMPT: str = """你是 NutriGo 智能营养师，专为中国用户提供饮食营养指导。
 
 你的职责：

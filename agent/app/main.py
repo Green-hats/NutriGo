@@ -98,6 +98,13 @@ async def chat(
     if user_id is None:
         raise HTTPException(status_code=401, detail="未认证或 token 无效")
 
+    # 输入长度限制，防 token 轰炸
+    if len(message) > settings.MAX_MESSAGE_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"消息过长（最多 {settings.MAX_MESSAGE_LENGTH} 字符）",
+        )
+
     # 生成请求 ID，注入 contextvars（agent 循环子任务自动继承）
     request_id_var.set(new_request_id())
 

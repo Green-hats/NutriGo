@@ -166,6 +166,7 @@ export default function Chat() {
           <input
             className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-green-500"
             placeholder="输入消息..."
+            maxLength={2000}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') send(input) }}
