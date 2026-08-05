@@ -27,7 +27,9 @@ from app.chat_io import SSEChatIO
 from app.config import settings
 from app.conversation import Conversation
 from app.llm_client import run_agent_loop
+from app.logging_setup import configure_logging, new_request_id, request_id_var
 from app.models import SessionInfo, SessionDetail
+from app.rate_limit import acquire_user, get_session_lock, release_user
 from app.tools import registry as tool_registry
 
 # recognition 模块
@@ -47,6 +49,7 @@ logger = logging.getLogger("uvicorn")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """服务启动/关闭"""
+    configure_logging()
     await db.init_db()                 # agent.db — sessions 表
     await init_nutrition_db()          # nutrition.db — 食物营养
     await seed_data()                  # 首次启动插入种子数据
@@ -64,6 +67,24 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # SSE 对话路由
 # ============================================================
 
+async def _load_or_create_conv(session_id: int | None, user_id: int, message: str) -> Conversation:
+    """加载已有会话或创建新会话，添加用户消息。会话级锁防并发写入冲突。"""
+    if session_id:
+        # 同一会话串行处理，避免并发 save 互相覆盖
+        lock = await get_session_lock(session_id)
+        async with lock:
+            conv = await Conversation.load(session_id, user_id=user_id)
+            if conv is None:
+                raise HTTPException(status_code=404, detail="会话不存在")
+            conv.add_user_message(message)
+            await conv.save()
+            return conv
+    conv = await Conversation.create_new(user_id=user_id)
+    conv.add_user_message(message)
+    await conv.save()
+    return conv
+
+
 @app.get("/api/chat")
 async def chat(
     request: Request,
@@ -77,15 +98,19 @@ async def chat(
     if user_id is None:
         raise HTTPException(status_code=401, detail="未认证或 token 无效")
 
-    if session_id:
-        conv = await Conversation.load(session_id, user_id=user_id)
-        if conv is None:
-            raise HTTPException(status_code=404, detail="会话不存在")
-    else:
-        conv = await Conversation.create_new(user_id=user_id)
+    # 生成请求 ID，注入 contextvars（agent 循环子任务自动继承）
+    request_id_var.set(new_request_id())
 
-    conv.add_user_message(message)
-    await conv.save()
+    # 用户级并发限制：同一用户同时只允许 1 个活跃对话
+    if not await acquire_user(user_id):
+        logger.warning(f"user={user_id} 并发超限，拒绝请求")
+        raise HTTPException(status_code=429, detail="您有对话正在进行中，请等待完成后再试")
+
+    try:
+        conv = await _load_or_create_conv(session_id, user_id, message)
+    except BaseException:
+        await release_user(user_id)
+        raise
 
     chat_io = SSEChatIO()
 
@@ -107,6 +132,9 @@ async def chat(
             await task
         except BaseException:
             pass
+        finally:
+            # 无论结果如何都释放用户并发名额
+            await release_user(user_id)
 
     return StreamingResponse(
         event_generator(),

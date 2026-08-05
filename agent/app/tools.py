@@ -5,6 +5,7 @@
 替换为 recognition/nutrition.py 中的真实 Agent 工具。
 """
 
+import asyncio
 import json
 import inspect
 from typing import Any, Callable
@@ -101,6 +102,7 @@ class RegisteredTool:
 
     async def execute_async(self, arguments_json: str, defaults: dict | None = None) -> str:
         """异步执行。defaults 用于补齐 LLM 未提供的参数（如 user_id），仅注入函数实际接受的参数"""
+        from app.config import settings
         try:
             args = json.loads(arguments_json)
         except json.JSONDecodeError:
@@ -115,12 +117,21 @@ class RegisteredTool:
         if missing:
             return missing
         try:
-            result = self.func(**args)
-            if inspect.iscoroutine(result):
-                result = await result
+            result = await asyncio.wait_for(
+                self._run(args), timeout=settings.TOOL_TIMEOUT
+            )
             return self._truncate_result(result)
+        except asyncio.TimeoutError:
+            return f"工具 {self.name} 执行超时（> {settings.TOOL_TIMEOUT}s），请稍后重试或换个问法"
         except Exception as e:
             return f"工具执行出错: {e}"
+
+    async def _run(self, args: dict) -> str:
+        """实际执行工具函数（可被 wait_for 超时中断）"""
+        result = self.func(**args)
+        if inspect.iscoroutine(result):
+            result = await result
+        return result
 
 
 class ToolRegistry:

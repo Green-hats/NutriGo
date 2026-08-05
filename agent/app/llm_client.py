@@ -15,13 +15,17 @@ litellm.drop_params = True
 
 
 async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatIO) -> None:
+    import time as _time
     tools_list = tools.to_openai_format() if tools._tools else None
+    start_total = _time.monotonic()
+    logger.info(f"对话开始 session={conv.session_id} user_id={conv.user_id}")
 
     for iteration in range(settings.MAX_AGENT_ITERATIONS):
         if chat_io.cancelled:
-            logger.info("[Agent] 已取消，退出循环")
+            logger.info("已取消，退出循环")
             return
-        logger.info(f"[Agent] 第 {iteration+1} 轮")
+        iter_start = _time.monotonic()
+        logger.info(f"第 {iteration+1} 轮")
         kwargs = _build_kwargs(conv.to_messages(), tools_list, stream=True)
         # 网络抖动时自动重试，最多 2 次
         response = None
@@ -33,9 +37,9 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
                 )
                 break
             except asyncio.TimeoutError:
-                logger.warning(f"[Agent] 第 {iteration+1} 轮 LLM 超时 (尝试 {attempt+1}/3)")
+                logger.warning(f"第 {iteration+1} 轮 LLM 超时 (尝试 {attempt+1}/3)")
             except Exception as e:
-                logger.warning(f"[Agent] 第 {iteration+1} 轮 LLM 调用失败: {e} (尝试 {attempt+1}/3)")
+                logger.warning(f"第 {iteration+1} 轮 LLM 调用失败: {e} (尝试 {attempt+1}/3)")
                 await asyncio.sleep(1)
         if response is None:
             await chat_io.emit_error("LLM 调用多次失败，请稍后重试")
@@ -48,7 +52,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
 
         async for chunk in response:
             if chat_io.cancelled:
-                logger.info("[Agent] 客户端已断开，停止接收")
+                logger.info("客户端已断开，停止接收")
                 break
             delta = chunk.choices[0].delta
 
@@ -84,7 +88,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
         if tool_call_buffer:
             tool_calls_list = list(tool_call_buffer.values())
             tool_names = [t["function"]["name"] for t in tool_calls_list]
-            logger.info(f"[Agent] 工具调用: {tool_names}")
+            logger.info(f"工具调用: {tool_names}")
 
             conv.add_assistant_message(content or None, thinking=thinking)
 
@@ -100,18 +104,21 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
             await chat_io.emit_thinking("正在查询数据...")
             for tc in tool_calls_list:
                 if chat_io.cancelled:
-                    logger.info("[Agent] 客户端断开，停止执行工具")
+                    logger.info("客户端断开，停止执行工具")
                     break
                 name = tc["function"]["name"]
                 args = tc["function"]["arguments"]
                 await chat_io.emit_tool_call(name, args)
                 registered = tools.get(name)
+                t0 = _time.monotonic()
                 if registered:
                     result = await registered.execute_async(args, defaults={"user_id": conv.user_id})
                 else:
                     result = f"未知工具: {name}"
+                logger.info(f"工具 {name} 执行 {_time.monotonic()-t0:.1f}s 结果{len(result)}字符")
                 await chat_io.emit_tool_result(name, result)
                 conv.add_tool_result(tc["id"], name, result)
+            logger.info(f"第 {iteration+1} 轮完成，耗时 {_time.monotonic()-iter_start:.1f}s")
             continue
 
         # 有内容 → 最终回复
@@ -119,12 +126,14 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
             conv.add_assistant_message(content, thinking=thinking)
             await conv.save()
             await chat_io.emit_done()
+            logger.info(f"对话完成 共{iteration+1}轮 总耗时{_time.monotonic()-start_total:.1f}s")
             return
 
         # 空响应
         await chat_io.emit_error("LLM 未返回有效内容")
         return
 
+    logger.warning(f"对话超轮数上限 {settings.MAX_AGENT_ITERATIONS}，终止")
     await chat_io.emit_error(f"Agent 循环超过 {settings.MAX_AGENT_ITERATIONS} 次上限")
 
 
