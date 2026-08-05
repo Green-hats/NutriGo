@@ -73,15 +73,17 @@ NutriGo/
 ├── backend/                 # Go 后端 (:3333)
 │   ├── cmd/server/          # 入口
 │   ├── internal/            # handler / model / middleware / service
-│   ├── API.md               # API 文档
-│   └── test_api.py          # 66 个测试用例
+│   └── API.md               # API 文档
 ├── agent/                   # Python Agent (:8000)
 │   ├── app/                 # 对话层（8 个文件）
 │   ├── recognition/         # 识别层（5 个文件）
 │   ├── chroma_db/           # ChromaDB 向量数据库（2277 条）
 │   ├── nutrition.db         # 食物营养数据库（8407 条）
-│   ├── .env.example
-│   └── test_agent.py        # 16 个测试用例
+│   └── .env.example
+├── test/                    # 测试文件
+│   ├── backend/             # test_api.py（Go 后端）
+│   ├── agent/               # test_agent.py / test_agent_prompts.py（Agent）
+│   └── frontend/            # （预留）
 └── frontend/                # React 前端 (:5173)
     └── src/
         ├── api/             # Go / Python / SSE 封装

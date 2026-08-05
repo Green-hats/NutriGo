@@ -85,5 +85,6 @@
 
 | 层 | 用例数 | 命令 |
 |----|--------|------|
-| Go 后端 | 66 | `cd backend && python3 test_api.py` |
-| Python Agent | 16 | `cd agent && uv run python test_agent.py` |
+| Go 后端 | 66 | `cd backend && python3 ../test/backend/test_api.py` |
+| Python Agent | 18 | `cd agent && uv run python ../test/agent/test_agent.py` |
+| Agent 全面提示词 | 26+ | `cd agent && uv run python ../test/agent/test_agent_prompts.py --quick` |

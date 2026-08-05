@@ -59,8 +59,7 @@ agent/
 ├── chroma_db/                   # 向量数据库（2277 条教材文档）
 ├── nutrition.db                 # 食物营养数据库（8407 条）
 ├── .env.example
-├── pyproject.toml
-└── test_agent.py                # 18 个测试用例
+└── pyproject.toml
 ```
 
 ## 路由
@@ -155,10 +154,16 @@ docs = search("糖尿病饮食建议", top_k=3)
 
 ## 测试
 
+测试文件位于 `test/agent/`（需在 agent 目录用其 venv 运行，见 `docs/agent-test-prompts.md`）：
+
 ```bash
-cd agent && uv run python test_agent.py
+# 基础功能测试（自启动服务，18 用例）
+cd agent && uv run python ../test/agent/test_agent.py
+
+# 全面提示词测试（需 Agent 服务已启动，26+ 用例）
+cd agent && uv run python ../test/agent/test_agent_prompts.py --quick
 ```
 
-18 个用例，覆盖：JWT 鉴权（无 token/坏 token → 401）、会话 CRUD、SSE 对话、
-营养计算。测试脚本内置 JWT 生成工具（`make_token` / `auth_headers`），无需真实登录。
+基础测试覆盖：JWT 鉴权（无 token/坏 token → 401）、会话 CRUD、SSE 对话、营养计算。
+测试脚本内置 JWT 生成工具（`make_token` / `auth_headers`），无需真实登录。
 完整 Agent 工具链测试需 Go 后端运行；用干净数据库跑最准（`DATABASE_PATH=/tmp/test.db`）。

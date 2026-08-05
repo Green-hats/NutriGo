@@ -1,6 +1,6 @@
 # Agent 测试提示词集
 
-覆盖 Agent 全部能力点的测试提示词清单。配套自动执行脚本：`agent/test_agent_prompts.py`。
+覆盖 Agent 全部能力点的测试提示词清单。配套自动执行脚本：`test/agent/test_agent_prompts.py`。
 
 测试用户：`xiaoming`（身高175/体重78/男/32岁/减重目标/高血压+高血脂/花生海鲜过敏/少油不辣）
 

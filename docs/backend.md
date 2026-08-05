@@ -41,8 +41,7 @@ backend/
 │       ├── cleanup.go          # 图片定时清理（每 1h）
 │       └── aggregator.go       # 饮食记录定时聚合（每 24h）
 ├── uploads/                    # 图片存储目录
-├── API.md                      # API 文档
-└── test_api.py                 # 66 个测试用例
+└── API.md                      # API 文档
 ```
 
 ## 路由（17 条）
@@ -96,8 +95,10 @@ backend/
 
 ## 测试
 
+测试文件：`test/backend/test_api.py`（需 Go 服务运行）：
+
 ```bash
-cd backend && python3 test_api.py
+cd backend && python3 ../test/backend/test_api.py
 ```
 
 66 个测试用例，覆盖所有路由和鉴权逻辑。
