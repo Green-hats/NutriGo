@@ -18,6 +18,9 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
     tools_list = tools.to_openai_format() if tools._tools else None
 
     for iteration in range(settings.MAX_AGENT_ITERATIONS):
+        if chat_io.cancelled:
+            logger.info("[Agent] 已取消，退出循环")
+            return
         logger.info(f"[Agent] 第 {iteration+1} 轮")
         kwargs = _build_kwargs(conv.to_messages(), tools_list, stream=True)
         # 网络抖动时自动重试，最多 2 次
@@ -44,6 +47,9 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
         tool_call_buffer: dict[int, dict] = {}
 
         async for chunk in response:
+            if chat_io.cancelled:
+                logger.info("[Agent] 客户端已断开，停止接收")
+                break
             delta = chunk.choices[0].delta
 
             # 思维链 → 流式推送 thinking 事件
@@ -93,6 +99,9 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
 
             await chat_io.emit_thinking("正在查询数据...")
             for tc in tool_calls_list:
+                if chat_io.cancelled:
+                    logger.info("[Agent] 客户端断开，停止执行工具")
+                    break
                 name = tc["function"]["name"]
                 args = tc["function"]["arguments"]
                 await chat_io.emit_tool_call(name, args)

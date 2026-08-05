@@ -4,7 +4,8 @@ import remarkGfm from 'remark-gfm'
 import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 import { createChatStream } from '../api/sse'
-import { Loader2, History, Plus } from 'lucide-react'
+import type { ChatStreamHandle } from '../api/sse'
+import { Loader2, History, Plus, Square } from 'lucide-react'
 import { ChatErrorBoundary } from '../components/ui/ChatErrorBoundary'
 import HistorySidebar from '../components/chat/HistorySidebar'
 import type { ChatMessage } from '../types'
@@ -16,6 +17,7 @@ export default function Chat() {
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const streamRef = useRef<ChatStreamHandle | null>(null)
   const { messages, addMessage, appendToLast, appendThinkingToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming, clearMessages } = useChatStore()
   const token = useAuthStore((s) => s.token)
 
@@ -30,14 +32,21 @@ export default function Chat() {
     addMessage({ role: 'assistant', content: '' })
     setStreaming(true)
 
-    createChatStream(msg, sessionId, token, {
+    const handle = createChatStream(msg, sessionId, token, {
       onChunk: (t) => appendToLast(t),
       onThinking: (t) => appendThinkingToLast(t),
       onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
       onToolResult: (name, result) => updateToolResult(name, result),
-      onDone: () => setStreaming(false),
-      onError: (err) => { setError(err); setStreaming(false) },
+      onDone: () => { setStreaming(false); streamRef.current = null },
+      onError: (err) => { setError(err); setStreaming(false); streamRef.current = null },
     })
+    streamRef.current = handle
+  }
+
+  const stop = () => {
+    streamRef.current?.cancel()
+    streamRef.current = null
+    setStreaming(false)
   }
 
   const handleHistorySelect = (id: number, msgs: ChatMessage[]) => {
@@ -134,8 +143,15 @@ export default function Chat() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') send(input) }}
           />
-          <button onClick={() => send(input)} disabled={isStreaming}
-            className="bg-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-green-700 transition-colors disabled:opacity-50">➤</button>
+          {isStreaming ? (
+            <button onClick={stop} title="停止生成"
+              className="bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-red-600 transition-colors">
+              <Square size={16} className="fill-current" />
+            </button>
+          ) : (
+            <button onClick={() => send(input)} disabled={isStreaming}
+              className="bg-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-green-700 transition-colors disabled:opacity-50">➤</button>
+          )}
         </div>
       </div>
     </div>

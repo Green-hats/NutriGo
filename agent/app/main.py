@@ -95,9 +95,18 @@ async def chat(
         # 同时从队列实时读取 SSE 事件并 yield
         async for sse_event in chat_io.stream():
             if await request.is_disconnected():
+                # 客户端断开：标记取消 + 取消任务，让 agent 在检查点快速退出
+                chat_io.cancel()
+                task.cancel()
                 break
             yield sse_event
-        await task
+        if not task.done():
+            task.cancel()
+        # 等待任务真正结束（cancel 后正常返回，异常被吞掉）
+        try:
+            await task
+        except BaseException:
+            pass
 
     return StreamingResponse(
         event_generator(),

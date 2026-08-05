@@ -20,6 +20,16 @@ class SSEChatIO(ChatIO):
 
     def __init__(self):
         self._queue: asyncio.Queue[tuple[str, Optional[str]]] = asyncio.Queue()
+        self._cancel_event = asyncio.Event()
+
+    @property
+    def cancelled(self) -> bool:
+        """是否已被客户端取消/断开"""
+        return self._cancel_event.is_set()
+
+    def cancel(self) -> None:
+        """标记取消，agent 循环在检查点会提前退出"""
+        self._cancel_event.set()
 
     async def _push(self, event: str, data: str = "") -> None:
         await self._queue.put((event, data))
