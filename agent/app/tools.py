@@ -18,6 +18,7 @@ class RegisteredTool:
         self.name = name
         self.description = description
         self.parameters = self._build_schema(func)
+        self.param_names = self._get_param_names(func)
 
     def _build_schema(self, func: Callable) -> dict:
         """从函数的类型注解推断参数 schema"""
@@ -45,6 +46,16 @@ class RegisteredTool:
             "required": required,
         }
 
+    @staticmethod
+    def _get_param_names(func: Callable) -> set[str]:
+        """返回函数可接受的参数名集合，用于过滤注入的默认参数"""
+        sig = inspect.signature(func)
+        return {
+            name for name, p in sig.parameters.items()
+            if name not in ("self", "cls")
+            and p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        }
+
     def to_openai(self) -> dict:
         """转为 OpenAI function calling 格式"""
         return {
@@ -62,14 +73,26 @@ class RegisteredTool:
             args = json.loads(arguments_json)
         except json.JSONDecodeError:
             return f"参数解析失败: {arguments_json}"
+        if not isinstance(args, dict):
+            return f"参数格式错误: {arguments_json}"
+        missing = self._check_missing(args)
+        if missing:
+            return missing
         try:
             result = self.func(**args)
             return result
         except Exception as e:
             return f"工具执行出错: {e}"
+    def _check_missing(self, args: dict) -> str | None:
+        """检查必需参数，缺失时返回提示信息"""
+        required = self.parameters.get("required", [])
+        missing = [p for p in required if p not in args or args[p] in (None, "")]
+        if missing:
+            return f"缺少必要参数: {', '.join(missing)}，请补齐后重试"
+        return None
 
     async def execute_async(self, arguments_json: str, defaults: dict | None = None) -> str:
-        """异步执行。defaults 用于补齐 LLM 未提供的参数（如 user_id）"""
+        """异步执行。defaults 用于补齐 LLM 未提供的参数（如 user_id），仅注入函数实际接受的参数"""
         try:
             args = json.loads(arguments_json)
         except json.JSONDecodeError:
@@ -78,8 +101,11 @@ class RegisteredTool:
             return f"参数格式错误: {arguments_json}"
         if defaults:
             for k, v in defaults.items():
-                if v is not None and k not in args:
+                if v is not None and k not in args and k in self.param_names:
                     args[k] = v
+        missing = self._check_missing(args)
+        if missing:
+            return missing
         try:
             result = self.func(**args)
             if inspect.iscoroutine(result):
