@@ -15,15 +15,17 @@
   .markdown-body h2 { @apply text-base font-bold mt-3 mb-1.5; }
   .markdown-body h3 { @apply text-sm font-bold mt-2 mb-1; }
   .markdown-body p  { @apply mb-2 leading-relaxed; }
-  .markdown-body ul, .markdown-body ol { @apply mb-2 pl-5; }
+  .markdown-body ul { @apply mb-2 pl-5; }
+  .markdown-body ol { @apply mb-2 pl-5 list-decimal; }
   .markdown-body li { @apply mb-0.5 list-disc; }
+  .markdown-body ol > li { @apply list-decimal; }
   .markdown-body strong { @apply font-semibold; }
   .markdown-body em { @apply italic; }
   .markdown-body code { @apply bg-gray-200 rounded px-1 py-0.5 text-xs; }
   .markdown-body pre { @apply bg-gray-800 text-green-400 rounded-lg p-3 mb-2 overflow-x-auto text-xs; }
   .markdown-body pre code { @apply bg-transparent p-0; }
   .markdown-body table { @apply w-full mb-2 border-collapse text-xs; }
-  .markdown-body th { @apply border border-gray-300 bg-gray-100 px-2 py-1 text-left font-semibold; }
+  .markdown-body th { @apply border border-gray-300 bg-gray-100 px-2 py-1 text-left font-semibold whitespace-nowrap; }
   .markdown-body td { @apply border border-gray-300 px-2 py-1; }
   .markdown-body blockquote { @apply border-l-4 border-green-400 pl-3 my-2 text-gray-600 italic; }
   .markdown-body hr { @apply my-4 border-gray-200; }

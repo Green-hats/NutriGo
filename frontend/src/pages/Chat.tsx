@@ -84,11 +84,9 @@ export default function Chat() {
                     </details>
                   )}
                   {msg.content ? (
-                    isStreaming && i === messages.length - 1 ? (
-                      <span>{msg.content}▍</span>
-                    ) : (
-                      <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                    )
+                    <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
+                      {msg.content + (isStreaming && i === messages.length - 1 ? '▍' : '')}
+                    </ReactMarkdown>
                   ) : (
                     isStreaming && i === messages.length - 1 && (
                       <span className="flex items-center gap-2 text-gray-400"><Loader2 size={14} className="animate-spin" />思考中...</span>
