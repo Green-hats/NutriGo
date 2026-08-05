@@ -19,8 +19,8 @@ export default function Login() {
       const data = await goApi.login(username, password)
       setAuth(data.token, { id: data.id, username: data.username })
       navigate('/chat')
-    } catch (err: any) {
-      toast(err.message)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '登录失败')
     } finally {
       setLoading(false)
     }

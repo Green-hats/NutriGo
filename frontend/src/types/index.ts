@@ -87,3 +87,52 @@ export interface ChatMessage {
   toolResult?: string
   thinking?: string
 }
+
+export interface SessionInfo {
+  id: number
+  name: string
+  created_at: string
+}
+
+export interface SessionDetail {
+  id: number
+  name: string
+  user_id?: number | null
+  system_msg: string
+  messages: RawMessage[]
+  created_at: string
+  updated_at: string
+}
+
+// 后端存储的原始消息格式（含 tool_calls 等 LLM 协议字段）
+export interface RawMessage {
+  role: string
+  content?: string | null
+  tool_calls?: Array<{
+    id?: string
+    type?: string
+    function?: { name?: string; arguments?: string }
+  }>
+  thinking?: string
+}
+
+export interface DietLogInput {
+  date: string
+  meal_type: string
+  food_name: string
+  portion?: string
+  calories?: number
+  protein_g?: number
+  fat_g?: number
+  carbs_g?: number
+  notes?: string
+  image_id?: number
+}
+
+export interface IdentifyRequest {
+  image_id: number
+}
+
+export interface RenameRequest {
+  name: string
+}

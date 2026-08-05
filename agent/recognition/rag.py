@@ -15,14 +15,15 @@ DB_PATH = "./chroma_db"
 _collection = None
 
 
-def init_rag():
+def init_rag() -> None:
     """加载 ChromaDB collection（服务启动时调用一次）"""
     global _collection
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name="BAAI/bge-small-zh-v1.5"
     )
     client = chromadb.PersistentClient(path=DB_PATH)
-    _collection = client.get_collection(COLLECTION_NAME, embedding_function=ef)
+    # chromadb 的 EmbeddingFunction 类型与 sentence-transformers 不兼容（第三方 stub 问题）
+    _collection = client.get_collection(COLLECTION_NAME, embedding_function=ef)  # type: ignore[arg-type]
 
 
 def search(query: str, top_k: int = 3) -> list[str]:
@@ -34,7 +35,8 @@ def search(query: str, top_k: int = 3) -> list[str]:
     if _collection is None:
         return ["知识库未初始化"]
     results = _collection.query(query_texts=[query], n_results=top_k)
-    return results["documents"][0]
+    documents = results.get("documents") or []
+    return documents[0] if documents else []  # type: ignore[return-value]
 
 
 async def search_nutrition_knowledge(query: str) -> str:

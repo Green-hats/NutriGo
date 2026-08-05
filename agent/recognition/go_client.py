@@ -13,7 +13,7 @@ from app.config import settings
 class GoClient:
     """异步 HTTP 客户端，带内部鉴权"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.base = settings.GO_BACKEND_URL
         self.headers = {"X-Internal-Token": settings.INTERNAL_TOKEN}
 

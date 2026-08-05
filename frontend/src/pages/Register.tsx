@@ -17,8 +17,8 @@ export default function Register() {
       await goApi.register(username, password)
       toast('注册成功', 'success')
       navigate('/login')
-    } catch (err: any) {
-      toast(err.message)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '注册失败')
     } finally {
       setLoading(false)
     }

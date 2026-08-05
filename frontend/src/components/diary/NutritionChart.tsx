@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function NutritionChart({ onClose }: Props) {
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<Array<{ date: string; kcal: number; protein: number; fat: number; carbs: number }>>([])
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState(7)
 
@@ -17,7 +17,7 @@ export default function NutritionChart({ onClose }: Props) {
     const end = new Date().toISOString().slice(0, 10)
     const start = new Date(Date.now() - range * 86400000).toISOString().slice(0, 10)
     goApi.getSummaries(start, end).then((rows) => {
-      const mapped = rows.map((r: any) => ({
+      const mapped = rows.map((r) => ({
         date: r.date.slice(5),
         kcal: Math.round(r.total_calories),
         protein: Math.round(r.total_protein_g),

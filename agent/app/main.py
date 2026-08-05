@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -50,7 +51,7 @@ logger = logging.getLogger("uvicorn")
 # ============================================================
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """服务启动/关闭"""
     configure_logging()
     await db.init_db()                 # agent.db — sessions 表
@@ -76,7 +77,7 @@ app.add_middleware(
 # ============================================================
 
 @app.get("/api/health")
-async def health():
+async def health() -> dict:
     return {"status": "ok"}
 
 
@@ -107,7 +108,7 @@ async def chat(
     request: Request,
     message: str = Query(..., description="用户消息"),
     session_id: int | None = Query(None, description="会话ID"),
-):
+) -> StreamingResponse:
     """SSE 流式对话（需 JWT）"""
 
     # 从 Authorization 头解析用户，不再信任 URL 里的 user_id
@@ -141,7 +142,7 @@ async def chat(
 
 
 @app.post("/api/sessions/{session_id}/regenerate")
-async def regenerate(session_id: int, request: Request):
+async def regenerate(session_id: int, request: Request) -> StreamingResponse:
     """重新生成最后一条回复：回滚到最后一次提问，重新跑 agent loop"""
     user_id = extract_user_id(request.headers.get("Authorization"))
     if user_id is None:
@@ -164,6 +165,8 @@ async def regenerate(session_id: int, request: Request):
             if removed == 0:
                 raise HTTPException(status_code=409, detail="暂无可重新生成的内容")
             conv = await Conversation.load(session_id, user_id=user_id)
+            if conv is None:
+                raise HTTPException(status_code=404, detail="会话不存在")
     except BaseException:
         await release_user(user_id)
         raise
@@ -175,7 +178,7 @@ async def regenerate(session_id: int, request: Request):
 def _sse_response(request: Request, conv: Conversation, chat_io: SSEChatIO,
                   user_id: int) -> StreamingResponse:
     """生成 SSE 流式响应：后台跑 agent loop，实时推送事件；断开/结束释放用户名额"""
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         # 先推送会话 ID，前端拿到后能触发"重新生成"等功能
         await chat_io.emit_session_id(conv.session_id)
         # Agent 作为后台任务运行
@@ -229,7 +232,7 @@ def _sse_response(request: Request, conv: Conversation, chat_io: SSEChatIO,
 # ============================================================
 
 @app.get("/api/sessions", response_model=list[SessionInfo])
-async def list_sessions(request: Request):
+async def list_sessions(request: Request) -> list[dict]:
     user_id = extract_user_id(request.headers.get("Authorization"))
     if user_id is None:
         raise HTTPException(status_code=401, detail="未认证或 token 无效")
@@ -237,7 +240,7 @@ async def list_sessions(request: Request):
 
 
 @app.get("/api/sessions/{session_id}", response_model=SessionDetail)
-async def get_session(session_id: int, request: Request):
+async def get_session(session_id: int, request: Request) -> SessionDetail:
     user_id = extract_user_id(request.headers.get("Authorization"))
     if user_id is None:
         raise HTTPException(status_code=401, detail="未认证或 token 无效")
@@ -256,7 +259,7 @@ async def get_session(session_id: int, request: Request):
 
 
 @app.delete("/api/sessions/{session_id}")
-async def delete_session(session_id: int, request: Request):
+async def delete_session(session_id: int, request: Request) -> dict:
     user_id = extract_user_id(request.headers.get("Authorization"))
     if user_id is None:
         raise HTTPException(status_code=401, detail="未认证或 token 无效")
@@ -270,7 +273,7 @@ class RenameRequest(BaseModel):
 
 
 @app.patch("/api/sessions/{session_id}")
-async def rename_session(session_id: int, req: RenameRequest, request: Request):
+async def rename_session(session_id: int, req: RenameRequest, request: Request) -> dict:
     """手动重命名会话"""
     user_id = extract_user_id(request.headers.get("Authorization"))
     if user_id is None:
@@ -297,7 +300,7 @@ _IDENTIFY_CACHE_TTL = 3600        # 缓存 1 小时
 _IDENTIFY_CACHE_MAX = 500         # 最多缓存条数，防止内存膨胀
 
 
-def _cache_get(image_id: int):
+def _cache_get(image_id: int) -> list | None:
     item = _identify_cache.get(image_id)
     if item is None:
         return None
@@ -321,7 +324,7 @@ def _cache_set(image_id: int, results: list) -> None:
 
 
 @app.post("/api/identify-food")
-async def identify_food(req: IdentifyRequest, request: Request):
+async def identify_food(req: IdentifyRequest, request: Request) -> list:
     """
     识别食物图片，返回 Top-5 候选 + 营养数据 + 默认份量。
 
@@ -389,7 +392,7 @@ class IntakeRequest(BaseModel):
 
 
 @app.post("/api/calculate-intake")
-async def calc_intake(req: IntakeRequest):
+async def calc_intake(req: IntakeRequest) -> dict:
     """根据食物名和克数计算实际摄入营养"""
     result = await calculate_intake(req.food_name, req.grams)
     if "error" in result:

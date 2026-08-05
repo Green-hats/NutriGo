@@ -59,7 +59,7 @@ test-prompts:
 	cd agent && uv run python -u ../test/agent/test_agent_prompts.py --quick
 
 ## ---- Lint ----
-lint: lint-frontend lint-backend
+lint: lint-frontend lint-backend typecheck
 
 lint-frontend:
 	@echo "== 前端 oxlint =="
@@ -70,6 +70,12 @@ lint-backend:
 	@echo "== Python ruff =="
 	cd agent && uv run ruff check app/ recognition/
 	@echo "✅ Python lint 通过"
+
+# mypy 类型检查
+typecheck:
+	@echo "== Python mypy 类型检查 =="
+	cd agent && uv run mypy app/ recognition/
+	@echo "✅ 类型检查通过"
 
 ## ---- 环境 ----
 env:

@@ -50,7 +50,10 @@ async def create_session(
             (name, system_msg, user_id, now, now),
         )
         await db.commit()
-        return cursor.lastrowid
+        rowid = cursor.lastrowid
+        if rowid is None:
+            raise RuntimeError("创建会话失败：未获取到自增 ID")
+        return rowid
 
 
 async def get_session(session_id: int, user_id: int | None = None) -> dict | None:

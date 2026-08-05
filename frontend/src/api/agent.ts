@@ -1,13 +1,16 @@
 const AGENT_URL = '/agent-api'
 
 import { useAuthStore } from '../stores/auth'
+import type {
+  IdentifyResult, IntakeResult, SessionInfo, SessionDetail,
+} from '../types'
 
 function authHeaders(): Record<string, string> {
   const token = useAuthStore.getState().token
   return token ? { 'Authorization': `Bearer ${token}` } : {}
 }
 
-async function post<T>(path: string, body: any): Promise<T> {
+async function post<T>(path: string, body: unknown): Promise<T> {
   const resp = await fetch(`${AGENT_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -25,7 +28,7 @@ async function del(path: string): Promise<void> {
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
 }
 
-async function patch<T>(path: string, body: any): Promise<T> {
+async function patch<T>(path: string, body: unknown): Promise<T> {
   const resp = await fetch(`${AGENT_URL}${path}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -49,20 +52,20 @@ async function get<T>(path: string): Promise<T> {
 
 export const agentApi = {
   identifyFood: (imageId: number) =>
-    post<any[]>('/identify-food', { image_id: imageId }),
+    post<IdentifyResult[]>('/identify-food', { image_id: imageId }),
 
   calculateIntake: (foodName: string, grams: number) =>
-    post<any>('/calculate-intake', { food_name: foodName, grams }),
+    post<IntakeResult>('/calculate-intake', { food_name: foodName, grams }),
 
-  getSessions: () => get<any[]>('/sessions'),
+  getSessions: () => get<SessionInfo[]>('/sessions'),
 
-  getSession: (id: number) => get<any>(`/sessions/${id}`),
+  getSession: (id: number) => get<SessionDetail>(`/sessions/${id}`),
 
   deleteSession: (id: number) => del(`/sessions/${id}`),
 
   renameSession: (id: number, name: string) =>
-    patch<any>(`/sessions/${id}`, { name }),
+    patch<{ message: string }>(`/sessions/${id}`, { name }),
 
   regenerateSession: (id: number) =>
-    post<any>(`/sessions/${id}/regenerate`, {}),
+    post<{ message: string }>(`/sessions/${id}/regenerate`, {}),
 }

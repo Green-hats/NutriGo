@@ -6,12 +6,13 @@ line-length = 110
 
 [lint]
 # 启用常用规则组
-select = ["E", "F", "W", "I", "UP", "B", "S", "RUF", "PLC", "ISC", "DTZ"]
+select = ["E", "F", "W", "I", "UP", "B", "S", "RUF", "PLC", "ISC", "DTZ", "ANN"]
 
 # 有意使用的模式，按文件/规则忽略
 ignore = [
     "BLE001",   # 工具错误处理需盲捕异常返回友好提示
     "S110",     # finally 中吞掉取消/终止异常
+    "S105",     # 开发默认密钥常量（生产已由 InitSecrets 强制校验）
     "DTZ011",   # 会话时间用本地 naive datetime（SQLite 存储格式一致）
     "DTZ005",
     "RUF012",   # Config 类可变默认值（CORS 白名单）

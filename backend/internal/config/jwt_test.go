@@ -94,3 +94,53 @@ func TestTokenRejectsTampered(t *testing.T) {
 		t.Fatal("被篡改的 token 不应验签成功")
 	}
 }
+
+// 测试生产环境：未设置密钥时启动必须失败
+func TestInitSecretsProductionRequiresKeys(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("INTERNAL_TOKEN", "")
+
+	if err := InitSecrets(); err == nil {
+		t.Fatal("生产环境未设置 JWT_SECRET/INTERNAL_TOKEN 应报错")
+	}
+}
+
+// 测试生产环境：使用默认值也必须失败（防止误用已知密钥）
+func TestInitSecretsProductionRejectsDefaults(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_SECRET", devJWTSecret)
+	t.Setenv("INTERNAL_TOKEN", devInternalToken)
+
+	if err := InitSecrets(); err == nil {
+		t.Fatal("生产环境使用默认密钥应报错")
+	}
+}
+
+// 测试生产环境：正确设置密钥则通过，且加载生效
+func TestInitSecretsProductionAcceptsCustom(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_SECRET", "prod-secret-abc-123-xyz")
+	t.Setenv("INTERNAL_TOKEN", "prod-token-xyz-789")
+
+	if err := InitSecrets(); err != nil {
+		t.Fatalf("生产环境正确设置密钥应通过: %v", err)
+	}
+	if string(JWTSecret) != "prod-secret-abc-123-xyz" {
+		t.Errorf("JWTSecret 未加载, got %q", JWTSecret)
+	}
+	if InternalToken != "prod-token-xyz-789" {
+		t.Errorf("InternalToken 未加载, got %q", InternalToken)
+	}
+}
+
+// 测试开发环境：允许默认值
+func TestInitSecretsDevelopmentAllowsDefaults(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("INTERNAL_TOKEN", "")
+
+	if err := InitSecrets(); err != nil {
+		t.Fatalf("开发环境允许默认值: %v", err)
+	}
+}

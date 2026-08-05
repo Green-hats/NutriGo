@@ -4,16 +4,14 @@ package middleware
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/gin-gonic/gin"
+
+	"nutri.go/backend/internal/config"
 )
 
 func InternalAuth() gin.HandlerFunc {
-	expectedToken := os.Getenv("INTERNAL_TOKEN")
-	if expectedToken == "" {
-		expectedToken = "nutri-go-internal-token-dev" // 开发环境默认值
-	}
+	expectedToken := config.InternalToken
 
 	return func(c *gin.Context) {
 		token := c.GetHeader("X-Internal-Token")

@@ -6,7 +6,7 @@ import { toast } from '../components/ui/Toast'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
 import NutritionChart from '../components/diary/NutritionChart'
-import type { DietRecord, IdentifyResult } from '../types'
+import type { DietRecord, IdentifyResult, IntakeResult } from '../types'
 
 function fmt(d: Date): string { return d.toISOString().slice(0, 10) }
 function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
@@ -27,7 +27,7 @@ export default function Diary() {
   useEffect(loadRecords, [loadRecords])
 
   const del = async (id: number) => {
-    try { await goApi.deleteDietLog(id); loadRecords() } catch (err: any) { toast(err.message) }
+    try { await goApi.deleteDietLog(id); loadRecords() } catch (err) { toast(err instanceof Error ? err.message : '删除失败') }
   }
 
   const totalCal = records.reduce((s, r) => s + (r.calories || 0), 0)
@@ -89,7 +89,7 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   const [candidates, setCandidates] = useState<IdentifyResult[]>([])
   const [selected, setSelected] = useState<IdentifyResult | null>(null)
   const [grams, setGrams] = useState(300)
-  const [estimated, setEstimated] = useState<any>(null)
+  const [estimated, setEstimated] = useState<IntakeResult | null>(null)
   const [estimating, setEstimating] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -109,8 +109,8 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
       }
       setCandidates(results)
       setStep('candidates')
-    } catch (err: any) {
-      toast('识别失败: ' + err.message)
+    } catch (err) {
+      toast('识别失败: ' + (err instanceof Error ? err.message : ''))
       setStep('camera')
     }
   }
@@ -144,8 +144,8 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
         calories: estimated.calories, protein_g: estimated.protein_g, fat_g: estimated.fat_g, carbs_g: estimated.carbs_g, image_id: imageId,
       })
       onDone()
-    } catch (err: any) {
-      toast('保存失败: ' + err.message)
+    } catch (err) {
+      toast('保存失败: ' + (err instanceof Error ? err.message : ''))
       setStep('portion')
     }
   }

@@ -7,6 +7,10 @@ from collections.abc import AsyncGenerator
 
 
 class ChatIO:
+    @property
+    def cancelled(self) -> bool:
+        return False
+
     async def emit_session_id(self, session_id: int) -> None: ...
     async def emit_chunk(self, text: str) -> None: ...
     async def emit_tool_call(self, tool_name: str, arguments: str) -> None: ...
@@ -19,7 +23,7 @@ class ChatIO:
 class SSEChatIO(ChatIO):
     """使用 asyncio.Queue 实现真正的实时流式输出"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._queue: asyncio.Queue[tuple[str, str | None]] = asyncio.Queue()
         self._cancel_event = asyncio.Event()
 
@@ -71,14 +75,14 @@ class SSEChatIO(ChatIO):
             event, data = await self._queue.get()
             if event == "__done__":
                 break
-            yield self._format(event, data)
+            yield self._format(event, data or "")
 
     async def next_event(self) -> str | None:
         """取下一个格式化事件，流结束时返回 None"""
         event, data = await self._queue.get()
         if event == "__done__":
             return None
-        return self._format(event, data)
+        return self._format(event, data or "")
 
     async def close(self) -> None:
         await self._queue.put(("__done__", ""))

@@ -14,7 +14,7 @@ from collections.abc import Callable
 class RegisteredTool:
     """一个已注册的工具，包含元数据和执行函数"""
 
-    def __init__(self, func: Callable, name: str, description: str):
+    def __init__(self, func: Callable, name: str, description: str) -> None:
         self.func = func
         self.name = name
         self.description = description
@@ -137,7 +137,7 @@ class RegisteredTool:
 class ToolRegistry:
     """工具注册表 — 管理所有可用工具"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: dict[str, RegisteredTool] = {}
 
     def register(self, func: Callable, name: str = "", description: str = "") -> RegisteredTool:
@@ -150,9 +150,9 @@ class ToolRegistry:
         self._tools[tool.name] = tool
         return tool
 
-    def tool(self, name: str = "", description: str = ""):
+    def tool(self, name: str = "", description: str = "") -> Callable:
         """装饰器风格注册：@registry.tool(name="xxx", description="yyy")"""
-        def wrapper(func: Callable):
+        def wrapper(func: Callable) -> Callable:
             self.register(func, name, description)
             return func
         return wrapper

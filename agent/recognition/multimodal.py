@@ -10,17 +10,19 @@ Chinese-CLIP 食物图片识别
 """
 
 import io
+from typing import Any
 
 import torch
 from PIL import Image
 
 # 延迟导入，避免启动时就加载（首次推理时才加载模型）
-_model = None
-_processor = None
+# 类型为 Any：transformers 模型类型复杂且无 mypy stubs，实际运行由 load_model 保证非空
+_model: Any = None
+_processor: Any = None
 _loaded = False
 
 
-def load_model():
+def load_model() -> None:
     """加载 Chinese-CLIP 模型和 processor（首次调用自动触发）"""
     global _model, _processor, _loaded
 

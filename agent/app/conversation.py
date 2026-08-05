@@ -27,7 +27,7 @@ class Conversation:
         session_id: int = 0,
         user_id: int | None = None,
         system_msg: str = "",
-    ):
+    ) -> None:
         self.session_id = session_id          # 数据库会话 ID
         self.user_id = user_id                 # NutriGo 用户 ID
         self.system_msg = system_msg or settings.system_prompt
@@ -55,7 +55,7 @@ class Conversation:
         self.messages.append({"role": "user", "content": content})
         self._dirty = True
 
-    def add_assistant_message(self, content: str, thinking: str = "") -> None:
+    def add_assistant_message(self, content: str | None, thinking: str = "") -> None:
         """追加一条 AI 回复，thinking 为模型思维链（可选）"""
         msg: dict = {"role": "assistant", "content": content}
         if thinking:
@@ -129,16 +129,16 @@ class Conversation:
 
         # 3. 按 token 预算裁剪：从最新块往前累加
         try:
-            from litellm.utils import token_counter
+            from litellm.utils import token_counter as _token_counter  # type: ignore[import-untyped]
         except ImportError:
-            token_counter = None
+            _token_counter = None  # type: ignore[assignment]
 
         kept: list[list[dict]] = []
         total_tokens = 0
         for block in reversed(blocks):
-            if token_counter:
+            if _token_counter is not None:
                 block_tokens = sum(
-                    token_counter(model="gpt-3.5-turbo", text=json.dumps(m, ensure_ascii=False))
+                    _token_counter(model="gpt-3.5-turbo", text=json.dumps(m, ensure_ascii=False))
                     for m in block
                 )
             else:

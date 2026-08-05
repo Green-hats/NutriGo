@@ -1,4 +1,5 @@
 import { useAuthStore } from '../stores/auth'
+import type { UserProfile, DietRecord, DailySummary, DietLogInput } from '../types'
 
 const GO_URL = '/api'
 
@@ -6,6 +7,11 @@ function getUserId(): number {
   const user = useAuthStore.getState().user
   if (!user) throw new Error('未登录')
   return user.id
+}
+
+interface ApiErrorBody {
+  error?: string
+  detail?: string
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -22,7 +28,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const resp = await fetch(`${GO_URL}${path}`, { ...options, headers })
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText }))
+    const err = await resp.json().catch(() => ({ error: resp.statusText })) as ApiErrorBody
     throw new Error(err.error || err.detail || `HTTP ${resp.status}`)
   }
   return resp.json()
@@ -42,10 +48,10 @@ export const goApi = {
     }),
 
   getProfile: () =>
-    request<any>(`/users/${getUserId()}/profile`),
+    request<UserProfile>(`/users/${getUserId()}/profile`),
 
-  updateProfile: (data: any) =>
-    request<any>(`/users/${getUserId()}/profile`, {
+  updateProfile: (data: UserProfile) =>
+    request<UserProfile>(`/users/${getUserId()}/profile`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
@@ -62,18 +68,18 @@ export const goApi = {
   deleteImage: (id: number) =>
     request<{ message: string }>(`/images/${id}`, { method: 'DELETE' }),
 
-  createDietLog: (data: any) =>
-    request<any>('/diet/logs', {
+  createDietLog: (data: DietLogInput) =>
+    request<DietRecord>('/diet/logs', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   getDietLogs: (date: string) =>
-    request<any[]>(`/diet/logs?date=${date}`),
+    request<DietRecord[]>(`/diet/logs?date=${date}`),
 
   deleteDietLog: (id: number) =>
     request<{ message: string }>(`/diet/logs/${id}`, { method: 'DELETE' }),
 
   getSummaries: (start: string, end: string) =>
-    request<any[]>(`/diet/summaries?start=${start}&end=${end}`),
+    request<DailySummary[]>(`/diet/summaries?start=${start}&end=${end}`),
 }

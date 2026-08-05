@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { MessageCircle, Trash2, X, Loader2, Pencil } from 'lucide-react'
 import { agentApi } from '../../api/agent'
-import type { ChatMessage } from '../../types'
+import type { ChatMessage, SessionInfo } from '../../types'
 
 interface Props {
   onSelect: (sessionId: number, messages: ChatMessage[]) => void
@@ -9,22 +9,22 @@ interface Props {
 }
 
 export default function HistorySidebar({ onSelect, onClose }: Props) {
-  const [sessions, setSessions] = useState<any[]>([])
+  const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
 
   useEffect(() => {
-    agentApi.getSessions().then((s) => { setSessions(s.filter((x: any) => x.name)) }).finally(() => setLoading(false))
+    agentApi.getSessions().then((s) => { setSessions(s.filter((x) => x.name)) }).finally(() => setLoading(false))
   }, [])
 
   const loadSession = async (id: number) => {
     try {
       const detail = await agentApi.getSession(id)
       const msgs: ChatMessage[] = detail.messages
-        .filter((m: any) => m.role !== 'system')
-        .map((m: any) => ({
-          role: m.role,
+        .filter((m) => m.role !== 'system')
+        .map((m) => ({
+          role: m.role === 'assistant' || m.role === 'user' || m.role === 'tool' ? m.role : 'assistant',
           content: m.content || '',
           toolName: m.tool_calls?.[0]?.function?.name,
         }))

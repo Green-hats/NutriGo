@@ -42,8 +42,8 @@ export default function Profile() {
       await goApi.updateProfile(form)
       setProfile(form)
       toast('档案已保存', 'success')
-    } catch (err: any) {
-      toast(err.message)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '保存失败')
     } finally {
       setSaving(false)
     }

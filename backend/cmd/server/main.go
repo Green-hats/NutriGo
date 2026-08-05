@@ -16,6 +16,11 @@ import (
 )
 
 func main() {
+	// 生产环境校验密钥（缺失则启动失败）
+	if err := config.InitSecrets(); err != nil {
+		panic("安全配置错误: " + err.Error())
+	}
+
 	if err := config.InitDB(); err != nil {
 		panic("连接数据库失败: " + err.Error())
 	}

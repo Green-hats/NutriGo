@@ -127,8 +127,9 @@ export function createChatStream(
       if (!streamEndedNormally && !controller.signal.aborted) {
         callbacks.onError('连接已断开，回复可能不完整')
       }
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') callbacks.onError(e?.message || '连接中断')
+    } catch (e) {
+      const err = e as { name?: string; message?: string } | null
+      if (err?.name !== 'AbortError') callbacks.onError(err?.message || '连接中断')
     }
   }
 

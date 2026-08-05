@@ -1,160 +1,148 @@
-# NutriGo — AI 智能营养师
+# 🥗 NutriGo — AI 智能营养师
 
-> 拍照记录饮食，AI 分析营养，个性化膳食建议。
+> 拍照识别食物，AI 分析营养，个性化膳食建议。一个功能完整的全栈 AI 营养助手。
 
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](backend/)
 [![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python)](agent/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](frontend/)
-
-<!-- 动态徽章：推送到 GitHub 后，把 your-username 替换为真实用户名即可自动显示状态 -->
-[![CI](https://img.shields.io/github/actions/workflow/status/your-username/NutriGo/ci.yml?branch=main&logo=github&label=CI)](https://github.com/your-username/NutriGo/actions)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript)](frontend/)
 [![License](https://img.shields.io/github/license/your-username/NutriGo?logo=gnu)](LICENSE)
+
+<!-- 推送到 GitHub 后替换 your-username 为真实用户名，CI/Release 徽章自动生效 -->
+[![CI](https://img.shields.io/github/actions/workflow/status/your-username/NutriGo/ci.yml?branch=main&logo=github&label=CI)](https://github.com/your-username/NutriGo/actions)
 [![Release](https://img.shields.io/github/v/release/your-username/NutriGo?logo=github&label=Release)](https://github.com/your-username/NutriGo/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/your-username/NutriGo?logo=git&label=最近提交)](https://github.com/your-username/NutriGo)
 
 ---
 
-## 快速开始
+## ✨ 功能特性
 
-```bash
-git clone <repo-url> && cd NutriGo
-cp agent/.env.example agent/.env   # 填入 LLM API Key
-./start.sh                         # 一键启动全部服务
-```
-
-浏览器打开 **http://localhost:5173**
-
-| 服务 | 端口 | 技术栈 |
-|------|------|--------|
-| 前端 | :5173 | React 19 + TypeScript + TailwindCSS + Zustand |
-| Go 后端 | :3333 | Gin + GORM + SQLite + JWT |
-| Python Agent | :8000 | FastAPI + litellm + Chinese-CLIP + ChromaDB |
+- **📷 拍照识别** — Chinese-CLIP 零样本识别食物，Top-5 候选，510+ 道家常菜
+- **🤖 AI 对话** — Agent Loop + 5 个工具，SSE 流式实况输出，Markdown + 思维链展示
+- **📚 RAG 知识库** — ChromaDB 2277 条《营养学》教材文档，回答专业营养问题
+- **📊 营养分析** — 8407 条真实营养数据，按克数精确换算，多日趋势洞察
+- **🗓️ 饮食日记** — 按日期记录三餐，recharts 柱状图展示营养趋势
+- **👤 个性化档案** — 身高体重/目标/过敏原/基础病，AI 定制饮食建议
+- **🛡️ 企业级安全** — JWT 认证、内部服务鉴权、生产环境密钥强制校验
 
 ---
 
-## 功能
+## 🚀 快速开始
 
-- **用户系统** — 注册、登录、JWT 认证、健康档案
-- **拍照识别** — Chinese-CLIP 零样本识别，510 道家常菜（可切换类别）
-- **营养计算** — 8407 条真实营养数据（nutrition.db），按克数精确换算
-- **AI 对话** — Agent Loop + 4 个工具，SSE 流式实况输出，Markdown 渲染
-- **RAG 知识库** — ChromaDB 2277 条《营养学》教材文档，回答专业问题
-- **饮食日记** — 按日期记录，recharts 柱状图展示营养趋势
-- **会话历史** — 对话持久化，可恢复历史会话
-- **数据聚合** — 7 天后自动汇总为每日摘要，释放存储
-
----
-
-## 服务管理
-
-```bash
-./start.sh           # 启动全部
-./start.sh stop      # 停止全部
-./start.sh status    # 查看状态
-```
-
-日志文件：
-| 日志 | 命令 |
-|------|------|
-| Go 后端 | `tail -f /tmp/nutrigo-go.log` |
-| Python Agent | `tail -f /tmp/nutrigo-py.log` |
-| 前端 | `tail -f /tmp/nutrigo-fe.log` |
-
----
-
-## 项目结构
-
-```
-NutriGo/
-├── start.sh                 # 一键启动脚本
-├── README.md                # 本文件
-├── .gitignore
-├── docs/                    # 项目文档
-│   ├── PROPOSAL.md          # 项目策划书
-│   ├── ARCHITECTURE.md      # 架构设计文档
-│   ├── ROADMAP.md           # 开发路线图
-│   ├── backend.md           # Go 后端文档
-│   ├── agent.md             # Python Agent 文档
-│   └── frontend.md          # 前端文档
-├── backend/                 # Go 后端 (:3333)
-│   ├── cmd/server/          # 入口
-│   ├── internal/            # handler / model / middleware / service
-│   └── API.md               # API 文档
-├── agent/                   # Python Agent (:8000)
-│   ├── app/                 # 对话层（8 个文件）
-│   ├── recognition/         # 识别层（5 个文件）
-│   ├── chroma_db/           # ChromaDB 向量数据库（2277 条）
-│   ├── nutrition.db         # 食物营养数据库（8407 条）
-│   └── .env.example
-├── test/                    # 测试文件
-│   ├── backend/             # test_api.py（Go 后端）
-│   ├── agent/               # test_agent.py / test_agent_prompts.py（Agent）
-│   └── frontend/            # （预留）
-└── frontend/                # React 前端 (:5173)
-    └── src/
-        ├── api/             # Go / Python / SSE 封装
-        ├── stores/          # Zustand 状态
-        ├── components/      # 共享组件
-        └── pages/           # 5 个页面
-```
-
----
-
-## 环境要求
+### 环境要求
 
 | 工具 | 版本 |
 |------|------|
-| Go | 1.22+ |
-| Python | 3.11+ |
+| Go | 1.26+ |
+| Python | 3.13+ |
 | Node.js | 20+ |
 | uv | 0.11+ |
 
-首次运行自动下载：
-| 模型 | 大小 | 用途 |
-|------|------|------|
-| Chinese-CLIP ViT-B-16 | ~400MB | 食物图片识别 |
-| BGE-small-zh-v1.5 | ~100MB | RAG 文本嵌入 |
-| ChromaDB 向量库 | ~5MB | 营养知识检索 |
-
----
-
-## 技术亮点
-
-| 特性 | 实现 |
-|------|------|
-| 多模态识别 | Chinese-CLIP ViT-B-16 零样本，CPU 推理 |
-| Agent Loop | litellm 多模型支持，4 工具流式调用 |
-| RAG 知识库 | ChromaDB + BGE 嵌入，2277 条教材文档 |
-| 真流式输出 | asyncio.Queue + SSE，逐 token 推送 |
-| 服务分离 | Go 管数据，Python 管 AI，各司其职 |
-| 数据安全 | bcrypt 密码，JWT 鉴权，数据隔离 |
-| 离线可用 | SQLite 本地存储，BGE 免费嵌入模型 |
-
----
-
-## 开发命令
-
-项目根目录提供 Makefile 统一命令入口：
+### 安装
 
 ```bash
-make dev                 # 启动全部服务（等价 ./start.sh）
-make stop / make status  # 停止 / 查看状态
-make build               # 编译 Go + 前端构建
-make lint                # 前端 oxlint + 后端 ruff
-make test                # 运行全部测试
-make test-go-unit        # Go 单元测试（12 用例，无需启动服务）
-make test-frontend       # 前端 vitest 单测（9 用例，无需启动服务）
-make test-backend        # Go 后端集成测试（需服务运行）
-make test-agent          # Agent 基础测试（需服务运行）
-make test-identify       # Agent 图片识别测试（需服务运行）
-make env                 # 检查 .env 配置
+git clone <repo-url>
+cd NutriGo
+
+# 配置 LLM API Key（支持 OpenAI/Gemini/DeepSeek/Ollama 等，通过 litellm）
+cp agent/.env.example agent/.env
+# 编辑 agent/.env 填入 LLM_API_KEY
+
+# 一键启动全部服务
+./start.sh
 ```
 
-### 测试结构
+浏览器打开 **http://localhost:5173** 🎉
 
-| 层 | 测试 | 说明 |
-|----|------|------|
-| Go 单元 | `internal/**/*_test.go` | JWT、profile、summary handler，内存 SQLite |
-| 前端单元 | `src/**/*.test.ts` | chat store 状态逻辑（vitest） |
-| Go 集成 | `test/backend/test_api.py` | 全路由 HTTP 黑盒 |
-| Agent 集成 | `test/agent/test_*.py` | 会话、工具、识别、鉴权 |
+### 服务架构
+
+| 服务 | 端口 | 技术栈 | 职责 |
+|------|------|--------|------|
+| `frontend` | :5173 | React 19 + TS + TailwindCSS | 用户界面 |
+| `backend` | :3333 | Go + Gin + GORM + SQLite | 用户/数据/文件 |
+| `agent` | :8000 | FastAPI + litellm + ChromaDB | AI 对话/识别/RAG |
+
+---
+
+## 🏗️ 架构
+
+```
+┌────────────┐  REST/SSE   ┌────────────┐  Internal  ┌────────────┐
+│  Frontend  │ ──────────► │   Agent    │ ─────────► │   Backend  │
+│  React 19  │   JWT 认证   │  FastAPI   │   Token    │  Go + Gin  │
+└────────────┘             └────────────┘            └────────────┘
+                                 │  ▲
+                    Agent Loop   ▼  │
+               ┌────────────────────────┐
+               │ 5 个工具 + LLM + SSE 流式 │
+               └────────────────────────┘
+```
+
+- **Agent Loop** — LLM 自主决定调用工具，支持思维链（reasoning_content）流式推送
+- **5 个工具** — 查营养 / 查档案 / 查饮食记录 / 查营养趋势 / 搜知识库
+- **RAG** — BGE-small-zh 嵌入 + ChromaDB 向量检索
+- **多模态** — Chinese-CLIP 零样本食物识别
+
+详细设计见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+
+---
+
+## 📚 文档
+
+| 文档 | 内容 |
+|------|------|
+| [架构设计](docs/ARCHITECTURE.md) | 系统架构、数据流、安全设计 |
+| [API 文档](backend/API.md) | Go 后端全部接口 |
+| [Agent 文档](docs/agent.md) | Python Agent 设计与工具说明 |
+| [前端文档](docs/frontend.md) | React 前端结构 |
+| [测试说明](docs/agent-test-prompts.md) | Agent 测试提示词集 |
+
+---
+
+## 🧪 测试
+
+```bash
+# 单元测试（无需启动服务，适合 CI）
+make test-go-unit        # Go：12 用例
+make test-frontend       # 前端 vitest：9 用例
+
+# 集成测试（需服务运行）
+make test-backend        # Go 后端：66 用例
+make test-agent          # Agent 基础：18 用例
+make test-identify       # 图片识别：13 用例
+make test-prompts        # 全面提示词：26 用例
+
+# 全部测试
+make test
+```
+
+**静态检查**：`make lint`（ruff + mypy + oxlint）· `make typecheck`（mypy 类型检查）
+
+---
+
+## 🛠️ 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 前端 | React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
+| Agent | Python 3.13 · FastAPI · litellm · Chinese-CLIP · ChromaDB · SSE |
+| 后端 | Go 1.26 · Gin · GORM · SQLite · JWT · bcrypt |
+| 质量 | ruff · mypy · oxlint · GitHub Actions CI |
+
+---
+
+## 🤝 贡献
+
+欢迎贡献！请参考：
+
+- [贡献指南](CONTRIBUTING.md)
+- 提交前运行 `make lint && make test`
+- 遵循 Conventional Commits 规范
+
+## 📄 许可证
+
+本项目基于 [GPL v3](LICENSE) 许可证开源。
+
+---
+
+*NutriGo — 让每个人都拥有自己的 AI 营养师。*

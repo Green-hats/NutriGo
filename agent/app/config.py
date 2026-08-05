@@ -8,6 +8,7 @@
   INTERNAL_TOKEN=nutri-go-internal-token-dev
 
 不填 .env 也可以启动，会用代码里的默认值（仅限本地开发）。
+生产环境（APP_ENV=production）强制要求 JWT_SECRET / INTERNAL_TOKEN 从环境变量注入。
 """
 
 import os
@@ -17,6 +18,24 @@ from dotenv import load_dotenv
 
 # 把项目根目录下的 .env 加载到环境变量
 load_dotenv()
+
+# 开发环境默认值（仅当 APP_ENV != production 时允许使用）
+DEV_JWT_SECRET = "nutri-go-secret-key-change-in-production"
+DEV_INTERNAL_TOKEN = "nutri-go-internal-token-dev"
+
+
+def is_production() -> bool:
+    return os.getenv("APP_ENV") == "production"
+
+
+def _require_secret(name: str, value: str, dev_default: str) -> str:
+    """生产环境强制从环境变量注入密钥，开发环境允许默认值"""
+    if is_production():
+        if not value or value == dev_default:
+            raise RuntimeError(
+                f"生产环境必须通过环境变量 {name} 设置强随机密钥，禁止使用默认值"
+            )
+    return value or dev_default
 
 
 class Config:
@@ -34,11 +53,14 @@ class Config:
 
     # --- Go 后端地址 ---
     GO_BACKEND_URL: str = os.getenv("GO_BACKEND_URL", "http://localhost:3333")
-    INTERNAL_TOKEN: str = os.getenv("INTERNAL_TOKEN", "nutri-go-internal-token-dev")
+    # 生产环境强制要求注入，禁止使用默认值
+    INTERNAL_TOKEN: str = _require_secret(
+        "INTERNAL_TOKEN", os.getenv("INTERNAL_TOKEN", ""), DEV_INTERNAL_TOKEN
+    )
 
     # --- JWT 鉴权 ---
     # 与 Go 后端 internal/config/jwt.go 中的 JWTSecret 保持一致
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "nutri-go-secret-key-change-in-production")
+    JWT_SECRET: str = _require_secret("JWT_SECRET", os.getenv("JWT_SECRET", ""), DEV_JWT_SECRET)
 
     # --- 数据库 ---
     DATABASE_PATH: str = os.getenv("DATABASE_PATH", "agent.db")
