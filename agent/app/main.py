@@ -198,15 +198,20 @@ class IdentifyRequest(BaseModel):
 
 
 @app.post("/api/identify-food")
-async def identify_food(req: IdentifyRequest):
+async def identify_food(req: IdentifyRequest, request: Request):
     """
     识别食物图片，返回 Top-5 候选 + 营养数据 + 默认份量。
 
     流程：
       1. 从 Go 后端获取图片二进制
-      2. Chinese-CLIP 识别
+      2. Chinese-CLIP 识别（放线程池，避免阻塞事件循环）
       3. 查 nutrition.db 获取营养和份量
     """
+    # 0. JWT 鉴权
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+
     # 1. 从 Go 获取图片
     try:
         image_bytes = await go_client.get_image_data(req.image_id)
@@ -214,12 +219,13 @@ async def identify_food(req: IdentifyRequest):
         raise HTTPException(status_code=400, detail=f"获取图片失败 (image_id={req.image_id}): {e}")
 
     # 2. CLIP 识别（仅用家常菜，避免 8407 个 labels 太慢）
+    #    同步推理放到线程池，不阻塞 asyncio 事件循环
     labels = await list_names(category="家常菜")
     if not labels:
         raise HTTPException(status_code=500, detail="营养数据库中无家常菜数据")
 
     try:
-        candidates = identify(image_bytes, labels, top_k=5)
+        candidates = await asyncio.to_thread(identify, image_bytes, labels, 5)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"图片识别失败: {e}")
 

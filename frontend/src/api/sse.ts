@@ -28,6 +28,7 @@ export function createChatStream(
   const url = `${AGENT_URL}/chat?${params}`
 
   const controller = new AbortController()
+  let streamEndedNormally = false
 
   const run = async () => {
     try {
@@ -73,10 +74,12 @@ export function createChatStream(
             } catch {}
             break
           case 'done':
+            streamEndedNormally = true
             callbacks.onDone()
             controller.abort()
             break
           case 'error':
+            streamEndedNormally = true
             if (data) callbacks.onError(data)
             controller.abort()
             break
@@ -101,6 +104,11 @@ export function createChatStream(
           }
           if (data) handleEvent(event, data.trimEnd())
         }
+      }
+
+      // 流读完了但没收到 done/error（网络中途断开）→ 提示连接中断
+      if (!streamEndedNormally && !controller.signal.aborted) {
+        callbacks.onError('连接已断开，回复可能不完整')
       }
     } catch (e: any) {
       if (e?.name !== 'AbortError') callbacks.onError(e?.message || '连接中断')
