@@ -1,6 +1,7 @@
 const AGENT_URL = '/agent-api'
 
 export interface SSECallbacks {
+  onSessionId: (sessionId: number) => void
   onChunk: (text: string) => void
   onThinking: (text: string) => void
   onToolCall: (name: string) => void
@@ -15,31 +16,44 @@ export interface ChatStreamHandle {
 
 /**
  * 用 fetch + ReadableStream 解析 SSE，支持自定义 Authorization 头。
+ * mode='chat'：GET /api/chat?message=...；mode='regenerate'：POST /api/sessions/{id}/regenerate
  * 返回 { cancel }，可手动中断连接。
  */
 export function createChatStream(
-  message: string,
   sessionId: number | null,
   token: string | null,
-  callbacks: SSECallbacks
+  callbacks: SSECallbacks,
+  message?: string,
+  mode: 'chat' | 'regenerate' = 'chat'
 ): ChatStreamHandle {
-  const params = new URLSearchParams({ message })
-  if (sessionId) params.set('session_id', String(sessionId))
-  const url = `${AGENT_URL}/chat?${params}`
-
   const controller = new AbortController()
   let streamEndedNormally = false
 
   const run = async () => {
     try {
-      const resp = await fetch(url, {
-        method: 'GET',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          Accept: 'text/event-stream',
-        },
-        signal: controller.signal,
-      })
+      let resp: Response
+      if (mode === 'regenerate' && sessionId) {
+        resp = await fetch(`${AGENT_URL}/sessions/${sessionId}/regenerate`, {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Accept: 'text/event-stream',
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        })
+      } else {
+        const params = new URLSearchParams({ message: message || '' })
+        if (sessionId) params.set('session_id', String(sessionId))
+        resp = await fetch(`${AGENT_URL}/chat?${params}`, {
+          method: 'GET',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Accept: 'text/event-stream',
+          },
+          signal: controller.signal,
+        })
+      }
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ detail: resp.statusText }))
@@ -58,6 +72,9 @@ export function createChatStream(
 
       const handleEvent = (event: string, data: string) => {
         switch (event) {
+          case 'session_id':
+            try { callbacks.onSessionId(Number(data)) } catch {}
+            break
           case 'chunk':
             callbacks.onChunk(data)
             break

@@ -5,7 +5,7 @@ import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 import { createChatStream } from '../api/sse'
 import type { ChatStreamHandle } from '../api/sse'
-import { Loader2, History, Plus, Square } from 'lucide-react'
+import { Loader2, History, Plus, Square, RotateCcw } from 'lucide-react'
 import { ChatErrorBoundary } from '../components/ui/ChatErrorBoundary'
 import HistorySidebar from '../components/chat/HistorySidebar'
 import type { ChatMessage } from '../types'
@@ -18,7 +18,7 @@ export default function Chat() {
   const [showHistory, setShowHistory] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const streamRef = useRef<ChatStreamHandle | null>(null)
-  const { messages, addMessage, appendToLast, appendThinkingToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming, clearMessages } = useChatStore()
+  const { messages, addMessage, appendToLast, appendThinkingToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming, clearMessages, truncateToLastUser } = useChatStore()
   const token = useAuthStore((s) => s.token)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -32,14 +32,15 @@ export default function Chat() {
     addMessage({ role: 'assistant', content: '' })
     setStreaming(true)
 
-    const handle = createChatStream(msg, sessionId, token, {
+    const handle = createChatStream(sessionId, token, {
+      onSessionId: (id) => setSessionId(id),
       onChunk: (t) => appendToLast(t),
       onThinking: (t) => appendThinkingToLast(t),
       onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
       onToolResult: (name, result) => updateToolResult(name, result),
       onDone: () => { setStreaming(false); streamRef.current = null },
       onError: (err) => { setError(err); setStreaming(false); streamRef.current = null },
-    })
+    }, msg)
     streamRef.current = handle
   }
 
@@ -47,6 +48,26 @@ export default function Chat() {
     streamRef.current?.cancel()
     streamRef.current = null
     setStreaming(false)
+  }
+
+  const regenerate = () => {
+    if (!sessionId || isStreaming) return
+    setError('')
+    // 前端先回滚到最后一条 user（与后端 rollback 保持一致），再补一个空 assistant 让流式填充
+    truncateToLastUser()
+    addMessage({ role: 'assistant', content: '' })
+    setStreaming(true)
+
+    const handle = createChatStream(sessionId, token, {
+      onSessionId: (id) => setSessionId(id),
+      onChunk: (t) => appendToLast(t),
+      onThinking: (t) => appendThinkingToLast(t),
+      onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
+      onToolResult: (name, result) => updateToolResult(name, result),
+      onDone: () => { setStreaming(false); streamRef.current = null },
+      onError: (err) => { setError(err); setStreaming(false); streamRef.current = null },
+    }, undefined, 'regenerate')
+    streamRef.current = handle
   }
 
   const handleHistorySelect = (id: number, msgs: ChatMessage[]) => {
@@ -102,6 +123,12 @@ export default function Chat() {
                     )
                   )}
                 </div>
+                {msg.content && !isStreaming && i === messages.length - 1 && sessionId && (
+                  <button onClick={regenerate} title="重新生成"
+                    className="ml-2 self-start text-gray-400 hover:text-green-600 transition-colors shrink-0">
+                    <RotateCcw size={16} />
+                  </button>
+                )}
               </div>
             )}
             {msg.role === 'tool' && (

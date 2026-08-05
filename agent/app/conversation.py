@@ -33,6 +33,7 @@ class Conversation:
         self.system_msg = system_msg or settings.system_prompt
         self.messages: list[dict] = []         # 消息历史（不含 system 消息）
         self._dirty = False                    # 有未保存的变更
+        self._name = ""                        # 会话名（已手动改名则不再自动覆盖）
 
     def _build_system_msg(self) -> str:
         """组装系统提示词：追加当前用户 ID，让 LLM 调用 get_user_profile 等工具时知道传什么"""
@@ -185,6 +186,7 @@ class Conversation:
         )
         conv.messages = messages
         conv._dirty = False
+        conv._name = row.get("name") or ""
         return conv
 
     async def save(self) -> None:
@@ -192,11 +194,12 @@ class Conversation:
         if self.session_id == 0:
             return
         await db.save_messages(self.session_id, self.messages)
-        # 第一次保存时顺便更新会话名
-        if self.messages:
+        # 会话名仍为空时才自动命名（避免覆盖手动重命名）
+        if not self._name and self.messages:
             first_user = next(
                 (m["content"] for m in self.messages if m["role"] == "user"), ""
             )
             if first_user:
+                self._name = first_user
                 await db.update_session_name(self.session_id, first_user)
         self._dirty = False

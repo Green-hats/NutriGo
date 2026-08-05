@@ -113,27 +113,79 @@ async def chat(
         raise
 
     chat_io = SSEChatIO()
+    return _sse_response(request, conv, chat_io, user_id)
 
+
+@app.post("/api/sessions/{session_id}/regenerate")
+async def regenerate(session_id: int, request: Request):
+    """重新生成最后一条回复：回滚到最后一次提问，重新跑 agent loop"""
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+
+    request_id_var.set(new_request_id())
+
+    # 用户级并发限制
+    if not await acquire_user(user_id):
+        logger.warning(f"user={user_id} 并发超限，拒绝请求")
+        raise HTTPException(status_code=429, detail="您有对话正在进行中，请等待完成后再试")
+
+    try:
+        # 会话锁内回滚
+        lock = await get_session_lock(session_id)
+        async with lock:
+            removed = await db.rollback_last_exchange(session_id, user_id=user_id)
+            if removed < 0:
+                raise HTTPException(status_code=404, detail="会话不存在")
+            if removed == 0:
+                raise HTTPException(status_code=409, detail="暂无可重新生成的内容")
+            conv = await Conversation.load(session_id, user_id=user_id)
+    except BaseException:
+        await release_user(user_id)
+        raise
+
+    chat_io = SSEChatIO()
+    return _sse_response(request, conv, chat_io, user_id)
+
+
+def _sse_response(request: Request, conv: Conversation, chat_io: SSEChatIO, user_id: int) -> StreamingResponse:
+    """生成 SSE 流式响应：后台跑 agent loop，实时推送事件；断开/结束释放用户名额"""
     async def event_generator():
+        # 先推送会话 ID，前端拿到后能触发"重新生成"等功能
+        await chat_io.emit_session_id(conv.session_id)
         # Agent 作为后台任务运行
         task = asyncio.create_task(run_agent_loop(conv, tool_registry, chat_io))
-        # 同时从队列实时读取 SSE 事件并 yield
-        async for sse_event in chat_io.stream():
-            if await request.is_disconnected():
-                # 客户端断开：标记取消 + 取消任务，让 agent 在检查点快速退出
-                chat_io.cancel()
-                task.cancel()
-                break
-            yield sse_event
-        if not task.done():
-            task.cancel()
-        # 等待任务真正结束（cancel 后正常返回，异常被吞掉）
         try:
-            await task
-        except BaseException:
-            pass
+            # 同时监听"下一个事件"和"客户端断开"，任一先到即处理
+            while True:
+                event_task = asyncio.create_task(chat_io.next_event())
+                disconnected_task = asyncio.create_task(request.is_disconnected())
+                done, pending = await asyncio.wait(
+                    {event_task, disconnected_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                # 取消另一个未完成的任务
+                for p in pending:
+                    p.cancel()
+
+                if disconnected_task in done and disconnected_task.result():
+                    # 客户端断开：取消 agent，退出
+                    chat_io.cancel()
+                    task.cancel()
+                    break
+
+                if event_task in done:
+                    sse_event = event_task.result()
+                    if sse_event is None:
+                        break  # 流正常结束
+                    yield sse_event
         finally:
-            # 无论结果如何都释放用户并发名额
+            if not task.done():
+                task.cancel()
+            try:
+                await task
+            except BaseException:
+                pass
             await release_user(user_id)
 
     return StreamingResponse(
@@ -187,6 +239,23 @@ async def delete_session(session_id: int, request: Request):
     if not await db.delete_session(session_id, user_id=user_id):
         raise HTTPException(status_code=404, detail="会话不存在")
     return {"message": "删除成功"}
+
+
+class RenameRequest(BaseModel):
+    name: str
+
+
+@app.patch("/api/sessions/{session_id}")
+async def rename_session(session_id: int, req: RenameRequest, request: Request):
+    """手动重命名会话"""
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    if not req.name.strip():
+        raise HTTPException(status_code=400, detail="会话名称不能为空")
+    if not await db.update_session_name(session_id, req.name.strip(), user_id=user_id):
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return {"message": "重命名成功"}
 
 
 # ============================================================

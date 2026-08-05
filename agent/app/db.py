@@ -82,14 +82,60 @@ async def save_messages(session_id: int, messages: list[dict]) -> None:
         await db.commit()
 
 
-async def update_session_name(session_id: int, name: str) -> None:
-    """更新会话名称（取用户第一条消息的前 30 字符）"""
+async def update_session_name(session_id: int, name: str, user_id: Optional[int] = None) -> bool:
+    """更新会话名称。传入 user_id 时校验归属，返回是否成功"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        if user_id is not None:
+            cursor = await db.execute(
+                "UPDATE sessions SET name = ? WHERE id = ? AND user_id = ?",
+                (name[:30], session_id, user_id),
+            )
+        else:
+            cursor = await db.execute(
+                "UPDATE sessions SET name = ? WHERE id = ?",
+                (name[:30], session_id),
+            )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def rollback_last_exchange(session_id: int, user_id: Optional[int] = None) -> int:
+    """
+    回滚到最后一条 user 消息之后（删除其后的 assistant/tool 消息）。
+    用于"重新生成"：回到最后一次提问的状态。返回被删除的消息条数。
+    """
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        if user_id is not None:
+            cursor = await db.execute(
+                "SELECT * FROM sessions WHERE id = ? AND user_id = ?", (session_id, user_id)
+            )
+        else:
+            cursor = await db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return -1  # 会话不存在或无权访问
+
+        messages = json.loads(row["messages"])
+        if not messages:
+            return 0
+
+        # 找到最后一条 user 的下标
+        last_user_idx = -1
+        for i, m in enumerate(messages):
+            if m.get("role") == "user":
+                last_user_idx = i
+        if last_user_idx == -1:
+            return 0  # 没有 user 消息，无可回滚
+
+        removed = len(messages) - (last_user_idx + 1)
+        messages = messages[: last_user_idx + 1]
         await db.execute(
-            "UPDATE sessions SET name = ? WHERE id = ?",
-            (name[:30], session_id),
+            "UPDATE sessions SET messages = ? WHERE id = ?",
+            (json.dumps(messages, ensure_ascii=False), session_id),
         )
         await db.commit()
+        return removed
 
 
 async def list_sessions(limit: int = 20, user_id: Optional[int] = None) -> list[dict]:

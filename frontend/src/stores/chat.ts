@@ -12,6 +12,8 @@ interface ChatState {
   setMessages: (msgs: ChatMessage[]) => void
   setSessionId: (id: number) => void
   setStreaming: (v: boolean) => void
+  setMessages: (msgs: ChatMessage[]) => void
+  truncateToLastUser: () => void
   clearMessages: () => void
 }
 
@@ -63,5 +65,15 @@ export const useChatStore = create<ChatState>((set) => ({
   setSessionId: (id) => set({ sessionId: id }),
   setStreaming: (v) => set({ isStreaming: v }),
   setMessages: (msgs) => set({ messages: msgs }),
+  truncateToLastUser: () =>
+    set((s) => {
+      const msgs = [...s.messages]
+      let lastUserIdx = -1
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === 'user') { lastUserIdx = i; break }
+      }
+      if (lastUserIdx === -1) return {}
+      return { messages: msgs.slice(0, lastUserIdx + 1) }
+    }),
   clearMessages: () => set({ messages: [], sessionId: null }),
 }))

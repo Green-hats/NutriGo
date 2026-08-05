@@ -7,6 +7,7 @@ from typing import AsyncGenerator, Optional
 
 
 class ChatIO:
+    async def emit_session_id(self, session_id: int) -> None: ...
     async def emit_chunk(self, text: str) -> None: ...
     async def emit_tool_call(self, tool_name: str, arguments: str) -> None: ...
     async def emit_tool_result(self, tool_name: str, result: str) -> None: ...
@@ -33,6 +34,9 @@ class SSEChatIO(ChatIO):
 
     async def _push(self, event: str, data: str = "") -> None:
         await self._queue.put((event, data))
+
+    async def emit_session_id(self, session_id: int) -> None:
+        await self._push("session_id", str(session_id))
 
     async def emit_chunk(self, text: str) -> None:
         await self._push("chunk", text)
@@ -67,6 +71,13 @@ class SSEChatIO(ChatIO):
             if event == "__done__":
                 break
             yield self._format(event, data)
+
+    async def next_event(self) -> Optional[str]:
+        """取下一个格式化事件，流结束时返回 None"""
+        event, data = await self._queue.get()
+        if event == "__done__":
+            return None
+        return self._format(event, data)
 
     async def close(self) -> None:
         await self._queue.put(("__done__", ""))
