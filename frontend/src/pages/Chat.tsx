@@ -15,8 +15,8 @@ export default function Chat() {
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const { messages, addMessage, appendToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming, clearMessages } = useChatStore()
-  const userId = useAuthStore((s) => s.user?.id || 0)
+  const { messages, addMessage, appendToLast, appendThinkingToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming, clearMessages } = useChatStore()
+  const token = useAuthStore((s) => s.token)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
@@ -29,8 +29,9 @@ export default function Chat() {
     addMessage({ role: 'assistant', content: '' })
     setStreaming(true)
 
-    createChatStream(msg, sessionId, userId, {
+    createChatStream(msg, sessionId, token, {
       onChunk: (t) => appendToLast(t),
+      onThinking: (t) => appendThinkingToLast(t),
       onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
       onToolResult: (name, result) => updateToolResult(name, result),
       onDone: () => setStreaming(false),
@@ -75,6 +76,12 @@ export default function Chat() {
             {msg.role === 'assistant' && (
               <div className="flex justify-start">
                 <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3 max-w-[88%] text-sm markdown-body">
+                  {msg.thinking && (
+                    <details className="mb-2 text-xs">
+                      <summary className="cursor-pointer select-none text-gray-500 hover:text-gray-700">🤔 思考过程</summary>
+                      <p className="mt-1 whitespace-pre-wrap text-gray-400 border-t border-gray-200 pt-2">{msg.thinking}</p>
+                    </details>
+                  )}
                   {msg.content ? (
                     isStreaming && i === messages.length - 1 ? (
                       <span>{msg.content}▍</span>

@@ -22,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app import db
+from app.auth import extract_user_id
 from app.chat_io import SSEChatIO
 from app.config import settings
 from app.conversation import Conversation
@@ -68,12 +69,16 @@ async def chat(
     request: Request,
     message: str = Query(..., description="用户消息"),
     session_id: int | None = Query(None, description="会话ID"),
-    user_id: int | None = Query(None, description="用户ID"),
 ):
-    """SSE 流式对话"""
+    """SSE 流式对话（需 JWT）"""
+
+    # 从 Authorization 头解析用户，不再信任 URL 里的 user_id
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
 
     if session_id:
-        conv = await Conversation.load(session_id)
+        conv = await Conversation.load(session_id, user_id=user_id)
         if conv is None:
             raise HTTPException(status_code=404, detail="会话不存在")
     else:
@@ -110,13 +115,19 @@ async def chat(
 # ============================================================
 
 @app.get("/api/sessions", response_model=list[SessionInfo])
-async def list_sessions():
-    return await db.list_sessions()
+async def list_sessions(request: Request):
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    return await db.list_sessions(user_id=user_id)
 
 
 @app.get("/api/sessions/{session_id}", response_model=SessionDetail)
-async def get_session(session_id: int):
-    row = await db.get_session(session_id)
+async def get_session(session_id: int, request: Request):
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    row = await db.get_session(session_id, user_id=user_id)
     if row is None:
         raise HTTPException(status_code=404, detail="会话不存在")
     import json
@@ -132,8 +143,11 @@ async def get_session(session_id: int):
 
 
 @app.delete("/api/sessions/{session_id}")
-async def delete_session(session_id: int):
-    if not await db.delete_session(session_id):
+async def delete_session(session_id: int, request: Request):
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    if not await db.delete_session(session_id, user_id=user_id):
         raise HTTPException(status_code=404, detail="会话不存在")
     return {"message": "删除成功"}
 

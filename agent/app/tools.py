@@ -68,12 +68,18 @@ class RegisteredTool:
         except Exception as e:
             return f"工具执行出错: {e}"
 
-    async def execute_async(self, arguments_json: str) -> str:
-        """异步执行"""
+    async def execute_async(self, arguments_json: str, defaults: dict | None = None) -> str:
+        """异步执行。defaults 用于补齐 LLM 未提供的参数（如 user_id）"""
         try:
             args = json.loads(arguments_json)
         except json.JSONDecodeError:
             return f"参数解析失败: {arguments_json}"
+        if not isinstance(args, dict):
+            return f"参数格式错误: {arguments_json}"
+        if defaults:
+            for k, v in defaults.items():
+                if v is not None and k not in args:
+                    args[k] = v
         try:
             result = self.func(**args)
             if inspect.iscoroutine(result):

@@ -7,6 +7,7 @@ interface ChatState {
   isStreaming: boolean
   addMessage: (msg: ChatMessage) => void
   appendToLast: (text: string) => void
+  appendThinkingToLast: (text: string) => void
   updateToolResult: (toolName: string, result: string) => void
   setMessages: (msgs: ChatMessage[]) => void
   setSessionId: (id: number) => void
@@ -14,7 +15,7 @@ interface ChatState {
   clearMessages: () => void
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   sessionId: null,
   isStreaming: false,
@@ -29,6 +30,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         msgs[msgs.length - 1] = { ...last, content: last.content + text }
       } else {
         msgs.push({ role: 'assistant', content: text })
+      }
+      return { messages: msgs }
+    }),
+
+  appendThinkingToLast: (text) =>
+    set((s) => {
+      const msgs = [...s.messages]
+      const last = msgs[msgs.length - 1]
+      if (last && last.role === 'assistant') {
+        msgs[msgs.length - 1] = { ...last, thinking: (last.thinking || '') + text }
+      } else {
+        msgs.push({ role: 'assistant', content: '', thinking: text })
       }
       return { messages: msgs }
     }),

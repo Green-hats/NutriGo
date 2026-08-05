@@ -27,13 +27,17 @@ class Config:
     #   openai/gpt-4o-mini          (OpenAI)
     #   deepseek/deepseek-chat      (DeepSeek)
     #   ollama/qwen2.5              (本地 Ollama)
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini/gemini-2.0-flash")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "deepseek/deepseek-v4-flash")  # 默认使用 DeepSeek V4 Flash
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
     LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "")  # 本地代理/Ollama 时设置
 
     # --- Go 后端地址 ---
     GO_BACKEND_URL: str = os.getenv("GO_BACKEND_URL", "http://localhost:3333")
     INTERNAL_TOKEN: str = os.getenv("INTERNAL_TOKEN", "nutri-go-internal-token-dev")
+
+    # --- JWT 鉴权 ---
+    # 与 Go 后端 internal/config/jwt.go 中的 JWTSecret 保持一致
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "nutri-go-secret-key-change-in-production")
 
     # --- 数据库 ---
     DATABASE_PATH: str = os.getenv("DATABASE_PATH", "agent.db")

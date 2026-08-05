@@ -29,10 +29,17 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
 
         # 收集流式响应
         content = ""
+        thinking = ""
         tool_call_buffer: dict[int, dict] = {}
 
         async for chunk in response:
             delta = chunk.choices[0].delta
+
+            # 思维链 → 流式推送 thinking 事件
+            reasoning = getattr(delta, "reasoning_content", None)
+            if reasoning:
+                thinking += reasoning
+                await chat_io.emit_thinking(reasoning)
 
             # 文字内容 → 直接推送
             if delta.content:
@@ -62,7 +69,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
             tool_names = [t["function"]["name"] for t in tool_calls_list]
             logger.info(f"[Agent] 工具调用: {tool_names}")
 
-            conv.add_assistant_message(content or None)
+            conv.add_assistant_message(content or None, thinking=thinking)
 
             openai_tool_calls = []
             for tc in tool_calls_list:
@@ -80,7 +87,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
                 await chat_io.emit_tool_call(name, args)
                 registered = tools.get(name)
                 if registered:
-                    result = await registered.execute_async(args)
+                    result = await registered.execute_async(args, defaults={"user_id": conv.user_id})
                 else:
                     result = f"未知工具: {name}"
                 await chat_io.emit_tool_result(name, result)
@@ -89,7 +96,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
 
         # 有内容 → 最终回复
         if content:
-            conv.add_assistant_message(content)
+            conv.add_assistant_message(content, thinking=thinking)
             await conv.save()
             await chat_io.emit_done()
             return

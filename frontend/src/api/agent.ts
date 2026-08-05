@@ -1,9 +1,16 @@
 const AGENT_URL = '/agent-api'
 
+import { useAuthStore } from '../stores/auth'
+
+function authHeaders(): Record<string, string> {
+  const token = useAuthStore.getState().token
+  return token ? { 'Authorization': `Bearer ${token}` } : {}
+}
+
 async function post<T>(path: string, body: any): Promise<T> {
   const resp = await fetch(`${AGENT_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   })
   if (!resp.ok) {
@@ -14,11 +21,16 @@ async function post<T>(path: string, body: any): Promise<T> {
 }
 
 async function del(path: string): Promise<void> {
-  await fetch(`${AGENT_URL}${path}`, { method: 'DELETE' })
+  const resp = await fetch(`${AGENT_URL}${path}`, { method: 'DELETE', headers: authHeaders() })
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
 }
 
 async function get<T>(path: string): Promise<T> {
-  const resp = await fetch(`${AGENT_URL}${path}`)
+  const resp = await fetch(`${AGENT_URL}${path}`, { headers: authHeaders() })
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: resp.statusText }))
+    throw new Error(err.detail || `HTTP ${resp.status}`)
+  }
   return resp.json()
 }
 

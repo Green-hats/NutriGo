@@ -54,11 +54,16 @@ async def create_session(
         return cursor.lastrowid
 
 
-async def get_session(session_id: int) -> Optional[dict]:
-    """根据 ID 查询会话，返回 dict 或 None"""
+async def get_session(session_id: int, user_id: Optional[int] = None) -> Optional[dict]:
+    """根据 ID 查询会话，返回 dict 或 None。传入 user_id 时校验归属"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row  # 让结果可以用列名访问
-        cursor = await db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,))
+        if user_id is not None:
+            cursor = await db.execute(
+                "SELECT * FROM sessions WHERE id = ? AND user_id = ?", (session_id, user_id)
+            )
+        else:
+            cursor = await db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,))
         row = await cursor.fetchone()
         if row is None:
             return None
@@ -87,20 +92,32 @@ async def update_session_name(session_id: int, name: str) -> None:
         await db.commit()
 
 
-async def list_sessions(limit: int = 20) -> list[dict]:
-    """列出最近的会话列表"""
+async def list_sessions(limit: int = 20, user_id: Optional[int] = None) -> list[dict]:
+    """列出最近的会话列表，可按 user_id 过滤"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT id, name, created_at FROM sessions ORDER BY updated_at DESC LIMIT ?",
-            (limit,),
-        )
+        if user_id is not None:
+            cursor = await db.execute(
+                "SELECT id, name, created_at FROM sessions WHERE user_id = ? "
+                "ORDER BY updated_at DESC LIMIT ?",
+                (user_id, limit),
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT id, name, created_at FROM sessions ORDER BY updated_at DESC LIMIT ?",
+                (limit,),
+            )
         return [dict(row) for row in await cursor.fetchall()]
 
 
-async def delete_session(session_id: int) -> bool:
-    """删除会话，返回是否成功"""
+async def delete_session(session_id: int, user_id: Optional[int] = None) -> bool:
+    """删除会话，返回是否成功。传入 user_id 时校验归属"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
-        cursor = await db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        if user_id is not None:
+            cursor = await db.execute(
+                "DELETE FROM sessions WHERE id = ? AND user_id = ?", (session_id, user_id)
+            )
+        else:
+            cursor = await db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         await db.commit()
         return cursor.rowcount > 0

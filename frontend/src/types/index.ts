@@ -84,4 +84,5 @@ export interface ChatMessage {
   content: string
   toolName?: string
   toolResult?: string
+  thinking?: string
 }

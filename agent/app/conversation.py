@@ -34,6 +34,13 @@ class Conversation:
         self.messages: list[dict] = []         # 消息历史（不含 system 消息）
         self._dirty = False                    # 有未保存的变更
 
+    def _build_system_msg(self) -> str:
+        """组装系统提示词：追加当前用户 ID，让 LLM 调用 get_user_profile 等工具时知道传什么"""
+        msg = self.system_msg
+        if self.user_id:
+            msg += f"\n\n当前对话的用户 ID 是 {self.user_id}。当需要调用 get_user_profile、get_diet_history 等工具时，直接使用该 ID 作为 user_id 参数，不要向用户索要 ID。"
+        return msg
+
     # ================================================================
     # 消息操作
     # ================================================================
@@ -43,9 +50,12 @@ class Conversation:
         self.messages.append({"role": "user", "content": content})
         self._dirty = True
 
-    def add_assistant_message(self, content: str) -> None:
-        """追加一条 AI 回复"""
-        self.messages.append({"role": "assistant", "content": content})
+    def add_assistant_message(self, content: str, thinking: str = "") -> None:
+        """追加一条 AI 回复，thinking 为模型思维链（可选）"""
+        msg: dict = {"role": "assistant", "content": content}
+        if thinking:
+            msg["thinking"] = thinking
+        self.messages.append(msg)
         self._dirty = True
 
     def add_tool_result(self, tool_call_id: str, tool_name: str, result: str) -> None:
@@ -86,8 +96,14 @@ class Conversation:
         """
         返回发给 LLM 的完整消息列表。
         system 消息放在最前面，后面跟对话历史。
+        thinking 字段仅前端展示用，不发给 LLM，这里剔除。
         """
-        return [{"role": "system", "content": self.system_msg}] + self.messages
+        msgs = []
+        for m in self.messages:
+            if "thinking" in m:
+                m = {k: v for k, v in m.items() if k != "thinking"}
+            msgs.append(m)
+        return [{"role": "system", "content": self._build_system_msg()}] + msgs
 
     # ================================================================
     # 持久化
@@ -102,9 +118,9 @@ class Conversation:
         return conv
 
     @staticmethod
-    async def load(session_id: int) -> Optional["Conversation"]:
-        """从数据库加载已有会话"""
-        row = await db.get_session(session_id)
+    async def load(session_id: int, user_id: Optional[int] = None) -> Optional["Conversation"]:
+        """从数据库加载已有会话。传入 user_id 时校验归属"""
+        row = await db.get_session(session_id, user_id=user_id)
         if row is None:
             return None
         messages = json.loads(row["messages"])
