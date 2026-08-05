@@ -160,7 +160,7 @@ class ToolRegistry:
 registry = ToolRegistry()
 
 # 从 recognition.nutrition 导入工具函数
-from recognition.nutrition import lookup_food_nutrition, get_user_profile, get_diet_history
+from recognition.nutrition import lookup_food_nutrition, get_user_profile, get_diet_history, get_diet_summary
 from recognition.rag import search_nutrition_knowledge
 
 registry.register(
@@ -181,6 +181,14 @@ registry.register(
     name="get_diet_history",
     description="获取用户某一天的饮食记录。"
                 "当用户询问'我今天吃了什么'、'分析我的饮食'或需要结合已有饮食给出建议时调用。",
+)
+
+registry.register(
+    get_diet_summary,
+    name="get_diet_summary",
+    description="获取用户最近一段时间的每日营养汇总与趋势（热量、蛋白质、脂肪、碳水）。"
+                "当用户询问'我这周吃得怎么样'、'最近饮食趋势'、'近7天营养分析'、'饮食变化'时调用。"
+                "start/end 可不传，默认查询近 7 天。",
 )
 
 registry.register(

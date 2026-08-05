@@ -120,3 +120,55 @@ async def get_diet_history(user_id: int, date: str, limit: int = 10) -> str:
     if len(logs) > limit:
         lines.append(f"  ……共 {len(logs)} 条记录，其余 {len(logs) - limit} 条已省略")
     return "\n".join(lines)
+
+
+async def get_diet_summary(user_id: int, start: str = "", end: str = "", limit: int = 30) -> str:
+    """
+    Agent 工具：获取用户一段时间内的每日营养汇总与趋势。
+
+    start/end 为 YYYY-MM-DD，为空时默认近 7 天。
+    输出：覆盖天数、日均营养、逐日列表、最高/最低热量日。
+    """
+    from datetime import date, timedelta
+
+    if not start or not end:
+        end = date.today().isoformat()
+        start = (date.today() - timedelta(days=6)).isoformat()  # 近 7 天含今天
+
+    try:
+        summaries = await go_client.get_diet_summaries(user_id, start, end)
+    except Exception as e:
+        return f"获取饮食汇总失败：{e}"
+
+    if not summaries:
+        return f"用户 {user_id} 在 {start} ~ {end} 期间没有饮食记录"
+
+    # 超长保护
+    if len(summaries) > limit:
+        summaries = summaries[:limit]
+
+    days = len(summaries)
+    avg = lambda key: round(sum(s.get(key, 0) for s in summaries) / days, 1)
+    max_day = max(summaries, key=lambda s: s.get("total_calories", 0))
+    min_day = min(summaries, key=lambda s: s.get("total_calories", 0))
+
+    lines = [
+        f"用户 {user_id} 在 {start} ~ {end} 的饮食趋势（共 {days} 天记录）：",
+        f"  日均摄入：热量 {avg('total_calories')} kcal，"
+        f"蛋白质 {avg('total_protein_g')} g，"
+        f"脂肪 {avg('total_fat_g')} g，碳水 {avg('total_carbs_g')} g",
+    ]
+    lines.append("  逐日明细：")
+    for s in summaries:
+        lines.append(
+            f"    [{s['date']}] {s.get('total_calories', 0):.0f} kcal "
+            f"(蛋白{s.get('total_protein_g', 0):.0f}g "
+            f"脂肪{s.get('total_fat_g', 0):.0f}g "
+            f"碳水{s.get('total_carbs_g', 0):.0f}g，{s.get('meal_count', 0)}餐)"
+        )
+    if len(summaries) > 1:
+        lines.append(
+            f"  趋势：最高热量日 {max_day['date']}（{max_day.get('total_calories', 0):.0f} kcal），"
+            f"最低热量日 {min_day['date']}（{min_day.get('total_calories', 0):.0f} kcal）"
+        )
+    return "\n".join(lines)

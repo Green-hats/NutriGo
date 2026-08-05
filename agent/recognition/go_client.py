@@ -47,6 +47,17 @@ class GoClient:
             resp.raise_for_status()
             return resp.json()
 
+    async def get_diet_summaries(self, user_id: int, start: str, end: str) -> list[dict]:
+        """GET /api/internal/diet/summaries?user_id=&start=&end= → 每日营养汇总"""
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{self.base}/api/internal/diet/summaries",
+                params={"user_id": user_id, "start": start, "end": end},
+                headers=self.headers,
+            )
+            resp.raise_for_status()
+            return resp.json()
+
 
 # 全局单例
 go_client = GoClient()

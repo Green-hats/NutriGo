@@ -82,6 +82,8 @@ func main() {
 		internal.GET("/internal/users/:id/profile", profileHandler.GetProfileInternal)
 		// 饮食记录查询（Python 需要用户历史饮食来做分析）
 		internal.GET("/internal/diet/logs", dietHandler.ListInternal)
+		// 每日营养汇总（Python 需要多日趋势来做分析）
+		internal.GET("/internal/diet/summaries", summaryHandler.ListInternal)
 	}
 
 	r.Run(":3333")
