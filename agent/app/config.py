@@ -45,6 +45,9 @@ class Config:
     # --- Agent 行为 ---
     MAX_AGENT_ITERATIONS: int = int(os.getenv("MAX_AGENT_ITERATIONS", "15"))
     LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "120"))  # 单次 LLM 调用超时(秒)，网络抖动时自动重试
+    TOOL_RESULT_MAX_CHARS: int = int(os.getenv("TOOL_RESULT_MAX_CHARS", "2000"))  # 工具结果超长兜底截断阈值(字符)
+    MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "8000"))  # 发给 LLM 的上下文 token 预算
+    MAX_CONTEXT_MESSAGES: int = int(os.getenv("MAX_CONTEXT_MESSAGES", "40"))  # 发给 LLM 的最大消息条数
     SYSTEM_PROMPT: str = """你是 NutriGo 智能营养师，专为中国用户提供饮食营养指导。
 
 你的职责：

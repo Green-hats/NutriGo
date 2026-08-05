@@ -92,9 +92,62 @@ class Conversation:
             return removed.get("content", "")
         return None
 
+    def _truncate_for_llm(self, messages: list[dict]) -> list[dict]:
+        """
+        长会话上下文裁剪：以 user 消息为块起点分块，
+        先按条数上限丢最旧块，再按 token 预算从最新往前裁剪。
+        只影响发给 LLM 的消息，self.messages 与存储不变。
+        """
+        max_msgs = settings.MAX_CONTEXT_MESSAGES
+        max_tokens = settings.MAX_CONTEXT_TOKENS
+
+        if not messages:
+            return messages
+
+        # 1. 分块：从 user 开始到下一个 user 之前为一组
+        blocks: list[list[dict]] = []
+        cur: list[dict] = []
+        for m in messages:
+            if m.get("role") == "user" and cur:
+                blocks.append(cur)
+                cur = []
+            cur.append(m)
+        if cur:
+            blocks.append(cur)
+
+        # 2. 按条数裁剪：丢最旧块
+        if max_msgs > 0:
+            total = sum(len(b) for b in blocks)
+            while total > max_msgs and len(blocks) > 1:
+                total -= len(blocks[0])
+                blocks.pop(0)
+
+        # 3. 按 token 预算裁剪：从最新块往前累加
+        try:
+            from litellm.utils import token_counter
+        except ImportError:
+            token_counter = None
+
+        kept: list[list[dict]] = []
+        total_tokens = 0
+        for block in reversed(blocks):
+            if token_counter:
+                block_tokens = sum(
+                    token_counter(model="gpt-3.5-turbo", text=json.dumps(m, ensure_ascii=False))
+                    for m in block
+                )
+            else:
+                block_tokens = len(json.dumps(block, ensure_ascii=False)) // 2  # 粗略估算
+            if max_tokens > 0 and total_tokens + block_tokens > max_tokens and kept:
+                break
+            kept.append(block)
+            total_tokens += block_tokens
+
+        return [m for b in reversed(kept) for m in b]
+
     def to_messages(self) -> list[dict]:
         """
-        返回发给 LLM 的完整消息列表。
+        返回发给 LLM 的完整消息列表（含上下文裁剪）。
         system 消息放在最前面，后面跟对话历史。
         thinking 字段仅前端展示用，不发给 LLM，这里剔除。
         """
@@ -103,6 +156,7 @@ class Conversation:
             if "thinking" in m:
                 m = {k: v for k, v in m.items() if k != "thinking"}
             msgs.append(m)
+        msgs = self._truncate_for_llm(msgs)
         return [{"role": "system", "content": self._build_system_msg()}] + msgs
 
     # ================================================================

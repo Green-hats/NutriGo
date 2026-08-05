@@ -80,7 +80,7 @@ class RegisteredTool:
             return missing
         try:
             result = self.func(**args)
-            return result
+            return self._truncate_result(result)
         except Exception as e:
             return f"工具执行出错: {e}"
     def _check_missing(self, args: dict) -> str | None:
@@ -90,6 +90,14 @@ class RegisteredTool:
         if missing:
             return f"缺少必要参数: {', '.join(missing)}，请补齐后重试"
         return None
+
+    def _truncate_result(self, result: str) -> str:
+        """工具结果超长时兜底截断，避免撑爆上下文"""
+        from app.config import settings
+        limit = settings.TOOL_RESULT_MAX_CHARS
+        if isinstance(result, str) and len(result) > limit:
+            return result[:limit] + f"……(结果过长，已截断，共{len(result)}字符)"
+        return result
 
     async def execute_async(self, arguments_json: str, defaults: dict | None = None) -> str:
         """异步执行。defaults 用于补齐 LLM 未提供的参数（如 user_id），仅注入函数实际接受的参数"""
@@ -110,7 +118,7 @@ class RegisteredTool:
             result = self.func(**args)
             if inspect.iscoroutine(result):
                 result = await result
-            return result
+            return self._truncate_result(result)
         except Exception as e:
             return f"工具执行出错: {e}"
 

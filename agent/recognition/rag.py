@@ -51,7 +51,11 @@ async def search_nutrition_knowledge(query: str) -> str:
     if not docs:
         return "未找到相关知识"
 
+    MAX_SEGMENT_CHARS = 300
     parts = []
     for i, doc in enumerate(docs, 1):
-        parts.append(f"[资料{i}]\n{doc.strip()}")
+        text = doc.strip()
+        if len(text) > MAX_SEGMENT_CHARS:
+            text = text[:MAX_SEGMENT_CHARS] + "……(省略)"
+        parts.append(f"[资料{i}]\n{text}")
     return "\n\n---\n\n".join(parts)

@@ -94,7 +94,7 @@ async def get_user_profile(user_id: int) -> str:
     return "\n".join(lines)
 
 
-async def get_diet_history(user_id: int, date: str) -> str:
+async def get_diet_history(user_id: int, date: str, limit: int = 10) -> str:
     try:
         logs = await go_client.get_diet_logs(user_id, date)
     except Exception as e:
@@ -105,7 +105,8 @@ async def get_diet_history(user_id: int, date: str) -> str:
 
     total_cal = sum(log.get("calories", 0) for log in logs)
     lines = [f"用户 {user_id} 在 {date} 的饮食记录（共 {total_cal:.0f} kcal）："]
-    for log in logs:
+    shown = logs[:limit] if len(logs) > limit else logs
+    for log in shown:
         meal = log.get("meal_type", "未知")
         meal_cn = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "加餐"}
         lines.append(
@@ -116,4 +117,6 @@ async def get_diet_history(user_id: int, date: str) -> str:
             f"脂肪{log.get('fat_g', 0):.0f}g "
             f"碳水{log.get('carbs_g', 0):.0f}g)"
         )
+    if len(logs) > limit:
+        lines.append(f"  ……共 {len(logs)} 条记录，其余 {len(logs) - limit} 条已省略")
     return "\n".join(lines)
