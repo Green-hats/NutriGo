@@ -6,8 +6,8 @@ foods_simple.db — 食物营养数据库（8407 条数据）
 
 份量通过 category 推断，无单独的 food_portion 表。
 """
+
 import aiosqlite
-from typing import Optional
 
 DB_PATH = "nutrition.db"
 
@@ -48,7 +48,7 @@ async def search(food_name: str, limit: int = 5) -> list[dict]:
         return [dict(row) for row in await cursor.fetchall()]
 
 
-async def get_by_name(food_name: str) -> Optional[dict]:
+async def get_by_name(food_name: str) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
@@ -72,9 +72,8 @@ async def get_portion(food_name: str) -> dict:
         # 模糊匹配 category
         if row:
             cat = row["category"]
-            for key in CATEGORY_DEFAULTS:
+            for key, (g, u) in CATEGORY_DEFAULTS.items():
                 if key in cat:
-                    g, u = CATEGORY_DEFAULTS[key]
                     return {"grams": g, "unit": u}
         return {"grams": FALLBACK_PORTION[0], "unit": FALLBACK_PORTION[1]}
 

@@ -13,12 +13,14 @@ API 路由：
 """
 
 import asyncio
+import json
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app import db
@@ -28,12 +30,13 @@ from app.config import settings
 from app.conversation import Conversation
 from app.llm_client import run_agent_loop
 from app.logging_setup import configure_logging, new_request_id, request_id_var
-from app.models import SessionInfo, SessionDetail
+from app.models import SessionDetail, SessionInfo
 from app.rate_limit import acquire_user, get_session_lock, release_user
 from app.tools import registry as tool_registry
+from recognition.db import get_by_name, get_portion, list_names, seed_data
 
 # recognition 模块
-from recognition.db import init_db as init_nutrition_db, seed_data, get_by_name, get_portion, list_names
+from recognition.db import init_db as init_nutrition_db
 from recognition.go_client import go_client
 from recognition.multimodal import identify
 from recognition.nutrition import calculate_intake
@@ -60,7 +63,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="NutriGo Agent", version="0.1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============================================================
+# 健康检查（无鉴权，供负载均衡/容器编排探活）
+# ============================================================
+
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
 
 
 # ============================================================
@@ -155,7 +172,8 @@ async def regenerate(session_id: int, request: Request):
     return _sse_response(request, conv, chat_io, user_id)
 
 
-def _sse_response(request: Request, conv: Conversation, chat_io: SSEChatIO, user_id: int) -> StreamingResponse:
+def _sse_response(request: Request, conv: Conversation, chat_io: SSEChatIO,
+                  user_id: int) -> StreamingResponse:
     """生成 SSE 流式响应：后台跑 agent loop，实时推送事件；断开/结束释放用户名额"""
     async def event_generator():
         # 先推送会话 ID，前端拿到后能触发"重新生成"等功能
@@ -226,7 +244,6 @@ async def get_session(session_id: int, request: Request):
     row = await db.get_session(session_id, user_id=user_id)
     if row is None:
         raise HTTPException(status_code=404, detail="会话不存在")
-    import json
     return SessionDetail(
         id=row["id"],
         name=row["name"],
@@ -273,6 +290,36 @@ class IdentifyRequest(BaseModel):
     image_id: int
 
 
+# 图片识别结果缓存：image_id -> (expire_at, results)
+# 同一张图短时间重复识别直接返回，避免重复跑 CLIP（~7s）
+_identify_cache: dict[int, tuple[float, list]] = {}
+_IDENTIFY_CACHE_TTL = 3600        # 缓存 1 小时
+_IDENTIFY_CACHE_MAX = 500         # 最多缓存条数，防止内存膨胀
+
+
+def _cache_get(image_id: int):
+    item = _identify_cache.get(image_id)
+    if item is None:
+        return None
+    expire_at, results = item
+    if time.time() > expire_at:
+        _identify_cache.pop(image_id, None)
+        return None
+    return results
+
+
+def _cache_set(image_id: int, results: list) -> None:
+    if len(_identify_cache) >= _IDENTIFY_CACHE_MAX:
+        # 满了就清掉过期项；仍满则整体清空（简单策略）
+        now = time.time()
+        expired = [k for k, (e, _) in _identify_cache.items() if e < now]
+        for k in expired:
+            _identify_cache.pop(k, None)
+        if len(_identify_cache) >= _IDENTIFY_CACHE_MAX:
+            _identify_cache.clear()
+    _identify_cache[image_id] = (time.time() + _IDENTIFY_CACHE_TTL, results)
+
+
 @app.post("/api/identify-food")
 async def identify_food(req: IdentifyRequest, request: Request):
     """
@@ -288,11 +335,16 @@ async def identify_food(req: IdentifyRequest, request: Request):
     if user_id is None:
         raise HTTPException(status_code=401, detail="未认证或 token 无效")
 
+    # 0.5 缓存命中直接返回，跳过 CLIP 推理
+    cached = _cache_get(req.image_id)
+    if cached is not None:
+        return cached
+
     # 1. 从 Go 获取图片
     try:
         image_bytes = await go_client.get_image_data(req.image_id)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"获取图片失败 (image_id={req.image_id}): {e}")
+        raise HTTPException(status_code=400, detail=f"获取图片失败 (image_id={req.image_id}): {e}") from e
 
     # 2. CLIP 识别（仅用家常菜，避免 8407 个 labels 太慢）
     #    同步推理放到线程池，不阻塞 asyncio 事件循环
@@ -303,7 +355,7 @@ async def identify_food(req: IdentifyRequest, request: Request):
     try:
         candidates = await asyncio.to_thread(identify, image_bytes, labels, 5)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"图片识别失败: {e}")
+        raise HTTPException(status_code=500, detail=f"图片识别失败: {e}") from e
 
     # 3. 查询营养 + 份量
     results = []
@@ -323,6 +375,7 @@ async def identify_food(req: IdentifyRequest, request: Request):
             "default_portion": portion,
         })
 
+    _cache_set(req.image_id, results)
     return results
 
 

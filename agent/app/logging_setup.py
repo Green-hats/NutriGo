@@ -9,7 +9,6 @@ import contextvars
 import logging
 import sys
 import uuid
-from typing import Optional
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 

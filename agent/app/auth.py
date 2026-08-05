@@ -13,7 +13,6 @@ import hashlib
 import hmac
 import json
 import time
-from typing import Optional
 
 from app.config import settings
 
@@ -31,7 +30,7 @@ def _sign(message: bytes, secret: str) -> str:
     return _b64encode(hmac.new(secret.encode(), message, hashlib.sha256).digest())
 
 
-def verify_token(token: str) -> Optional[dict]:
+def verify_token(token: str) -> dict | None:
     """
     校验 JWT：验签 + 过期检查，返回 payload（含 user_id）或 None。
     与 Go 的 jwt.ParseWithClaims(...) 行为对齐。
@@ -69,7 +68,7 @@ def verify_token(token: str) -> Optional[dict]:
     return payload
 
 
-def extract_user_id(authorization: Optional[str]) -> Optional[int]:
+def extract_user_id(authorization: str | None) -> int | None:
     """从 Authorization 头提取 user_id，无效返回 None"""
     if not authorization:
         return None

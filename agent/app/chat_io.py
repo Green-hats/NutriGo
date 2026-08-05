@@ -1,9 +1,9 @@
 """
 ChatIO 输出抽象层 — Agent 事件 → SSE 流
 """
-import json
 import asyncio
-from typing import AsyncGenerator, Optional
+import json
+from collections.abc import AsyncGenerator
 
 
 class ChatIO:
@@ -20,7 +20,7 @@ class SSEChatIO(ChatIO):
     """使用 asyncio.Queue 实现真正的实时流式输出"""
 
     def __init__(self):
-        self._queue: asyncio.Queue[tuple[str, Optional[str]]] = asyncio.Queue()
+        self._queue: asyncio.Queue[tuple[str, str | None]] = asyncio.Queue()
         self._cancel_event = asyncio.Event()
 
     @property
@@ -42,7 +42,8 @@ class SSEChatIO(ChatIO):
         await self._push("chunk", text)
 
     async def emit_tool_call(self, tool_name: str, arguments: str) -> None:
-        await self._push("tool_call", json.dumps({"name": tool_name, "arguments": arguments}, ensure_ascii=False))
+        data = json.dumps({"name": tool_name, "arguments": arguments}, ensure_ascii=False)
+        await self._push("tool_call", data)
 
     async def emit_tool_result(self, tool_name: str, result: str) -> None:
         await self._push("tool_result", json.dumps({"name": tool_name, "result": result}, ensure_ascii=False))
@@ -72,7 +73,7 @@ class SSEChatIO(ChatIO):
                 break
             yield self._format(event, data)
 
-    async def next_event(self) -> Optional[str]:
+    async def next_event(self) -> str | None:
         """取下一个格式化事件，流结束时返回 None"""
         event, data = await self._queue.get()
         if event == "__done__":

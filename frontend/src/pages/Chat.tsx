@@ -44,6 +44,26 @@ export default function Chat() {
     streamRef.current = handle
   }
 
+  const retry = () => {
+    // 重试最后一条失败的消息：回滚到最后一个 user，重新生成（后端会回滚并重跑）
+    if (!sessionId || isStreaming) return
+    setError('')
+    truncateToLastUser()
+    addMessage({ role: 'assistant', content: '' })
+    setStreaming(true)
+
+    const handle = createChatStream(sessionId, token, {
+      onSessionId: (id) => setSessionId(id),
+      onChunk: (t) => appendToLast(t),
+      onThinking: (t) => appendThinkingToLast(t),
+      onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
+      onToolResult: (name, result) => updateToolResult(name, result),
+      onDone: () => { setStreaming(false); streamRef.current = null },
+      onError: (err) => { setError(err); setStreaming(false); streamRef.current = null },
+    }, undefined, 'regenerate')
+    streamRef.current = handle
+  }
+
   const stop = () => {
     streamRef.current?.cancel()
     streamRef.current = null
@@ -152,7 +172,10 @@ export default function Chat() {
           <div className="flex justify-center">
             <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 max-w-[88%]">
               <p className="mb-2">❌ {error}</p>
-              <button onClick={() => setError('')} className="text-red-500 text-xs underline">关闭</button>
+              <div className="flex gap-3">
+                {sessionId && <button onClick={retry} className="text-red-500 text-xs underline">重试</button>}
+                <button onClick={() => setError('')} className="text-red-500 text-xs underline">关闭</button>
+              </div>
             </div>
           </div>
         )}

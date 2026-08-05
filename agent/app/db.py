@@ -13,7 +13,6 @@ sessions 表结构：
 
 import json
 from datetime import datetime
-from typing import Optional
 
 import aiosqlite
 
@@ -40,7 +39,7 @@ async def init_db() -> None:
 async def create_session(
     name: str = "",
     system_msg: str = "",
-    user_id: Optional[int] = None,
+    user_id: int | None = None,
 ) -> int:
     """创建新会话，返回 session_id"""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -54,7 +53,7 @@ async def create_session(
         return cursor.lastrowid
 
 
-async def get_session(session_id: int, user_id: Optional[int] = None) -> Optional[dict]:
+async def get_session(session_id: int, user_id: int | None = None) -> dict | None:
     """根据 ID 查询会话，返回 dict 或 None。传入 user_id 时校验归属"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row  # 让结果可以用列名访问
@@ -82,7 +81,7 @@ async def save_messages(session_id: int, messages: list[dict]) -> None:
         await db.commit()
 
 
-async def update_session_name(session_id: int, name: str, user_id: Optional[int] = None) -> bool:
+async def update_session_name(session_id: int, name: str, user_id: int | None = None) -> bool:
     """更新会话名称。传入 user_id 时校验归属，返回是否成功"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
         if user_id is not None:
@@ -99,7 +98,7 @@ async def update_session_name(session_id: int, name: str, user_id: Optional[int]
         return cursor.rowcount > 0
 
 
-async def rollback_last_exchange(session_id: int, user_id: Optional[int] = None) -> int:
+async def rollback_last_exchange(session_id: int, user_id: int | None = None) -> int:
     """
     回滚到最后一条 user 消息之后（删除其后的 assistant/tool 消息）。
     用于"重新生成"：回到最后一次提问的状态。返回被删除的消息条数。
@@ -138,7 +137,7 @@ async def rollback_last_exchange(session_id: int, user_id: Optional[int] = None)
         return removed
 
 
-async def list_sessions(limit: int = 20, user_id: Optional[int] = None) -> list[dict]:
+async def list_sessions(limit: int = 20, user_id: int | None = None) -> list[dict]:
     """列出最近的会话列表，可按 user_id 过滤"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -156,7 +155,7 @@ async def list_sessions(limit: int = 20, user_id: Optional[int] = None) -> list[
         return [dict(row) for row in await cursor.fetchall()]
 
 
-async def delete_session(session_id: int, user_id: Optional[int] = None) -> bool:
+async def delete_session(session_id: int, user_id: int | None = None) -> bool:
     """删除会话，返回是否成功。传入 user_id 时校验归属"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
         if user_id is not None:

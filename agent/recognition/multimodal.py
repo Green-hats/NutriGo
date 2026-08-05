@@ -10,6 +10,7 @@ Chinese-CLIP 食物图片识别
 """
 
 import io
+
 import torch
 from PIL import Image
 
@@ -62,7 +63,7 @@ def identify(image_bytes: bytes, labels: list[str], top_k: int = 5) -> list[dict
     values, indices = probs[0].topk(min(top_k, len(labels)))
 
     results = []
-    for val, idx in zip(values.tolist(), indices.tolist()):
+    for val, idx in zip(values.tolist(), indices.tolist(), strict=True):
         results.append({
             "name": labels[idx],
             "confidence": round(val, 4),

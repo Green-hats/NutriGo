@@ -1,0 +1,38 @@
+# ruff 配置 — NutriGo Agent
+# 运行：uv run ruff check . && uv run ruff check --fix .
+
+# 行宽（顶层字段）
+line-length = 110
+
+[lint]
+# 启用常用规则组
+select = ["E", "F", "W", "I", "UP", "B", "S", "RUF", "PLC", "ISC", "DTZ"]
+
+# 有意使用的模式，按文件/规则忽略
+ignore = [
+    "BLE001",   # 工具错误处理需盲捕异常返回友好提示
+    "S110",     # finally 中吞掉取消/终止异常
+    "DTZ011",   # 会话时间用本地 naive datetime（SQLite 存储格式一致）
+    "DTZ005",
+    "RUF012",   # Config 类可变默认值（CORS 白名单）
+    "RUF001",   # 中文项目大量使用全角标点，无需警告
+    "RUF002",
+    "RUF003",
+]
+
+[lint.per-file-ignores]
+# 入口文件允许裸 except
+"app/main.py" = ["S110"]
+"recognition/nutrition.py" = ["BLE001"]
+"recognition/go_client.py" = ["BLE001"]
+"recognition/rag.py" = ["BLE001"]
+"app/auth.py" = ["BLE001"]
+
+# tools.py：工具注册集中在文件末尾，需在底部导入工具函数 + 工具错误盲捕
+"app/tools.py" = ["E402", "PLC0415", "BLE001"]
+
+# conversation.py：litellm token_counter 延迟导入，避免启动加载 litellm
+"app/conversation.py" = ["PLC0415"]
+
+# multimodal.py：transformers 延迟导入，避免启动加载 torch/CLIP 模型
+"recognition/multimodal.py" = ["PLC0415"]

@@ -1,0 +1,65 @@
+# NutriGo 统一命令入口
+# 用法：make <target>，常见：
+#   make dev          启动全部服务（等价 ./start.sh）
+#   make stop         停止全部服务
+#   make test         运行全部测试
+#   make lint         运行 lint（前端 oxlint + 后端 ruff）
+#   make build        编译 Go + 前端构建
+
+SHELL := /bin/bash
+ROOT := $(shell pwd)
+
+.PHONY: dev stop status build test test-agent test-backend test-identify lint lint-frontend lint-backend env
+
+## ---- 启动/停止 ----
+dev:
+	./start.sh
+
+stop:
+	./start.sh stop
+
+status:
+	./start.sh status
+
+## ---- 构建 ----
+build:
+	cd backend && go build -o /tmp/nutrigo-server ./cmd/server
+	cd frontend && bash -c 'export NVM_DIR="$$HOME/.nvm"; . "$$NVM_DIR/nvm.sh"; node_modules/.bin/vite build'
+	@echo "✅ 构建完成"
+
+## ---- 测试 ----
+test: test-backend test-agent test-identify
+
+test-backend:
+	@echo "== Go 后端测试 =="
+	cd backend && python3 ../test/backend/test_api.py
+
+test-agent:
+	@echo "== Agent 基础测试 =="
+	cd agent && uv run python ../test/agent/test_agent.py
+
+test-identify:
+	@echo "== Agent 图片识别测试 =="
+	cd agent && uv run python ../test/agent/test_identify.py
+
+test-prompts:
+	@echo "== Agent 全面提示词测试（需 Agent 服务运行，耗时较长）=="
+	cd agent && uv run python -u ../test/agent/test_agent_prompts.py --quick
+
+## ---- Lint ----
+lint: lint-frontend lint-backend
+
+lint-frontend:
+	@echo "== 前端 oxlint =="
+	cd frontend && bash -c 'export NVM_DIR="$$HOME/.nvm"; . "$$NVM_DIR/nvm.sh"; node_modules/.bin/oxlint src'
+	@echo "✅ 前端 lint 通过"
+
+lint-backend:
+	@echo "== Python ruff =="
+	cd agent && uv run ruff check app/ recognition/
+	@echo "✅ Python lint 通过"
+
+## ---- 环境 ----
+env:
+	@echo "== 检查 .env 文件 =="
+	@test -f agent/.env && echo "✅ agent/.env 存在" || echo "⚠️  agent/.env 缺失，请复制 agent/.env.example 为 agent/.env"

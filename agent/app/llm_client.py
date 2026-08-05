@@ -2,11 +2,13 @@
 LLM 客户端 — Agent Loop（流式版本）
 """
 import asyncio
-import json
 import logging
+import time
+
 import litellm
-from app.config import settings
+
 from app.chat_io import ChatIO
+from app.config import settings
 from app.conversation import Conversation
 from app.tools import ToolRegistry
 
@@ -15,16 +17,15 @@ litellm.drop_params = True
 
 
 async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatIO) -> None:
-    import time as _time
     tools_list = tools.to_openai_format() if tools._tools else None
-    start_total = _time.monotonic()
+    start_total = time.monotonic()
     logger.info(f"对话开始 session={conv.session_id} user_id={conv.user_id}")
 
     for iteration in range(settings.MAX_AGENT_ITERATIONS):
         if chat_io.cancelled:
             logger.info("已取消，退出循环")
             return
-        iter_start = _time.monotonic()
+        iter_start = time.monotonic()
         logger.info(f"第 {iteration+1} 轮")
         kwargs = _build_kwargs(conv.to_messages(), tools_list, stream=True)
         # 网络抖动时自动重试，最多 2 次
@@ -36,7 +37,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
                     timeout=settings.LLM_TIMEOUT,
                 )
                 break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(f"第 {iteration+1} 轮 LLM 超时 (尝试 {attempt+1}/3)")
             except Exception as e:
                 logger.warning(f"第 {iteration+1} 轮 LLM 调用失败: {e} (尝试 {attempt+1}/3)")
@@ -110,15 +111,15 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
                 args = tc["function"]["arguments"]
                 await chat_io.emit_tool_call(name, args)
                 registered = tools.get(name)
-                t0 = _time.monotonic()
+                t0 = time.monotonic()
                 if registered:
                     result = await registered.execute_async(args, defaults={"user_id": conv.user_id})
                 else:
                     result = f"未知工具: {name}"
-                logger.info(f"工具 {name} 执行 {_time.monotonic()-t0:.1f}s 结果{len(result)}字符")
+                logger.info(f"工具 {name} 执行 {time.monotonic()-t0:.1f}s 结果{len(result)}字符")
                 await chat_io.emit_tool_result(name, result)
                 conv.add_tool_result(tc["id"], name, result)
-            logger.info(f"第 {iteration+1} 轮完成，耗时 {_time.monotonic()-iter_start:.1f}s")
+            logger.info(f"第 {iteration+1} 轮完成，耗时 {time.monotonic()-iter_start:.1f}s")
             continue
 
         # 有内容 → 最终回复
@@ -126,7 +127,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
             conv.add_assistant_message(content, thinking=thinking)
             await conv.save()
             await chat_io.emit_done()
-            logger.info(f"对话完成 共{iteration+1}轮 总耗时{_time.monotonic()-start_total:.1f}s")
+            logger.info(f"对话完成 共{iteration+1}轮 总耗时{time.monotonic()-start_total:.1f}s")
             return
 
         # 空响应

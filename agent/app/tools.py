@@ -6,9 +6,9 @@
 """
 
 import asyncio
-import json
 import inspect
-from typing import Any, Callable
+import json
+from collections.abc import Callable
 
 
 class RegisteredTool:
@@ -121,7 +121,7 @@ class RegisteredTool:
                 self._run(args), timeout=settings.TOOL_TIMEOUT
             )
             return self._truncate_result(result)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return f"工具 {self.name} 执行超时（> {settings.TOOL_TIMEOUT}s），请稍后重试或换个问法"
         except Exception as e:
             return f"工具执行出错: {e}"
@@ -171,7 +171,7 @@ class ToolRegistry:
 registry = ToolRegistry()
 
 # 从 recognition.nutrition 导入工具函数
-from recognition.nutrition import lookup_food_nutrition, get_user_profile, get_diet_history, get_diet_summary
+from recognition.nutrition import get_diet_history, get_diet_summary, get_user_profile, lookup_food_nutrition
 from recognition.rag import search_nutrition_knowledge
 
 registry.register(

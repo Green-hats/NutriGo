@@ -8,7 +8,6 @@
 
 import asyncio
 from collections import defaultdict
-from typing import Optional
 
 from app.config import settings
 

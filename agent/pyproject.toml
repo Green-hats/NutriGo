@@ -25,3 +25,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app", "recognition"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.1",
+]

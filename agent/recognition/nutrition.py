@@ -1,9 +1,10 @@
 """
 营养计算 + Agent 工具函数
 """
+from datetime import date, timedelta
+
 from recognition import db
 from recognition.go_client import go_client
-
 
 # ================================================================
 # 营养计算（给前端用）
@@ -129,8 +130,6 @@ async def get_diet_summary(user_id: int, start: str = "", end: str = "", limit: 
     start/end 为 YYYY-MM-DD，为空时默认近 7 天。
     输出：覆盖天数、日均营养、逐日列表、最高/最低热量日。
     """
-    from datetime import date, timedelta
-
     if not start or not end:
         end = date.today().isoformat()
         start = (date.today() - timedelta(days=6)).isoformat()  # 近 7 天含今天
@@ -148,15 +147,20 @@ async def get_diet_summary(user_id: int, start: str = "", end: str = "", limit: 
         summaries = summaries[:limit]
 
     days = len(summaries)
-    avg = lambda key: round(sum(s.get(key, 0) for s in summaries) / days, 1)
+
+    def avg(key: str) -> float:
+        return round(sum(s.get(key, 0) for s in summaries) / days, 1)
+
     max_day = max(summaries, key=lambda s: s.get("total_calories", 0))
     min_day = min(summaries, key=lambda s: s.get("total_calories", 0))
 
     lines = [
         f"用户 {user_id} 在 {start} ~ {end} 的饮食趋势（共 {days} 天记录）：",
-        f"  日均摄入：热量 {avg('total_calories')} kcal，"
-        f"蛋白质 {avg('total_protein_g')} g，"
-        f"脂肪 {avg('total_fat_g')} g，碳水 {avg('total_carbs_g')} g",
+        (
+            f"  日均摄入：热量 {avg('total_calories')} kcal，"
+            f"蛋白质 {avg('total_protein_g')} g，"
+            f"脂肪 {avg('total_fat_g')} g，碳水 {avg('total_carbs_g')} g"
+        ),
     ]
     lines.append("  逐日明细：")
     for s in summaries:

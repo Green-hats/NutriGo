@@ -11,6 +11,7 @@
 """
 
 import os
+from datetime import date
 
 from dotenv import load_dotenv
 
@@ -42,10 +43,19 @@ class Config:
     # --- 数据库 ---
     DATABASE_PATH: str = os.getenv("DATABASE_PATH", "agent.db")
 
+    # --- CORS ---
+    # 逗号分隔的允许跨域来源，默认本地前端；生产改为正式域名
+    CORS_ORIGINS: list[str] = [
+        o.strip() for o in
+        os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+        if o.strip()
+    ]
+
     # --- Agent 行为 ---
     MAX_AGENT_ITERATIONS: int = int(os.getenv("MAX_AGENT_ITERATIONS", "15"))
-    LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "120"))  # 单次 LLM 调用超时(秒)，网络抖动时自动重试
-    TOOL_RESULT_MAX_CHARS: int = int(os.getenv("TOOL_RESULT_MAX_CHARS", "2000"))  # 工具结果超长兜底截断阈值(字符)
+    LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "120"))  # 单次 LLM 超时(秒)，网络抖动自动重试
+    # 工具结果超长兜底截断阈值(字符)
+    TOOL_RESULT_MAX_CHARS: int = int(os.getenv("TOOL_RESULT_MAX_CHARS", "2000"))
     MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "8000"))  # 发给 LLM 的上下文 token 预算
     MAX_CONTEXT_MESSAGES: int = int(os.getenv("MAX_CONTEXT_MESSAGES", "40"))  # 发给 LLM 的最大消息条数
     TOOL_TIMEOUT: int = int(os.getenv("TOOL_TIMEOUT", "30"))  # 单个工具执行超时(秒)
@@ -69,7 +79,6 @@ class Config:
 
     @property
     def system_prompt(self) -> str:
-        from datetime import date
         return self.SYSTEM_PROMPT.replace("TODAY_DATE", date.today().isoformat())
 
 

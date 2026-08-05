@@ -25,7 +25,7 @@ class Conversation:
     def __init__(
         self,
         session_id: int = 0,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
         system_msg: str = "",
     ):
         self.session_id = session_id          # 数据库会话 ID
@@ -39,7 +39,11 @@ class Conversation:
         """组装系统提示词：追加当前用户 ID，让 LLM 调用 get_user_profile 等工具时知道传什么"""
         msg = self.system_msg
         if self.user_id:
-            msg += f"\n\n当前对话的用户 ID 是 {self.user_id}。当需要调用 get_user_profile、get_diet_history 等工具时，直接使用该 ID 作为 user_id 参数，不要向用户索要 ID。"
+            msg += (
+                f"\n\n当前对话的用户 ID 是 {self.user_id}。"
+                "当需要调用 get_user_profile、get_diet_history 等工具时，"
+                "直接使用该 ID 作为 user_id 参数，不要向用户索要 ID。"
+            )
         return msg
 
     # ================================================================
@@ -82,7 +86,7 @@ class Conversation:
         })
         self._dirty = True
 
-    def rollback_last_assistant(self) -> Optional[str]:
+    def rollback_last_assistant(self) -> str | None:
         """
         回滚最后一条 assistant 消息，返回被回滚的内容。
         用于处理 SSE 连接中断等异常情况。
@@ -158,14 +162,14 @@ class Conversation:
                 m = {k: v for k, v in m.items() if k != "thinking"}
             msgs.append(m)
         msgs = self._truncate_for_llm(msgs)
-        return [{"role": "system", "content": self._build_system_msg()}] + msgs
+        return [{"role": "system", "content": self._build_system_msg()}, *msgs]
 
     # ================================================================
     # 持久化
     # ================================================================
 
     @staticmethod
-    async def create_new(user_id: Optional[int] = None) -> "Conversation":
+    async def create_new(user_id: int | None = None) -> "Conversation":
         """创建新会话，在数据库中新建一条记录"""
         session_id = await db.create_session(user_id=user_id)
         conv = Conversation(session_id=session_id, user_id=user_id)
@@ -173,7 +177,7 @@ class Conversation:
         return conv
 
     @staticmethod
-    async def load(session_id: int, user_id: Optional[int] = None) -> Optional["Conversation"]:
+    async def load(session_id: int, user_id: int | None = None) -> Optional["Conversation"]:
         """从数据库加载已有会话。传入 user_id 时校验归属"""
         row = await db.get_session(session_id, user_id=user_id)
         if row is None:
