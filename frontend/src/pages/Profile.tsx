@@ -2,17 +2,27 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '../stores/auth'
 import { goApi } from '../api/go'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, LogOut } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { LoadingButton } from '../components/ui/LoadingButton'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
 import { toast } from '../components/ui/Toast'
 import type { UserProfile } from '../types'
 
+const DISEASE_OPTIONS = [
+  { value: 'hypertension', label: '高血压' },
+  { value: 'diabetes', label: '糖尿病' },
+  { value: 'hyperlipidemia', label: '高血脂' },
+  { value: 'gout', label: '痛风' },
+  { value: 'heart_disease', label: '心脏病' },
+  { value: 'kidney_disease', label: '肾病' },
+  { value: 'digestive_disease', label: '消化系统疾病' },
+]
+
 export default function Profile() {
   const { user, setProfile, logout } = useAuthStore()
   const navigate = useNavigate()
-  const [form, setForm] = useState<UserProfile>({ height_cm: 0, weight_kg: 0, age: 0, gender: '', goal: '', allergies: [], dietary_habits: [] })
+  const [form, setForm] = useState<UserProfile>({ height_cm: 0, weight_kg: 0, age: 0, gender: '', goal: '', allergies: [], dietary_habits: [], chronic_diseases: [] })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -71,6 +81,31 @@ export default function Profile() {
           </Card>
           <Card title="过敏原"><TagInput value={form.allergies} onChange={(v) => setForm({ ...form, allergies: v })} placeholder="添加过敏原" /></Card>
           <Card title="饮食习惯"><TagInput value={form.dietary_habits} onChange={(v) => setForm({ ...form, dietary_habits: v })} placeholder="如: 素食、不吃猪肉" /></Card>
+          <Card title="基础病（可多选）">
+            <div className="flex flex-wrap gap-2">
+              {DISEASE_OPTIONS.map((opt) => {
+                const selected = form.chronic_diseases.includes(opt.value)
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => setForm({
+                      ...form,
+                      chronic_diseases: selected
+                        ? form.chronic_diseases.filter((x) => x !== opt.value)
+                        : [...form.chronic_diseases, opt.value],
+                    })}
+                    className={`rounded-full px-3 py-1.5 text-sm border transition-colors ${
+                      selected
+                        ? 'bg-green-600 text-white border-green-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </Card>
           <LoadingButton loading={saving} onClick={handleSave} className="w-full bg-green-600 text-white">保存</LoadingButton>
           <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-gray-400 py-3"><LogOut size={18} />退出登录</button>
         </div>

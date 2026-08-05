@@ -182,7 +182,7 @@ GET /api/users/:id/profile
 {
   "height_cm": 0, "weight_kg": 0, "age": 0,
   "gender": "", "goal": "",
-  "allergies": [], "dietary_habits": []
+  "allergies": [], "dietary_habits": [], "chronic_diseases": []
 }
 ```
 
@@ -194,7 +194,8 @@ GET /api/users/:id/profile
   "height_cm": 170, "weight_kg": 65, "age": 25,
   "gender": "male", "goal": "maintain",
   "allergies": ["peanut", "milk"],
-  "dietary_habits": ["no_pork"]
+  "dietary_habits": ["no_pork"],
+  "chronic_diseases": ["hypertension", "diabetes"]
 }
 ```
 
@@ -207,6 +208,7 @@ GET /api/users/:id/profile
 | `goal` | string | `lose_weight` / `maintain` / `gain_muscle` |
 | `allergies` | string[] | 过敏原 |
 | `dietary_habits` | string[] | 饮食偏好 |
+| `chronic_diseases` | string[] | 基础病（多选） |
 
 ---
 
@@ -227,7 +229,8 @@ PUT /api/users/:id/profile
   "height_cm": 170, "weight_kg": 65, "age": 25,
   "gender": "male", "goal": "maintain",
   "allergies": ["peanut", "milk"],
-  "dietary_habits": ["no_pork"]
+  "dietary_habits": ["no_pork"],
+  "chronic_diseases": ["hypertension"]
 }
 ```
 
@@ -243,7 +246,7 @@ curl http://localhost:3333/api/users/1/profile -H "Authorization: Bearer TOKEN"
 curl -X PUT http://localhost:3333/api/users/1/profile \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"height_cm":170,"weight_kg":65,"age":25,"gender":"male","goal":"maintain","allergies":["peanut"],"dietary_habits":["no_pork"]}'
+  -d '{"height_cm":170,"weight_kg":65,"age":25,"gender":"male","goal":"maintain","allergies":["peanut"],"dietary_habits":["no_pork"],"chronic_diseases":["hypertension","diabetes"]}'
 ```
 
 ---

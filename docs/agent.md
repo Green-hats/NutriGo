@@ -83,7 +83,7 @@ agent/
 | 工具 | 数据源 | 功能 |
 |------|--------|------|
 | `lookup_food_nutrition` | nutrition.db | 查食物每 100g 营养 |
-| `get_user_profile` | Go 后端 | 查用户档案（过敏原、目标等） |
+| `get_user_profile` | Go 后端 | 查用户档案（过敏原、目标、基础病等） |
 | `get_diet_history` | Go 后端 | 查某天饮食记录 |
 | `search_nutrition_knowledge` | ChromaDB | 搜索《营养学》教材知识库 |
 

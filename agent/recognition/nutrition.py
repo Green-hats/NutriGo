@@ -83,6 +83,14 @@ async def get_user_profile(user_id: int) -> str:
         lines.append(f"  过敏原：{', '.join(profile['allergies'])}")
     if profile.get("dietary_habits"):
         lines.append(f"  饮食习惯：{', '.join(profile['dietary_habits'])}")
+    if profile.get("chronic_diseases"):
+        disease_map = {
+            "hypertension": "高血压", "diabetes": "糖尿病", "hyperlipidemia": "高血脂",
+            "gout": "痛风", "heart_disease": "心脏病", "kidney_disease": "肾病",
+            "digestive_disease": "消化系统疾病",
+        }
+        names = [disease_map.get(d, d) for d in profile["chronic_diseases"]]
+        lines.append(f"  基础病：{', '.join(names)}")
     return "\n".join(lines)
 
 

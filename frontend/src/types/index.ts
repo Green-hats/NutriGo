@@ -13,6 +13,7 @@ export interface UserProfile {
   goal: string
   allergies: string[]
   dietary_habits: string[]
+  chronic_diseases: string[]
 }
 
 export interface FoodImage {

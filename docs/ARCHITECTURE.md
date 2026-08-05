@@ -218,6 +218,7 @@ CREATE TABLE user_profiles (
     goal           TEXT,                -- lose_weight / maintain / gain_muscle
     allergies      TEXT,                -- JSON array
     dietary_habits TEXT,                -- JSON array, e.g. ["vegetarian", "no_pork"]
+    chronic_diseases TEXT,              -- JSON array, e.g. ["hypertension", "diabetes"]
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

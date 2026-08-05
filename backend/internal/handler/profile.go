@@ -31,13 +31,14 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 	if result.Error != nil {
 		// 没填过档案，返回空数据而非 404
 		c.JSON(http.StatusOK, gin.H{
-			"height_cm":      0,
-			"weight_kg":      0,
-			"age":            0,
-			"gender":         "",
-			"goal":           "",
-			"allergies":      []string{},
-			"dietary_habits": []string{},
+			"height_cm":       0,
+			"weight_kg":       0,
+			"age":             0,
+			"gender":          "",
+			"goal":            "",
+			"allergies":       []string{},
+			"dietary_habits":  []string{},
+			"chronic_diseases": []string{},
 		})
 		return
 	}
@@ -56,13 +57,14 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	var req struct {
-		HeightCm      float64  `json:"height_cm"`
-		WeightKg      float64  `json:"weight_kg"`
-		Age           int      `json:"age"`
-		Gender        string   `json:"gender"`
-		Goal          string   `json:"goal"`
-		Allergies     []string `json:"allergies"`
-		DietaryHabits []string `json:"dietary_habits"`
+		HeightCm        float64  `json:"height_cm"`
+		WeightKg        float64  `json:"weight_kg"`
+		Age             int      `json:"age"`
+		Gender          string   `json:"gender"`
+		Goal            string   `json:"goal"`
+		Allergies       []string `json:"allergies"`
+		DietaryHabits   []string `json:"dietary_habits"`
+		ChronicDiseases []string `json:"chronic_diseases"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -77,14 +79,15 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	if result.Error != nil {
 		// 不存在 → 创建
 		profile = model.UserProfile{
-			UserID:        userID,
-			HeightCm:      req.HeightCm,
-			WeightKg:      req.WeightKg,
-			Age:           req.Age,
-			Gender:        req.Gender,
-			Goal:          req.Goal,
-			Allergies:     req.Allergies,
-			DietaryHabits: req.DietaryHabits,
+			UserID:          userID,
+			HeightCm:        req.HeightCm,
+			WeightKg:        req.WeightKg,
+			Age:             req.Age,
+			Gender:          req.Gender,
+			Goal:            req.Goal,
+			Allergies:       req.Allergies,
+			DietaryHabits:   req.DietaryHabits,
+			ChronicDiseases: req.ChronicDiseases,
 		}
 		if err := h.DB.Create(&profile).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "创建档案失败"})
@@ -99,6 +102,7 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 		profile.Goal = req.Goal
 		profile.Allergies = req.Allergies
 		profile.DietaryHabits = req.DietaryHabits
+		profile.ChronicDiseases = req.ChronicDiseases
 		if err := h.DB.Save(&profile).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新档案失败"})
 			return
@@ -123,6 +127,7 @@ func (h *ProfileHandler) GetProfileInternal(c *gin.Context) {
 			"height_cm": 0, "weight_kg": 0, "age": 0,
 			"gender": "", "goal": "",
 			"allergies": []string{}, "dietary_habits": []string{},
+			"chronic_diseases": []string{},
 		})
 		return
 	}
