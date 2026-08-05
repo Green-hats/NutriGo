@@ -27,3 +27,6 @@ frontend/dist/
 Thumbs.db
 agent/chroma_db
 agent/nutrition_rag.tar.gz
+
+# macOS AppleDouble 元数据残留文件
+._*

@@ -1,0 +1,125 @@
+// 每日汇总 handler 测试
+// 用内存 SQLite + gin test mode 验证 ListInternal 的合并逻辑
+package handler
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
+	"nutri.go/backend/internal/model"
+)
+
+// setupTestDB 创建内存 SQLite 并建表
+func setupTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开内存库失败: %v", err)
+	}
+	if err := db.AutoMigrate(&model.FoodDiary{}, &model.DailySummary{}, &model.UserProfile{}); err != nil {
+		t.Fatalf("建表失败: %v", err)
+	}
+	return db
+}
+
+// 测试 ListInternal 合并实时记录 + 聚合表，且按日期排序
+func TestListInternalMergesLiveAndAggregated(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+
+	// 近 7 天的记录存在 food_diaries（实时聚合）
+	db.Create(&model.FoodDiary{UserID: 1, Date: "2026-08-04", FoodName: "米饭", Calories: 200, ProteinG: 6})
+	db.Create(&model.FoodDiary{UserID: 1, Date: "2026-08-05", FoodName: "面条", Calories: 300, ProteinG: 8})
+
+	// 7 天前的记录已聚合进 daily_summaries
+	db.Create(&model.DailySummary{UserID: 1, Date: "2026-07-20", TotalCalories: 500, TotalProteinG: 20, MealCount: 2})
+
+	h := &SummaryHandler{DB: db}
+
+	// 构造请求：跨两段日期
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/internal/diet/summaries?user_id=1&start=2026-07-01&end=2026-08-31", nil)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+
+	h.ListInternal(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d, 期望 200", w.Code)
+	}
+
+	var result []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if len(result) != 3 {
+		t.Fatalf("结果条数 = %d, 期望 3 (2 live + 1 aggregated)", len(result))
+	}
+
+	// 验证日期升序排序
+	if result[0]["date"] != "2026-07-20" || result[1]["date"] != "2026-08-04" || result[2]["date"] != "2026-08-05" {
+		t.Errorf("排序错误: %v", []string{
+			fmt.Sprint(result[0]["date"]), fmt.Sprint(result[1]["date"]), fmt.Sprint(result[2]["date"]),
+		})
+	}
+
+	// 验证 source 标记
+	if result[0]["source"] != "aggregated" {
+		t.Errorf("2026-07-20 应来自聚合表, got %v", result[0]["source"])
+	}
+	if result[1]["source"] != "live" {
+		t.Errorf("2026-08-04 应来自实时聚合, got %v", result[1]["source"])
+	}
+
+	// 验证实时聚合的热量正确（只有 200，无 8-05 混淆）
+	if cal := result[1]["total_calories"].(float64); cal != 200 {
+		t.Errorf("2026-08-04 热量 = %v, 期望 200", cal)
+	}
+}
+
+// 测试 ListInternal 缺 user_id 返回 400
+func TestListInternalMissingUserID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	h := &SummaryHandler{DB: db}
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/internal/diet/summaries?start=2026-07-01&end=2026-08-31", nil)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+
+	h.ListInternal(c)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("状态码 = %d, 期望 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "user_id") {
+		t.Errorf("错误信息应提示 user_id, got %s", w.Body.String())
+	}
+}
+
+// 测试 ListInternal 缺日期参数返回 400
+func TestListInternalMissingDates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	h := &SummaryHandler{DB: db}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/internal/diet/summaries?user_id=1", nil)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+
+	h.ListInternal(c)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("状态码 = %d, 期望 400", w.Code)
+	}
+}

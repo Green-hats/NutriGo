@@ -6,6 +6,12 @@
 [![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python)](agent/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](frontend/)
 
+<!-- 动态徽章：推送到 GitHub 后，把 your-username 替换为真实用户名即可自动显示状态 -->
+[![CI](https://img.shields.io/github/actions/workflow/status/your-username/NutriGo/ci.yml?branch=main&logo=github&label=CI)](https://github.com/your-username/NutriGo/actions)
+[![License](https://img.shields.io/github/license/your-username/NutriGo?logo=gnu)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/your-username/NutriGo?logo=github&label=Release)](https://github.com/your-username/NutriGo/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/your-username/NutriGo?logo=git&label=最近提交)](https://github.com/your-username/NutriGo)
+
 ---
 
 ## 快速开始
@@ -123,3 +129,32 @@ NutriGo/
 | 服务分离 | Go 管数据，Python 管 AI，各司其职 |
 | 数据安全 | bcrypt 密码，JWT 鉴权，数据隔离 |
 | 离线可用 | SQLite 本地存储，BGE 免费嵌入模型 |
+
+---
+
+## 开发命令
+
+项目根目录提供 Makefile 统一命令入口：
+
+```bash
+make dev                 # 启动全部服务（等价 ./start.sh）
+make stop / make status  # 停止 / 查看状态
+make build               # 编译 Go + 前端构建
+make lint                # 前端 oxlint + 后端 ruff
+make test                # 运行全部测试
+make test-go-unit        # Go 单元测试（12 用例，无需启动服务）
+make test-frontend       # 前端 vitest 单测（9 用例，无需启动服务）
+make test-backend        # Go 后端集成测试（需服务运行）
+make test-agent          # Agent 基础测试（需服务运行）
+make test-identify       # Agent 图片识别测试（需服务运行）
+make env                 # 检查 .env 配置
+```
+
+### 测试结构
+
+| 层 | 测试 | 说明 |
+|----|------|------|
+| Go 单元 | `internal/**/*_test.go` | JWT、profile、summary handler，内存 SQLite |
+| 前端单元 | `src/**/*.test.ts` | chat store 状态逻辑（vitest） |
+| Go 集成 | `test/backend/test_api.py` | 全路由 HTTP 黑盒 |
+| Agent 集成 | `test/agent/test_*.py` | 会话、工具、识别、鉴权 |

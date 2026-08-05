@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { AlertCircle, CheckCircle, X } from 'lucide-react'
 
 interface ToastData {

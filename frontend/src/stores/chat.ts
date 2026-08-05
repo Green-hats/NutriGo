@@ -12,7 +12,6 @@ interface ChatState {
   setMessages: (msgs: ChatMessage[]) => void
   setSessionId: (id: number) => void
   setStreaming: (v: boolean) => void
-  setMessages: (msgs: ChatMessage[]) => void
   truncateToLastUser: () => void
   clearMessages: () => void
 }

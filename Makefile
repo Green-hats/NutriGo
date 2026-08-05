@@ -28,10 +28,22 @@ build:
 	@echo "✅ 构建完成"
 
 ## ---- 测试 ----
-test: test-backend test-agent test-identify
+test: test-go-unit test-frontend test-backend test-agent test-identify
+
+# Go 单元测试（无需启动服务）
+test-go-unit:
+	@echo "== Go 单元测试 =="
+	cd backend && go test ./internal/...
+	@echo "✅ Go 单元测试通过"
+
+# 前端单元测试（vitest，无需启动服务）
+test-frontend:
+	@echo "== 前端单元测试 =="
+	cd frontend && bash -c 'export NVM_DIR="$$HOME/.nvm"; . "$$NVM_DIR/nvm.sh"; node_modules/.bin/vitest run'
+	@echo "✅ 前端单元测试通过"
 
 test-backend:
-	@echo "== Go 后端测试 =="
+	@echo "== Go 后端集成测试（需 Go 服务运行）=="
 	cd backend && python3 ../test/backend/test_api.py
 
 test-agent:

@@ -8,7 +8,6 @@ import { Skeleton } from '../components/ui/Skeleton'
 import NutritionChart from '../components/diary/NutritionChart'
 import type { DietRecord, IdentifyResult } from '../types'
 
-function todayStr(): string { return new Date().toISOString().slice(0, 10) }
 function fmt(d: Date): string { return d.toISOString().slice(0, 10) }
 function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 
@@ -93,7 +92,7 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   const [estimated, setEstimated] = useState<any>(null)
   const [estimating, setEstimating] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
