@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 import { createChatStream } from '../api/sse'
@@ -86,7 +87,7 @@ export default function Chat() {
                     isStreaming && i === messages.length - 1 ? (
                       <span>{msg.content}▍</span>
                     ) : (
-                      <ReactMarkdown key={i}>{msg.content}</ReactMarkdown>
+                      <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     )
                   ) : (
                     isStreaming && i === messages.length - 1 && (
