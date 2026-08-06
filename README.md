@@ -6,12 +6,11 @@
 [![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python)](agent/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](frontend/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript)](frontend/)
-[![License](https://img.shields.io/github/license/your-username/NutriGo?logo=gnu)](LICENSE)
+[![License](https://img.shields.io/github/license/Green-hats/NutriGo?logo=gnu)](LICENSE)
 
-<!-- 推送到 GitHub 后替换 your-username 为真实用户名，CI/Release 徽章自动生效 -->
-[![CI](https://img.shields.io/github/actions/workflow/status/your-username/NutriGo/ci.yml?branch=main&logo=github&label=CI)](https://github.com/your-username/NutriGo/actions)
-[![Release](https://img.shields.io/github/v/release/your-username/NutriGo?logo=github&label=Release)](https://github.com/your-username/NutriGo/releases)
-[![Last Commit](https://img.shields.io/github/last-commit/your-username/NutriGo?logo=git&label=最近提交)](https://github.com/your-username/NutriGo)
+[![CI](https://img.shields.io/github/actions/workflow/status/Green-hats/NutriGo/ci.yml?branch=main&logo=github&label=CI)](https://github.com/Green-hats/NutriGo/actions)
+[![Release](https://img.shields.io/github/v/release/Green-hats/NutriGo?logo=github&label=Release)](https://github.com/Green-hats/NutriGo/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/Green-hats/NutriGo?logo=git&label=最近提交)](https://github.com/Green-hats/NutriGo)
 
 ---
 
