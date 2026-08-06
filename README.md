@@ -40,7 +40,7 @@
 ### 安装
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Green-hats/NutriGo.git
 cd NutriGo
 
 # 配置 LLM API Key（支持 OpenAI/Gemini/DeepSeek/Ollama 等，通过 litellm）
@@ -66,15 +66,19 @@ cp agent/.env.example agent/.env
 ## 🏗️ 架构
 
 ```
-┌────────────┐  REST/SSE   ┌────────────┐  Internal  ┌────────────┐
-│  Frontend  │ ──────────► │   Agent    │ ─────────► │   Backend  │
-│  React 19  │   JWT 认证   │  FastAPI   │   Token    │  Go + Gin  │
-└────────────┘             └────────────┘            └────────────┘
-                                 │  ▲
-                    Agent Loop   ▼  │
-               ┌────────────────────────┐
-               │ 5 个工具 + LLM + SSE 流式 │
-               └────────────────────────┘
+┌─────────────┐  REST / JWT   ┌──────────────┐
+│  Frontend   │ ────────────► │   Backend    │
+│  React 19   │ ◄──────────── │  Go + Gin    │
+└─────┬───────┘               │    :3333     │
+      │                      │  SQLite · JWT│
+      │                       └───────▲───────┘
+      │ SSE 对话 / REST 识别              │ REST (Internal Token)
+      ▼                               │
+┌─────┬───────────────────────────────┬─────────────────────┐
+│                   Agent · FastAPI :8000                   │
+│                  Agent Loop: 5 工具 + LLM                   │
+│                  + RAG (ChromaDB) + CLIP                  │
+└───────────────────────────────────────────────────────────┘
 ```
 
 - **Agent Loop** — LLM 自主决定调用工具，支持思维链（reasoning_content）流式推送
@@ -102,14 +106,14 @@ cp agent/.env.example agent/.env
 
 ```bash
 # 单元测试（无需启动服务，适合 CI）
-make test-go-unit        # Go：12 用例
+make test-go-unit        # Go：16 用例
 make test-frontend       # 前端 vitest：9 用例
 
 # 集成测试（需服务运行）
 make test-backend        # Go 后端：66 用例
 make test-agent          # Agent 基础：18 用例
 make test-identify       # 图片识别：13 用例
-make test-prompts        # 全面提示词：26 用例
+make test-prompts        # 全面提示词：--quick 核心 9 例
 
 # 全部测试
 make test
