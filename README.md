@@ -70,13 +70,13 @@ cp agent/.env.example agent/.env
 │  Frontend   │ ────────────► │   Backend    │
 │  React 19   │ ◄──────────── │  Go + Gin    │
 └─────┬───────┘               │    :3333     │
-      │                      │  SQLite · JWT│
+      │                       │  SQLite · JWT│
       │                       └───────▲───────┘
       │ SSE 对话 / REST 识别              │ REST (Internal Token)
       ▼                               │
 ┌─────┬───────────────────────────────┬─────────────────────┐
 │                   Agent · FastAPI :8000                   │
-│                  Agent Loop: 5 工具 + LLM                   │
+│                  Agent Loop: 5 工具 + LLM                  │
 │                  + RAG (ChromaDB) + CLIP                  │
 └───────────────────────────────────────────────────────────┘
 ```
