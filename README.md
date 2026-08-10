@@ -140,6 +140,23 @@ make test
 
 ---
 
+## 🚀 Deployment
+
+See [`deploy/`](deploy/README.md) for the full production deployment guide:
+
+- **香港服务器** — 前端静态 + Caddy 自动 HTTPS 反代（`nutrigo.greenhats.dev`）
+- **国内 Debian 服务器** — backend + agent 用 Docker Compose 编排，2C4G + 4G swap
+- 图像识别已针对 CPU 优化：文本向量预计算 + int8 量化，单张 ~2-3s
+
+```
+香港 (Caddy)                   国内 (Docker)
+ /  静态前端                     backend :3333
+ /api       → :3333             agent   :8000
+ /agent-api → :8000              └─ litellm → LLM API
+```
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please check out:

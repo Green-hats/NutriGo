@@ -1,0 +1,68 @@
+# ============================================================
+# NutriGo — 国内 Debian 服务器编排 (backend + agent)
+# 部署:  docker compose -f deploy/compose/docker-compose.yml up -d --build
+# 香港前端由 deploy/caddy/Caddyfile 反代到本机 3333/8000
+# ============================================================
+
+name: nutrigo
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/compose/Dockerfile.backend
+    container_name: nutrigo-backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 设置强随机 JWT_SECRET}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置强随机 INTERNAL_TOKEN}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://nutrigo.greenhats.dev}
+    volumes:
+      - nutrigo-data:/app
+    networks:
+      - nutrigo-net
+    ports:
+      - "3333:3333"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3333/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  agent:
+    build:
+      context: ../..
+      dockerfile: deploy/compose/Dockerfile.agent
+    container_name: nutrigo-agent
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      LLM_MODEL: ${LLM_MODEL:-deepseek/deepseek-chat}
+      LLM_API_KEY: ${LLM_API_KEY:?请在 .env 设置 LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      GO_BACKEND_URL: http://backend:3333
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置强随机 INTERNAL_TOKEN}
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 设置强随机 JWT_SECRET}
+      DATABASE_PATH: /app/agent/data/agent.db
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://nutrigo.greenhats.dev}
+    volumes:
+      - nutrigo-agent-data:/app/agent/data
+      - nutrigo-chroma:/app/agent/chroma_db
+      - nutrigo-models:/models
+    depends_on:
+      - backend
+    networks:
+      - nutrigo-net
+    ports:
+      - "8000:8000"
+
+volumes:
+  nutrigo-data:
+  nutrigo-agent-data:
+  nutrigo-chroma:
+  nutrigo-models:
+
+networks:
+  nutrigo-net:

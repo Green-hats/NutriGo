@@ -1,0 +1,75 @@
+# syntax=docker/dockerfile:1
+# ============================================================
+# NutriGo agent — FastAPI + Chinese-CLIP + ChromaDB + bge-small
+# 面向 2C4G CPU 服务器优化:
+#   - torch CPU-only 版（无 CUDA 依赖，镜像体积小一半）
+#   - 构建期预下载 Chinese-CLIP + bge-small 模型到 /models
+#   - 推理线程数、int8 量化已在 recognition/multimodal.py 处理
+# ============================================================
+
+FROM python:3.13-slim AS builder
+
+ENV UV_SYSTEM_PYTHON=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /build
+
+# 1) 先装 torch CPU 版（PyTorch 官方 CPU 源，无 CUDA 组件）
+RUN pip install --no-cache-dir torch torchvision \
+        --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir "uvicorn[standard]>=0.30" "fastapi>=0.115"
+
+# 2) 其余 agent 依赖（litellm / transformers / chromadb / sentence-transformers ...）
+COPY agent/pyproject.toml agent/uv.lock ./
+# uv.lock 绑定完整 torch；容器里改用 CPU 版 torch，因此跳过 uv 的 torch 解析，
+# 直接手工 pip 安装剩余依赖，避免拉回 GPU 版 torch。
+RUN pip install --no-cache-dir \
+        litellm>=1.50 \
+        aiosqlite>=0.20 \
+        httpx>=0.27 \
+        python-dotenv>=1.0 \
+        pydantic>=2.0 \
+        transformers>=4.50 \
+        pillow>=10.0 \
+        chromadb>=0.5 \
+        sentence-transformers>=5.6.1
+
+# ---------- runtime ----------
+FROM python:3.13-slim
+
+ENV APP_ENV=production \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HF_HOME=/models \
+    TRANSFORMERS_CACHE=/models \
+    SENTENCE_TRANSFORMERS_HOME=/models \
+    NUM_THREADS=2
+
+WORKDIR /app
+
+# 复制全部已安装依赖（层间共享，避免重复安装）
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# agent 源码
+COPY agent/ ./agent/
+
+# 营养数据库（含 2277 条 RAG 教材数据 + 8407 条营养数据）
+COPY agent/nutrition.db ./agent/nutrition.db
+
+# 预下载 Chinese-CLIP + bge-small 模型（构建期，挂到 /models 卷避免运行时首次下载）
+RUN mkdir -p /models && python -c " \
+from transformers import ChineseCLIPModel, ChineseCLIPProcessor; \
+ChineseCLIPModel.from_pretrained('OFA-Sys/chinese-clip-vit-base-patch16'); \
+ChineseCLIPProcessor.from_pretrained('OFA-Sys/chinese-clip-vit-base-patch16'); \
+" && python -c " \
+from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('BAAI/bge-small-zh-v1.5'); \
+"
+
+EXPOSE 8000
+
+WORKDIR /app/agent
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

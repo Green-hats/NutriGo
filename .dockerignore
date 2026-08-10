@@ -1,0 +1,14 @@
+# Build context optimization — 避免把大文件/本地数据打进镜像构建上下文
+agent/.venv
+agent/__pycache__
+**/__pycache__
+*.pyc
+agent/agent.db
+agent/chroma_db
+backend/data.db
+backend/uploads
+frontend/node_modules
+frontend/dist
+deploy/dist
+.git
+.github
