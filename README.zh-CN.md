@@ -24,17 +24,17 @@
 
 <div align="center">
 
-| 登录 | AI 对话 | 饮食日记 |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/login.png" alt="登录" width="210" /> | <img src="docs/screenshots/chat.png" alt="AI 对话（含工具卡片）" width="210" /> | <img src="docs/screenshots/diary.png" alt="饮食日记" width="210" /> |
-
-| 营养趋势 | 健康档案 |
-| :---: | :---: |
-| <img src="docs/screenshots/chart.png" alt="营养趋势图" width="210" /> | <img src="docs/screenshots/profile.png" alt="健康档案" width="210" /> |
-
 **演示动图**
 
 <img src="docs/screenshots/demo.gif" alt="Demo" width="420" />
+
+| 登录 | AI 对话 | 饮食日记 |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/login.png" alt="登录" width="160" /> | <img src="docs/screenshots/chat.png" alt="AI 对话（含工具卡片）" width="160" /> | <img src="docs/screenshots/diary.png" alt="饮食日记" width="160" /> |
+
+| 营养趋势 | 健康档案 |
+| :---: | :---: |
+| <img src="docs/screenshots/chart.png" alt="营养趋势图" width="160" /> | <img src="docs/screenshots/profile.png" alt="健康档案" width="160" /> |
 
 </div>
 

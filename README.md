@@ -24,17 +24,17 @@
 
 <div align="center">
 
-| Login | AI Chat | Food Diary |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/login.png" alt="Login" width="210" /> | <img src="docs/screenshots/chat.png" alt="AI Chat with tool cards" width="210" /> | <img src="docs/screenshots/diary.png" alt="Food Diary" width="210" /> |
-
-| Nutrition Trend | Health Profile |
-| :---: | :---: |
-| <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="210" /> | <img src="docs/screenshots/profile.png" alt="Health profile" width="210" /> |
-
 **Live demo**
 
 <img src="docs/screenshots/demo.gif" alt="Demo" width="420" />
+
+| Login | AI Chat | Food Diary |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/login.png" alt="Login" width="160" /> | <img src="docs/screenshots/chat.png" alt="AI Chat with tool cards" width="160" /> | <img src="docs/screenshots/diary.png" alt="Food Diary" width="160" /> |
+
+| Nutrition Trend | Health Profile |
+| :---: | :---: |
+| <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="160" /> | <img src="docs/screenshots/profile.png" alt="Health profile" width="160" /> |
 
 </div>
 
