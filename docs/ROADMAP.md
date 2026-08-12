@@ -21,22 +21,23 @@
 
 | 功能 | 接口数 | 表数 |
 |------|--------|------|
-| 用户认证（注册/登录/JWT） | 2 | 1 |
+| 用户认证（注册/登录/刷新/登出） | 4 | 2（refresh_tokens / blacklisted_tokens） |
 | 健康档案 | 2 | 1 |
 | 图片管理（上传/删除/内部获取） | 5 | 1 |
 | 饮食记录（CRUD + 按日期查询） | 5 | 1 |
-| 每日汇总（7天聚合 + 查询） | 1 | 1 |
-| 后台任务（图片清理 + 记录聚合） | — | — |
+| 每日汇总（7天聚合 + 查询） | 2 | 1 |
+| 可观测性（health/ready/metrics） | 3 | — |
+| 后台任务（图片清理 + 记录聚合 + 令牌清理） | — | — |
 
 ### Python Agent (:8000)
 
 | 功能 | 路由数 | 工具数 |
 |------|--------|--------|
-| SSE 流式对话 | 1 | — |
-| 会话管理 | 3 | — |
+| SSE 流式对话 + 重新生成 | 2 | — |
+| 会话管理（列表/详情/删除/重命名） | 4 | — |
 | 食物图片识别 | 1 | — |
 | 营养计算 | 1 | — |
-| Agent 工具（查营养/查档案/查记录/搜知识） | — | 4 |
+| Agent 工具（查营养/查档案/查记录/查汇总/搜知识） | — | 5 |
 | ChromaDB RAG（2277 条教材文档） | — | — |
 | 营养数据库（8407 条食物） | — | — |
 
@@ -68,7 +69,7 @@
 
 | 数据库 | 位置 | 内容 |
 |--------|------|------|
-| `data.db` | backend/ | users, user_profiles, food_diaries, food_images, daily_summaries |
+| `data.db` | backend/ | users, user_profiles, food_diaries, food_images, daily_summaries, refresh_tokens, blacklisted_tokens |
 | `agent.db` | agent/ | sessions（对话历史） |
 | `nutrition.db` | agent/ | 8407 条食物营养数据 |
 | `chroma_db/` | agent/ | 2277 条向量化教材文档 |
@@ -85,6 +86,9 @@
 
 | 层 | 用例数 | 命令 |
 |----|--------|------|
-| Go 后端 | 66 | `cd backend && python3 ../test/backend/test_api.py` |
-| Python Agent | 18 | `cd agent && uv run python ../test/agent/test_agent.py` |
+| Go 后端单元测试 | 75 | `cd backend && go test ./internal/...` |
+| Go 后端集成测试 | 67 | `cd backend && python3 ../test/backend/test_api.py` |
+| Agent 单元测试 | 42 | `cd agent && uv run pytest` |
+| Agent 基础集成测试 | 20 | `cd agent && uv run python ../test/agent/test_agent.py` |
 | Agent 全面提示词 | 26+ | `cd agent && uv run python ../test/agent/test_agent_prompts.py --quick` |
+| 前端 | 28 | `cd frontend && npx vitest run` |

@@ -117,7 +117,7 @@ make test-frontend       # 前端 vitest：28 用例（store + 组件）
 make test-agent-unit     # Agent pytest：42 用例（不联网、不加载模型）
 
 # 集成测试（需服务运行）
-make test-backend        # Go 后端：66 用例
+make test-backend        # Go 后端：67 用例
 make test-agent          # Agent 基础：20 用例
 make test-identify       # 图片识别：13 用例
 make test-prompts        # 全面提示词：--quick 核心 9 例

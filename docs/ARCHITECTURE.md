@@ -129,7 +129,7 @@ Python → GET Go /api/users/:id/profile  (带内部服务鉴权 token)
 |------|-----|-----|
 | **前端** | 页面渲染、拍照交互、对话 UI、数据可视化 | 不直接调 LLM API |
 | **Go** | 用户认证、用户画像 CRUD、饮食记录 CRUD、图片文件上传与存储、图片获取 API | 不做 AI 推理、不执行模型 |
-| **Python** | LLM 对话(SSE)、Agent 编排与工具调用、食物图片识别、RAG 检索、外部营养 API、调 Go API 获取数据 | 不存用户数据、不存文件、不管理饮食记录 |
+| **Python** | LLM 对话(SSE)、Agent 编排与工具调用、食物图片识别、RAG 检索、食物营养库查询、调 Go API 获取数据 | 不存用户数据、不存文件、不管理饮食记录 |
 
 ---
 
@@ -139,25 +139,42 @@ Python → GET Go /api/users/:id/profile  (带内部服务鉴权 token)
 
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
-| `POST` | `/api/auth/register` | 用户注册 | 无 |
-| `POST` | `/api/auth/login` | 用户登录，返回 JWT | 无 |
-| `GET` | `/api/users/:id/profile` | 获取用户健康档案 | JWT + 内部 |
+| `GET` | `/api/health` | 健康检查 | 无 |
+| `GET` | `/api/ready` | 就绪探针（校验 DB 连接） | 无 |
+| `GET` | `/api/metrics` | Prometheus 指标 | 无 |
+| `POST` | `/api/auth/register` | 用户注册 | 无（IP 限流） |
+| `POST` | `/api/auth/login` | 登录，返回 JWT + 刷新令牌 | 无（IP 限流） |
+| `POST` | `/api/auth/refresh` | 刷新令牌轮换 | 无（IP 限流） |
+| `POST` | `/api/auth/logout` | 登出，吊销令牌 | JWT |
+| `GET` | `/api/users/:id/profile` | 获取用户健康档案 | JWT |
 | `PUT` | `/api/users/:id/profile` | 更新用户健康档案 | JWT |
 | `POST` | `/api/images/upload` | 上传食物图片 | JWT |
-| `GET` | `/api/images/:id` | 获取图片元信息 | 内部 |
-| `GET` | `/api/images/:id/data` | 获取图片二进制数据 | 内部 |
+| `DELETE` | `/api/images/:id` | 删除图片 | JWT |
 | `POST` | `/api/diet/logs` | 创建饮食记录 | JWT |
-| `GET` | `/api/diet/logs` | 查询饮食记录列表（按日期） | JWT |
+| `GET` | `/api/diet/logs?date=` | 查询饮食记录列表 | JWT |
 | `DELETE` | `/api/diet/logs/:id` | 删除饮食记录 | JWT |
+| `GET` | `/api/diet/summaries?start=&end=` | 每日营养汇总 | JWT |
+| `GET` | `/api/internal/users/:id/profile` | 查档案（Agent 用） | 内部 |
+| `GET` | `/api/internal/diet/logs` | 查饮食记录（Agent 用） | 内部 |
+| `GET` | `/api/internal/diet/summaries` | 查每日汇总（Agent 用） | 内部 |
+| `GET` | `/api/images/:id` | 图片元信息（Agent 用） | 内部 |
+| `GET` | `/api/images/:id/data` | 图片二进制（Agent 用） | 内部 |
+
+> 完整契约见 `backend/API.md`。
 
 ### 6.2 Python 服务 (:8000)
 
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
-| `GET` | `/api/chat` | 对话（SSE 流式） | session_id |
-| `POST` | `/api/identify-food` | 食物图片识别 | session_id |
-| `GET` | `/api/sessions/:id` | 获取会话历史 | session_id |
-| `DELETE` | `/api/sessions/:id` | 删除会话 | session_id |
+| `GET` | `/api/health` | 健康检查 | 无 |
+| `GET` | `/api/chat?message=&session_id=` | 对话（SSE 流式） | JWT |
+| `GET` | `/api/sessions` | 会话列表 | JWT |
+| `GET` | `/api/sessions/:id` | 获取会话历史 | JWT |
+| `POST` | `/api/sessions/:id/regenerate` | 重新生成最后回复 | JWT |
+| `DELETE` | `/api/sessions/:id` | 删除会话 | JWT |
+| `PATCH` | `/api/sessions/:id` | 重命名会话 | JWT |
+| `POST` | `/api/identify-food` | 食物图片识别 | JWT |
+| `POST` | `/api/calculate-intake` | 按克数计算摄入营养 | JWT |
 
 ---
 
@@ -183,13 +200,12 @@ Python → GET Go /api/users/:id/profile  (带内部服务鉴权 token)
 
 | 路径 | 说明 |
 |------|------|
-| `cmd/server/main.go` | 入口，Gin 路由注册、启动 |
-| `internal/model/` | GORM 数据模型（User、UserProfile、FoodDiary、FoodImage） |
-| `internal/repository/` | 数据库操作层 |
-| `internal/service/` | 业务逻辑层 |
-| `internal/handler/` | HTTP handler 层 |
-| `internal/middleware/` | JWT 认证中间件 + 内部服务鉴权中间件 |
-| `migrations/` | GORM AutoMigrate 或 SQL 迁移脚本 |
+| `cmd/server/main.go` | 入口，Gin 路由注册、优雅关闭、启动后台任务 |
+| `internal/config/` | 密钥加载（jwt.go）、DB 连接、限流/保留期常量 |
+| `internal/model/` | GORM 数据模型（User、UserProfile、FoodDiary、FoodImage、DailySummary、RefreshToken、BlacklistedToken） |
+| `internal/handler/` | HTTP handler 层（auth/profile/diet/image/summary + validate） |
+| `internal/middleware/` | JWT 认证 + 内部服务鉴权 + IP 限流 + 可观测性 |
+| `internal/service/` | 后台任务（图片清理 / 记录聚合 / 令牌清理） |
 
 ---
 
@@ -246,6 +262,26 @@ CREATE TABLE food_images (
     path       TEXT NOT NULL,
     mime_type  TEXT,
     size_bytes INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- refresh_tokens（刷新令牌，只存 SHA-256 哈希）
+CREATE TABLE refresh_tokens (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    family_id  TEXT NOT NULL DEFAULT '',   -- 令牌家族，用于重放检测
+    token_hash TEXT NOT NULL UNIQUE,       -- SHA-256(token)，不存明文
+    expires_at DATETIME NOT NULL,
+    revoked_at DATETIME,                   -- 轮换/登出后置位
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- blacklisted_tokens（登出后被吊销的访问令牌，按 jti）
+CREATE TABLE blacklisted_tokens (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    jti        TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,          -- 到期后由清理任务删除
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```

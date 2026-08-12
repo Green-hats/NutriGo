@@ -24,11 +24,12 @@ frontend/src/
 ├── index.css                   # Tailwind + Markdown 样式
 ├── types/index.ts              # TypeScript 类型定义
 ├── stores/
-│   ├── auth.ts                 # Zustand: token, userInfo (持久化)
-│   └── chat.ts                 # Zustand: messages, sessionId, toolResults
+│   ├── auth.ts                 # Zustand: token, refreshToken, user, profile (持久化)
+│   └── chat.ts                 # Zustand: messages, sessionId, isStreaming
 ├── api/
-│   ├── go.ts                   # Go REST (自动带 JWT + userId)
-│   ├── agent.ts                # Python REST (自动带 JWT)
+│   ├── go.ts                   # Go REST (自动带 JWT + 401 自动刷新)
+│   ├── agent.ts                # Python REST (自动带 JWT + 401 自动刷新)
+│   ├── authSession.ts          # 刷新令牌换取新令牌（并发护栏）+ 登出
 │   └── sse.ts                  # fetch + ReadableStream 解析 SSE（带 JWT）
 ├── components/
 │   ├── ui/
@@ -51,7 +52,8 @@ frontend/src/
 │   ├── Chat.tsx                # SSE 流式对话 + 思考面板 + 工具展示 + 历史
 │   ├── Diary.tsx               # 日期选择 + 5步拍照流程 + 图表
 │   └── Profile.tsx             # 档案表单 + 骨架屏
-└── pages/
+└── test/
+    └── setup.ts                # vitest 环境配置（jsdom + jest-dom）
 ```
 
 ## 页面路由
@@ -69,14 +71,16 @@ frontend/src/
 ### authStore（持久化到 localStorage）
 
 ```typescript
-{ token: string, user: { id, username }, profile: UserProfile }
+{ token: string, refreshToken: string, user: { id, username }, profile: UserProfile }
 ```
 
 API 层自动注入：
-- `go.ts` 自动从 authStore 取 token 加 `Authorization` 头
+- `go.ts` / `agent.ts` 自动从 authStore 取 token 加 `Authorization` 头
 - `go.ts` 自动从 authStore 取 userId 拼到 profile 路径
-- `agent.ts` 自动从 authStore 取 token 加 `Authorization` 头
+- **401 自动刷新**：请求遇 401 时，`authSession.ts` 用 `refresh_token` 换新令牌并重试一次；
+  并发 401 共享同一个刷新请求；刷新失败自动清登录态跳登录页
 - `Chat.tsx` 自动从 authStore 取 token 传给 SSE（`user_id` 由后端从 JWT 解出，不再传 URL 参数）
+- 登出会先调用后端 `/api/auth/logout` 吊销令牌，再清理本地状态
 
 ### chatStore
 
@@ -151,3 +155,14 @@ API 层自动注入：
 | tailwindcss + @tailwindcss/vite | CSS 框架 |
 | typescript | 类型检查 |
 | vite | 构建工具 |
+| vitest + jsdom | 单元测试 |
+| @testing-library/react + user-event + jest-dom | 组件测试 |
+| oxlint | 代码检查 |
+
+## 测试
+
+```bash
+cd frontend && npx vitest run
+```
+
+28 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、NutritionChart 图表、刷新令牌逻辑。

@@ -117,7 +117,7 @@ make test-frontend       # Frontend vitest: 28 cases (store + component)
 make test-agent-unit     # Agent pytest: 42 cases (no LLM / models)
 
 # Integration tests (services must be running)
-make test-backend        # Go backend: 66 cases
+make test-backend        # Go backend: 67 cases
 make test-agent          # Agent basics: 20 cases
 make test-identify       # Image recognition: 13 cases
 make test-prompts        # Full prompts: --quick 9 core cases

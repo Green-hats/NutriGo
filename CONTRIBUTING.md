@@ -23,17 +23,17 @@ cp agent/.env.example agent/.env   # 填入 LLM_API_KEY
 make env                            # 检查 .env
 ```
 
-需要：Go 1.26+、Python 3.13+、Node.js 20+、uv 0.11+
+需要：Go 1.26+、Python 3.13+、Node.js 22+、uv 0.11+
 
 ## 代码规范
 
 | 语言 | 工具 | 命令 |
 |------|------|------|
-| Python | ruff + mypy | `cd agent && uv run ruff check app/ recognition/ && uv run mypy app/ recognition/` |
-| Go | go vet | `cd backend && go vet ./...` |
+| Python | ruff + mypy + pytest | `cd agent && uv run ruff check app/ recognition/ tests/ && uv run mypy app/ recognition/ && uv run pytest` |
+| Go | gofmt + go vet | `cd backend && gofmt -l . && go vet ./...` |
 | TypeScript | oxlint + tsc strict | `cd frontend && npx oxlint src && npx tsc -b` |
 
-**提交前必须通过**：`make lint`
+**提交前必须通过**：`make lint && make test`（Go / Agent pytest / vitest 单元测试，无需启动服务）
 
 ## 提交流程
 
