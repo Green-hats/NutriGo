@@ -148,6 +148,13 @@ async def main():
                 f"{BASE}/api/calculate-intake",
                 json={"food_name": "苹果", "grams": 200},
             )
+            check("calculate-intake 无 token → 401", resp.status_code, 401)
+
+            resp = await client.post(
+                f"{BASE}/api/calculate-intake",
+                headers=auth_headers(),
+                json={"food_name": "苹果", "grams": 200},
+            )
             body = resp.json()
             check("calculate-intake → 200", resp.status_code, 200)
             check("苹果200g热量≈108", abs(body["calories"] - 108.0) < 0.01, True)
@@ -155,6 +162,7 @@ async def main():
 
             resp = await client.post(
                 f"{BASE}/api/calculate-intake",
+                headers=auth_headers(),
                 json={"food_name": "不存在", "grams": 100},
             )
             check("不存在的菜 → 404", resp.status_code, 404)

@@ -25,7 +25,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("打开内存库失败: %v", err)
 	}
-	if err := db.AutoMigrate(&model.FoodDiary{}, &model.DailySummary{}, &model.UserProfile{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.FoodDiary{}, &model.DailySummary{}, &model.UserProfile{}, &model.FoodImage{}); err != nil {
 		t.Fatalf("建表失败: %v", err)
 	}
 	return db

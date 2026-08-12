@@ -8,17 +8,17 @@ import (
 
 	"gorm.io/gorm"
 
+	"nutri.go/backend/internal/config"
 	"nutri.go/backend/internal/model"
 )
 
-const aggregationRetentionDays = 7
 const aggregationInterval = 24 * time.Hour
 
 // StartDietAggregator 启动后台 goroutine，定期将旧记录聚合为每日汇总
 func StartDietAggregator(db *gorm.DB) {
 	go func() {
 		for {
-			cutoff := time.Now().AddDate(0, 0, -aggregationRetentionDays).Format("2006-01-02")
+			cutoff := time.Now().AddDate(0, 0, -config.AggregationRetentionDays).Format("2006-01-02")
 
 			var results []struct {
 				UserID     uint    `gorm:"column:user_id"`

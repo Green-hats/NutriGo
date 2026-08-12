@@ -392,8 +392,11 @@ class IntakeRequest(BaseModel):
 
 
 @app.post("/api/calculate-intake")
-async def calc_intake(req: IntakeRequest) -> dict:
-    """根据食物名和克数计算实际摄入营养"""
+async def calc_intake(req: IntakeRequest, request: Request) -> dict:
+    """根据食物名和克数计算实际摄入营养（需 JWT）"""
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
     result = await calculate_intake(req.food_name, req.grams)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])

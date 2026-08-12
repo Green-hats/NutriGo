@@ -112,12 +112,12 @@ cp agent/.env.example agent/.env
 
 ```bash
 # 单元测试（无需启动服务，适合 CI）
-make test-go-unit        # Go：16 用例
-make test-frontend       # 前端 vitest：9 用例
+make test-go-unit        # Go：49 用例
+make test-frontend       # 前端 vitest：24 用例（store + 组件）
 
 # 集成测试（需服务运行）
 make test-backend        # Go 后端：66 用例
-make test-agent          # Agent 基础：18 用例
+make test-agent          # Agent 基础：20 用例
 make test-identify       # 图片识别：13 用例
 make test-prompts        # 全面提示词：--quick 核心 9 例
 

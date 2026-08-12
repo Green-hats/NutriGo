@@ -112,12 +112,12 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 
 ```bash
 # Unit tests (no services required, CI-friendly)
-make test-go-unit        # Go: 16 cases
-make test-frontend       # Frontend vitest: 9 cases
+make test-go-unit        # Go: 49 cases
+make test-frontend       # Frontend vitest: 24 cases (store + component)
 
 # Integration tests (services must be running)
 make test-backend        # Go backend: 66 cases
-make test-agent          # Agent basics: 18 cases
+make test-agent          # Agent basics: 20 cases
 make test-identify       # Image recognition: 13 cases
 make test-prompts        # Full prompts: --quick 9 core cases
 

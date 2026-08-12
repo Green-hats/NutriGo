@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"nutri.go/backend/internal/config"
 	"nutri.go/backend/internal/model"
 )
 
@@ -16,10 +17,6 @@ import (
 type SummaryHandler struct {
 	DB *gorm.DB
 }
-
-// aggregationRetentionDays 与 service/aggregator.go 保持一致：
-// 该天数之前的明细已被聚合进 daily_summaries，之后仍存于 food_diaries
-const aggregationRetentionDays = 7
 
 // List GET /api/diet/summaries?start=2026-01-01&end=2026-08-01
 func (h *SummaryHandler) List(c *gin.Context) {
@@ -60,7 +57,7 @@ func (h *SummaryHandler) ListInternal(c *gin.Context) {
 	merged := make(map[string]map[string]any)
 
 	// 1. 近 N 天：实时聚合 food_diaries
-	cutoff := time.Now().AddDate(0, 0, -aggregationRetentionDays).Format("2006-01-02")
+	cutoff := time.Now().AddDate(0, 0, -config.AggregationRetentionDays).Format("2006-01-02")
 	var recent []struct {
 		Date      string  `gorm:"column:date"`
 		TotalCal  float64 `gorm:"column:total_cal"`
