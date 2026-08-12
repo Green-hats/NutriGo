@@ -3,6 +3,14 @@ export interface User {
   username: string
 }
 
+// 分页响应信封：{ items, total, limit, offset }
+export interface Paginated<T> {
+  items: T[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface UserProfile {
   id?: number
   user_id?: number

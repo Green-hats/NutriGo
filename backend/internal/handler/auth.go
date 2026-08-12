@@ -3,6 +3,7 @@ package handler
 
 import (
 	"net/http"
+	"nutri.go/backend/internal/httperr"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,21 +28,21 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效: " + err.Error()})
+		httperr.Response(c, http.StatusBadRequest, "参数无效: "+err.Error())
 		return
 	}
 
 	// 查重：用户名已存在则返回 409
 	var existUser model.User
 	if result := h.DB.Where("username = ?", req.Username).First(&existUser); result.Error == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "用户名已存在"})
+		httperr.Response(c, http.StatusConflict, "用户名已存在")
 		return
 	}
 
 	// bcrypt 加密。DefaultCost=10，迭代 2^10 轮
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码加密失败"})
+		httperr.Response(c, http.StatusInternalServerError, "密码加密失败")
 		return
 	}
 
@@ -50,7 +51,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Password: string(hashedPassword),
 	}
 	if result := h.DB.Create(&user); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册失败"})
+		httperr.Response(c, http.StatusInternalServerError, "注册失败")
 		return
 	}
 
@@ -69,26 +70,26 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效: " + err.Error()})
+		httperr.Response(c, http.StatusBadRequest, "参数无效: "+err.Error())
 		return
 	}
 
 	// 按用户名查找
 	var user model.User
 	if result := h.DB.Where("username = ?", req.Username).First(&user); result.Error != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
+		httperr.Response(c, http.StatusUnauthorized, "用户名或密码错误")
 		return
 	}
 
 	// bcrypt 验密码：比对密文和明文
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
+		httperr.Response(c, http.StatusUnauthorized, "用户名或密码错误")
 		return
 	}
 
 	accessToken, refreshToken, err := h.issueTokenPair(&user, "")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "登录失败"})
+		httperr.Response(c, http.StatusInternalServerError, "登录失败")
 		return
 	}
 
@@ -109,24 +110,24 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 refresh_token 参数"})
+		httperr.Response(c, http.StatusBadRequest, "请提供 refresh_token 参数")
 		return
 	}
 
 	var rt model.RefreshToken
 	if err := h.DB.Where("token_hash = ?", config.HashToken(req.RefreshToken)).First(&rt).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token 无效或已过期"})
+		httperr.Response(c, http.StatusUnauthorized, "refresh_token 无效或已过期")
 		return
 	}
 
 	// 已吊销却被再次使用 → 重放攻击信号，吊销整个家族
 	if rt.RevokedAt != nil {
 		h.revokeTokenFamily(rt.FamilyID, rt.UserID)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token 已失效"})
+		httperr.Response(c, http.StatusUnauthorized, "refresh_token 已失效")
 		return
 	}
 	if time.Now().After(rt.ExpiresAt) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token 已过期"})
+		httperr.Response(c, http.StatusUnauthorized, "refresh_token 已过期")
 		return
 	}
 
@@ -134,19 +135,19 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	now := time.Now()
 	rt.RevokedAt = &now
 	if err := h.DB.Save(&rt).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "刷新失败"})
+		httperr.Response(c, http.StatusInternalServerError, "刷新失败")
 		return
 	}
 
 	// 签发新令牌对（继承同一家族）
 	var user model.User
 	if err := h.DB.First(&user, rt.UserID).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
+		httperr.Response(c, http.StatusUnauthorized, "用户不存在")
 		return
 	}
 	accessToken, refreshToken, err := h.issueTokenPair(&user, rt.FamilyID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "刷新失败"})
+		httperr.Response(c, http.StatusInternalServerError, "刷新失败")
 		return
 	}
 
@@ -181,7 +182,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		RefreshToken string `json:"refresh_token"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
+		httperr.Response(c, http.StatusBadRequest, "请求体无效")
 		return
 	}
 
@@ -207,7 +208,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "登出失败"})
+		httperr.Response(c, http.StatusInternalServerError, "登出失败")
 		return
 	}
 

@@ -3,6 +3,7 @@ package handler
 
 import (
 	"net/http"
+	"nutri.go/backend/internal/httperr"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +35,7 @@ func (h *DietHandler) Create(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效: " + err.Error()})
+		httperr.Response(c, http.StatusBadRequest, "参数无效: "+err.Error())
 		return
 	}
 
@@ -53,7 +54,7 @@ func (h *DietHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.DB.Create(&record).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建记录失败"})
+		httperr.Response(c, http.StatusInternalServerError, "创建记录失败")
 		return
 	}
 
@@ -65,11 +66,11 @@ func (h *DietHandler) List(c *gin.Context) {
 	userID := c.GetUint("userID")
 	date := c.Query("date")
 	if date == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 date 参数，格式 YYYY-MM-DD"})
+		httperr.Response(c, http.StatusBadRequest, "请提供 date 参数，格式 YYYY-MM-DD")
 		return
 	}
 	if !validDate(date) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "date 参数格式应为 YYYY-MM-DD"})
+		httperr.Response(c, http.StatusBadRequest, "date 参数格式应为 YYYY-MM-DD")
 		return
 	}
 
@@ -87,23 +88,23 @@ func (h *DietHandler) Delete(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的记录ID"})
+		httperr.Response(c, http.StatusBadRequest, "无效的记录ID")
 		return
 	}
 
 	var record model.FoodDiary
 	if result := h.DB.First(&record, id); result.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "记录不存在"})
+		httperr.Response(c, http.StatusNotFound, "记录不存在")
 		return
 	}
 
 	if record.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "无权删除他人的记录"})
+		httperr.Response(c, http.StatusForbidden, "无权删除他人的记录")
 		return
 	}
 
 	if err := h.DB.Delete(&record).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		httperr.Response(c, http.StatusInternalServerError, "删除失败")
 		return
 	}
 
@@ -114,17 +115,17 @@ func (h *DietHandler) Delete(c *gin.Context) {
 func (h *DietHandler) ListInternal(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Query("user_id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 user_id 参数"})
+		httperr.Response(c, http.StatusBadRequest, "请提供 user_id 参数")
 		return
 	}
 
 	date := c.Query("date")
 	if date == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 date 参数，格式 YYYY-MM-DD"})
+		httperr.Response(c, http.StatusBadRequest, "请提供 date 参数，格式 YYYY-MM-DD")
 		return
 	}
 	if !validDate(date) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "date 参数格式应为 YYYY-MM-DD"})
+		httperr.Response(c, http.StatusBadRequest, "date 参数格式应为 YYYY-MM-DD")
 		return
 	}
 

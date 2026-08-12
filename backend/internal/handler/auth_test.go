@@ -184,6 +184,14 @@ func TestLoginMissingParams(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("状态码 = %d, 期望 400", w.Code)
 	}
+	// 统一错误码契约
+	body := mustJSONBody(t, w.Body.Bytes())
+	if body["code"] != "VALIDATION_ERROR" {
+		t.Errorf("错误码 = %v, 期望 VALIDATION_ERROR", body["code"])
+	}
+	if body["message"] == "" {
+		t.Error("错误响应应包含 message")
+	}
 }
 
 // ============================================================

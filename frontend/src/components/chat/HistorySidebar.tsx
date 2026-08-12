@@ -20,7 +20,7 @@ export default function HistorySidebar({ onSelect, onClose }: Props) {
   useEffect(() => { panelRef.current?.focus() }, [])
 
   useEffect(() => {
-    agentApi.getSessions().then((s) => { setSessions(s.filter((x) => x.name)) }).finally(() => setLoading(false))
+    agentApi.getSessions().then((res) => { setSessions(res.items.filter((x) => x.name)) }).finally(() => setLoading(false))
   }, [])
 
   const loadSession = async (id: number) => {

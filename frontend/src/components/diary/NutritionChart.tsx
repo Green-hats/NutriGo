@@ -18,8 +18,8 @@ export default function NutritionChart({ onClose }: Props) {
     setError('')
     const end = new Date().toISOString().slice(0, 10)
     const start = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
-    goApi.getSummaries(start, end).then((rows) => {
-      const mapped = rows.map((r) => ({
+    goApi.getSummaries(start, end).then((res) => {
+      const mapped = res.items.map((r) => ({
         date: r.date.slice(5),
         kcal: Math.round(r.total_calories),
         protein: Math.round(r.total_protein_g),

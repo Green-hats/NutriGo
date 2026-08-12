@@ -58,7 +58,7 @@ agent/
 │   ├── go_client.py             # httpx → Go 后端
 │   ├── nutrition.py             # 营养计算 + Agent 工具函数
 │   └── rag.py                   # ChromaDB RAG 知识库
-├── tests/                       # pytest 单元测试（63 用例，不联网）
+├── tests/                       # pytest 单元测试（64 用例，不联网）
 ├── chroma_db/                   # 向量数据库（2277 条教材文档）
 ├── nutrition.db                 # 食物营养数据库（8407 条）
 ├── .env.example
@@ -72,7 +72,7 @@ agent/
 | GET | `/api/health` | 无 | 健康检查 |
 | GET | `/api/ready` | 无 | 就绪探针（校验 agent.db 可连接） |
 | GET | `/api/chat?message=&session_id=` | JWT | SSE 流式对话（含 thinking + 工具调用事件） |
-| GET | `/api/sessions` | JWT | 会话列表（仅当前用户） |
+| GET | `/api/sessions?limit=&offset=` | JWT | 会话列表（分页信封：items/total/limit/offset） |
 | GET | `/api/sessions/:id` | JWT | 会话详情（校验归属，越权 404） |
 | POST | `/api/sessions/:id/regenerate` | JWT | 重新生成最后一条回复 |
 | DELETE | `/api/sessions/:id` | JWT | 删除会话（校验归属） |
@@ -176,7 +176,7 @@ docs = search("糖尿病饮食建议", top_k=3)
 cd agent && uv run pytest
 ```
 
-63 个用例，覆盖：Agent Loop（流式/工具调用/重试/取消）、工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport + 重试）、会话锁清理。
+64 个用例，覆盖：Agent Loop（流式/工具调用/重试/取消）、工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport + 重试）、会话锁清理。
 
 ### 集成测试
 

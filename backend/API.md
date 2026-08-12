@@ -4,6 +4,40 @@
 
 ---
 
+## 统一错误响应契约
+
+所有非 2xx 响应使用统一格式：
+
+```json
+{ "code": "VALIDATION_ERROR", "message": "参数无效: ..." }
+```
+
+| `code` | 含义 | 对应 HTTP |
+|--------|------|-----------|
+| `VALIDATION_ERROR` | 参数/请求体无效 | 400 |
+| `UNAUTHORIZED` | 未认证 / 令牌无效 / 凭据错误 | 401 |
+| `FORBIDDEN` | 越权访问 | 403 |
+| `NOT_FOUND` | 资源不存在 | 404 |
+| `CONFLICT` | 冲突（如用户名已存在） | 409 |
+| `RATE_LIMITED` | 请求过于频繁 | 429 |
+| `INTERNAL_ERROR` | 服务内部错误 | 500 |
+
+前端按 `code` 分支处理，不依赖 `message` 文案。
+
+## 分页约定
+
+分页列表返回统一信封：
+
+```json
+{ "items": [...], "total": 42, "limit": 30, "offset": 0 }
+```
+
+- 查询参数：`limit`（默认 30，最大 100）、`offset`（默认 0）
+- `total` 为满足过滤条件的总条数，`items` 为当前页数据
+- 已应用分页的接口：`GET /api/diet/summaries`、`GET /api/sessions`（Agent）
+
+---
+
 ## 目录
 
 - [1. 健康检查](#1-健康检查)
@@ -546,27 +580,30 @@ curl -X DELETE http://localhost:3333/api/diet/logs/1 \
 ## 6. 每日汇总
 
 ```
-GET /api/diet/summaries?start=2026-01-01&end=2026-08-01
+GET /api/diet/summaries?start=2026-01-01&end=2026-08-01&limit=30&offset=0
 ```
 
 | 认证 | JWT |
 |------|-----|
-| 参数 | `start`（必填）、`end`（必填），格式 `YYYY-MM-DD` |
+| 参数 | `start`（必填）、`end`（必填），格式 `YYYY-MM-DD`；`limit`（可选，默认 30 最大 100）、`offset`（可选，默认 0） |
 
-返回用户指定日期范围内的每日营养汇总（7 天后自动聚合）。
+返回用户指定日期范围内的每日营养汇总（7 天后自动聚合），**分页信封**。
 
 **`200 OK`**
 
 ```json
-[
-  {
-    "id": 1, "user_id": 1,
-    "date": "2026-08-01",
-    "total_calories": 1850, "total_protein_g": 72,
-    "total_fat_g": 55, "total_carbs_g": 210,
-    "meal_count": 3
-  }
-]
+{
+  "items": [
+    {
+      "id": 1, "user_id": 1,
+      "date": "2026-08-01",
+      "total_calories": 1850, "total_protein_g": 72,
+      "total_fat_g": 55, "total_carbs_g": 210,
+      "meal_count": 3
+    }
+  ],
+  "total": 31, "limit": 30, "offset": 0
+}
 ```
 
 ```bash
@@ -645,16 +682,17 @@ curl http://localhost:3333/api/internal/example \
 
 ## 附录 A：HTTP 状态码速查
 
-| 状态码 | 含义 | 出现场景 |
-|--------|------|---------|
-| `200` | OK | 正常响应 |
-| `201` | Created | 注册、创建资源成功 |
-| `400` | Bad Request | 参数不满足约束、缺必填字段 |
-| `401` | Unauthorized | JWT 缺失 / 无效 / 过期 |
-| `403` | Forbidden | 越权操作（操作他人数据）、内部鉴权失败 |
-| `404` | Not Found | 资源不存在或已被删除 |
-| `409` | Conflict | 注册时用户名已存在 |
-| `500` | Internal Server Error | 服务端异常 |
+| 状态码 | 含义 | 错误码 | 出现场景 |
+|--------|------|--------|---------|
+| `200` | OK | — | 正常响应 |
+| `201` | Created | — | 注册、创建资源成功 |
+| `400` | Bad Request | `VALIDATION_ERROR` | 参数不满足约束、缺必填字段 |
+| `401` | Unauthorized | `UNAUTHORIZED` | JWT 缺失 / 无效 / 过期 |
+| `403` | Forbidden | `FORBIDDEN` | 越权操作（操作他人数据）、内部鉴权失败 |
+| `404` | Not Found | `NOT_FOUND` | 资源不存在或已被删除 |
+| `409` | Conflict | `CONFLICT` | 注册时用户名已存在 |
+| `429` | Too Many Requests | `RATE_LIMITED` | 认证接口超限 |
+| `500` | Internal Server Error | `INTERNAL_ERROR` | 服务端异常 |
 
 ---
 

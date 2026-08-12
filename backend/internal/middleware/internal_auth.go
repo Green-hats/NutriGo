@@ -4,6 +4,7 @@ package middleware
 
 import (
 	"net/http"
+	"nutri.go/backend/internal/httperr"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,7 +17,7 @@ func InternalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.GetHeader("X-Internal-Token")
 		if token != expectedToken {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "内部服务鉴权失败"})
+			httperr.Abort(c, http.StatusForbidden, "内部服务鉴权失败")
 			return
 		}
 		c.Next()

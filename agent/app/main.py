@@ -31,7 +31,7 @@ from app.config import settings
 from app.conversation import Conversation
 from app.llm_client import run_agent_loop
 from app.logging_setup import configure_logging, new_request_id, request_id_var
-from app.models import SessionDetail, SessionInfo
+from app.models import PagedSessions, SessionDetail
 from app.rate_limit import acquire_user, get_session_lock, prune_session_locks, release_user
 from app.tools import registry as tool_registry
 from recognition.db import get_by_name, get_portion, list_names, seed_data
@@ -279,12 +279,24 @@ def _sse_response(request: Request, conv: Conversation, chat_io: SSEChatIO,
 # 会话管理路由
 # ============================================================
 
-@app.get("/api/sessions", response_model=list[SessionInfo])
-async def list_sessions(request: Request) -> list[dict]:
+@app.get("/api/sessions", response_model=PagedSessions)
+async def list_sessions(request: Request) -> dict:
+    """会话列表（分页：limit/offset，返回 { items, total, limit, offset }）"""
     user_id = extract_user_id(request.headers.get("Authorization"))
     if user_id is None:
         raise HTTPException(status_code=401, detail="未认证或 token 无效")
-    return await db.list_sessions(user_id=user_id)
+
+    try:
+        limit = int(request.query_params.get("limit", 20))
+        offset = int(request.query_params.get("offset", 0))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="limit/offset 必须是整数") from None
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+
+    items = await db.list_sessions(limit=limit, offset=offset, user_id=user_id)
+    total = await db.count_sessions(user_id=user_id)
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @app.get("/api/sessions/{session_id}", response_model=SessionDetail)

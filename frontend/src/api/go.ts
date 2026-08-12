@@ -1,6 +1,6 @@
 import { useAuthStore } from '../stores/auth'
 import { tryRefresh } from './authSession'
-import type { UserProfile, DietRecord, DailySummary, DietLogInput } from '../types'
+import type { UserProfile, DietRecord, DailySummary, DietLogInput, Paginated } from '../types'
 
 const GO_URL = '/api'
 
@@ -10,7 +10,10 @@ function getUserId(): number {
   return user.id
 }
 
+// Go 后端统一错误契约：{ code, message }
 interface ApiErrorBody {
+  code?: string
+  message?: string
   error?: string
   detail?: string
 }
@@ -48,8 +51,8 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
   }
 
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText })) as ApiErrorBody
-    throw new Error(err.error || err.detail || `HTTP ${resp.status}`)
+    const err = await resp.json().catch(() => ({ message: resp.statusText })) as ApiErrorBody
+    throw new Error(err.message || err.error || err.detail || `HTTP ${resp.status}`)
   }
   return resp.json()
 }
@@ -106,6 +109,6 @@ export const goApi = {
   deleteDietLog: (id: number) =>
     request<{ message: string }>(`/diet/logs/${id}`, { method: 'DELETE' }),
 
-  getSummaries: (start: string, end: string) =>
-    request<DailySummary[]>(`/diet/summaries?start=${start}&end=${end}`),
+  getSummaries: (start: string, end: string, limit = 100, offset = 0) =>
+    request<Paginated<DailySummary>>(`/diet/summaries?start=${start}&end=${end}&limit=${limit}&offset=${offset}`),
 }

@@ -5,6 +5,7 @@ package middleware
 import (
 	"net"
 	"net/http"
+	"nutri.go/backend/internal/httperr"
 	"strings"
 	"sync"
 	"time"
@@ -83,7 +84,7 @@ func (l *IPRateLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ip := ClientIP(c)
 		if !l.get(ip).Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，请稍后再试"})
+			httperr.Abort(c, http.StatusTooManyRequests, "请求过于频繁，请稍后再试")
 			return
 		}
 		c.Next()

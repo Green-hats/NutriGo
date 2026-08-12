@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"nutri.go/backend/internal/httperr"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -32,26 +33,26 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 	// 读取上传文件
 	file, header, err := c.Request.FormFile("image")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请上传图片文件"})
+		httperr.Response(c, http.StatusBadRequest, "请上传图片文件")
 		return
 	}
 	defer file.Close()
 
 	// 大小校验
 	if header.Size > maxFileSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "图片大小不能超过 10MB"})
+		httperr.Response(c, http.StatusBadRequest, "图片大小不能超过 10MB")
 		return
 	}
 
 	// 读取文件头部字节，检测真实 MIME 类型
 	buf := make([]byte, 512)
 	if _, err := file.Read(buf); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败"})
+		httperr.Response(c, http.StatusInternalServerError, "读取文件失败")
 		return
 	}
 	mimeType := http.DetectContentType(buf)
 	if mimeType != "image/jpeg" && mimeType != "image/png" && mimeType != "image/webp" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "只支持 jpg/png/webp 格式"})
+		httperr.Response(c, http.StatusBadRequest, "只支持 jpg/png/webp 格式")
 		return
 	}
 
@@ -73,23 +74,23 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 
 	// 确保 uploads 目录存在
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建目录失败"})
+		httperr.Response(c, http.StatusInternalServerError, "创建目录失败")
 		return
 	}
 
 	// 重置文件指针到头，写入磁盘
 	if _, err := file.Seek(0, 0); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败"})
+		httperr.Response(c, http.StatusInternalServerError, "读取文件失败")
 		return
 	}
 	dst, err := os.Create(savePath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存文件失败"})
+		httperr.Response(c, http.StatusInternalServerError, "保存文件失败")
 		return
 	}
 	defer dst.Close()
 	if _, err := io.Copy(dst, file); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "写入文件失败"})
+		httperr.Response(c, http.StatusInternalServerError, "写入文件失败")
 		return
 	}
 
@@ -102,7 +103,7 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		SizeBytes: header.Size,
 	}
 	if err := h.DB.Create(&image).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存记录失败"})
+		httperr.Response(c, http.StatusInternalServerError, "保存记录失败")
 		return
 	}
 
@@ -119,13 +120,13 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 func (h *ImageHandler) GetMeta(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的图片ID"})
+		httperr.Response(c, http.StatusBadRequest, "无效的图片ID")
 		return
 	}
 
 	var image model.FoodImage
 	if result := h.DB.First(&image, id); result.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在"})
+		httperr.Response(c, http.StatusNotFound, "图片不存在")
 		return
 	}
 
@@ -143,19 +144,19 @@ func (h *ImageHandler) GetMeta(c *gin.Context) {
 func (h *ImageHandler) GetData(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的图片ID"})
+		httperr.Response(c, http.StatusBadRequest, "无效的图片ID")
 		return
 	}
 
 	var image model.FoodImage
 	if result := h.DB.First(&image, id); result.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在"})
+		httperr.Response(c, http.StatusNotFound, "图片不存在")
 		return
 	}
 
 	// 检查文件是否存在
 	if _, err := os.Stat(image.Path); os.IsNotExist(err) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "图片文件已丢失"})
+		httperr.Response(c, http.StatusNotFound, "图片文件已丢失")
 		return
 	}
 
@@ -169,32 +170,32 @@ func (h *ImageHandler) Delete(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的图片ID"})
+		httperr.Response(c, http.StatusBadRequest, "无效的图片ID")
 		return
 	}
 
 	var image model.FoodImage
 	if result := h.DB.First(&image, id); result.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在"})
+		httperr.Response(c, http.StatusNotFound, "图片不存在")
 		return
 	}
 
 	if image.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "无权删除他人的图片"})
+		httperr.Response(c, http.StatusForbidden, "无权删除他人的图片")
 		return
 	}
 
 	// 先删磁盘文件（如果还存在）
 	if _, err := os.Stat(image.Path); err == nil {
 		if err := os.Remove(image.Path); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "删除文件失败"})
+			httperr.Response(c, http.StatusInternalServerError, "删除文件失败")
 			return
 		}
 	}
 
 	// 再删数据库记录
 	if err := h.DB.Delete(&image).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除记录失败"})
+		httperr.Response(c, http.StatusInternalServerError, "删除记录失败")
 		return
 	}
 

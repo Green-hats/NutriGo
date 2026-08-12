@@ -345,10 +345,11 @@ check("空列表", body, [])
 # ---------- 10. 每日汇总 ----------
 print("\n📌 10. 每日汇总")
 
-# 10a. 查汇总（还没有聚合的数据，返回空）
+# 10a. 查汇总（还没有聚合的数据，返回空分页信封）
 status, body = request("GET", "/api/diet/summaries?start=2026-01-01&end=2026-12-31", headers=auth)
 check("查汇总 → 200", status, 200)
-check("汇总初始为空", len(body), 0)
+check("汇总初始为空", len(body.get("items", [])), 0)
+check("分页信封含 total", "total" in body, True)
 
 # 10b. 缺少参数
 status, body = request("GET", "/api/diet/summaries", headers=auth)

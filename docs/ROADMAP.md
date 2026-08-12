@@ -88,7 +88,7 @@
 |----|--------|------|
 | Go 后端单元测试 | 75 | `cd backend && go test ./internal/...` |
 | Go 后端集成测试 | 67 | `cd backend && python3 ../test/backend/test_api.py` |
-| Agent 单元测试 | 63 | `cd agent && uv run pytest` |
+| Agent 单元测试 | 64 | `cd agent && uv run pytest` |
 | Agent 基础集成测试 | 20 | `cd agent && uv run python ../test/agent/test_agent.py` |
 | Agent 全面提示词 | 26+ | `cd agent && uv run python ../test/agent/test_agent_prompts.py --quick` |
 | 前端 | 34 | `cd frontend && npx vitest run` |

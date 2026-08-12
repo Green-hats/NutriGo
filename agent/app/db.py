@@ -146,22 +146,36 @@ async def rollback_last_exchange(session_id: int, user_id: int | None = None) ->
         return removed
 
 
-async def list_sessions(limit: int = 20, user_id: int | None = None) -> list[dict]:
-    """列出最近的会话列表，可按 user_id 过滤"""
+async def list_sessions(limit: int = 20, offset: int = 0, user_id: int | None = None) -> list[dict]:
+    """列出最近的会话列表，支持分页，可按 user_id 过滤"""
     async with aiosqlite.connect(settings.DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row
         if user_id is not None:
             cursor = await db.execute(
                 "SELECT id, name, created_at FROM sessions WHERE user_id = ? "
-                "ORDER BY updated_at DESC LIMIT ?",
-                (user_id, limit),
+                "ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+                (user_id, limit, offset),
             )
         else:
             cursor = await db.execute(
-                "SELECT id, name, created_at FROM sessions ORDER BY updated_at DESC LIMIT ?",
-                (limit,),
+                "SELECT id, name, created_at FROM sessions "
+                "ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+                (limit, offset),
             )
         return [dict(row) for row in await cursor.fetchall()]
+
+
+async def count_sessions(user_id: int | None = None) -> int:
+    """统计会话总数（分页 total），可按 user_id 过滤"""
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        if user_id is not None:
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM sessions WHERE user_id = ?", (user_id,)
+            )
+        else:
+            cursor = await db.execute("SELECT COUNT(*) FROM sessions")
+        row = await cursor.fetchone()
+        return int(row[0]) if row else 0
 
 
 async def delete_session(session_id: int, user_id: int | None = None) -> bool:

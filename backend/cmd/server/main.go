@@ -17,6 +17,7 @@ import (
 
 	"nutri.go/backend/internal/config"
 	"nutri.go/backend/internal/handler"
+	"nutri.go/backend/internal/httperr"
 	"nutri.go/backend/internal/middleware"
 	"nutri.go/backend/internal/model"
 	"nutri.go/backend/internal/service"
@@ -76,7 +77,7 @@ func main() {
 			err = sqlDB.Ping()
 		}
 		if err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unready", "error": err.Error()})
+			httperr.Response(c, http.StatusServiceUnavailable, "数据库不可用: "+err.Error())
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ready"})

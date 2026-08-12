@@ -77,3 +77,15 @@ async def test_delete_session(db_path):
     # 越权删除失败
     sid2 = await db.create_session(user_id=2)
     assert not await db.delete_session(sid2, user_id=1)
+
+
+async def test_list_sessions_pagination(db_path):
+    await db.init_db()
+    for _ in range(5):
+        await db.create_session(user_id=1)
+
+    items = await db.list_sessions(limit=2, offset=1, user_id=1)
+    assert len(items) == 2
+    assert await db.count_sessions(user_id=1) == 5
+    # offset 超出范围返回空
+    assert await db.list_sessions(limit=2, offset=99, user_id=1) == []

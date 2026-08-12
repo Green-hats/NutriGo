@@ -95,10 +95,13 @@ async def main():
             resp = await client.get(f"{BASE}/api/sessions", headers={"Authorization": "Bearer bad.token.here"})
             check("坏 token 返回 401", resp.status_code, 401)
 
-            # ---- 2. 会话列表为空 ----
+            # ---- 2. 会话列表为空（分页信封）----
             resp = await client.get(f"{BASE}/api/sessions", headers=auth_headers())
-            sessions = resp.json()
+            body = resp.json()
+            check("分页信封存在", "items" in body, True)
+            sessions = body["items"]
             check("初始会话为空", len(sessions), 0)
+            check("total=0", body["total"], 0)
 
             # ---- 3. 创建会话（模拟前端调用 chat 接口但不带 API Key）----
             # 这会触发 Agent Loop，但因为没 API Key 会返回 error 事件
@@ -119,7 +122,7 @@ async def main():
             # ---- 4. 会话列表有了一条 ----
             print("\n📌 3. 会话持久化")
             resp = await client.get(f"{BASE}/api/sessions", headers=auth_headers())
-            sessions = resp.json()
+            sessions = resp.json()["items"]
             check("会话已保存", len(sessions), 1)
             session_id = sessions[0]["id"]
 
@@ -136,7 +139,7 @@ async def main():
             check("删除成功", resp.status_code, 200)
 
             resp = await client.get(f"{BASE}/api/sessions", headers=auth_headers())
-            check("删除后为空", len(resp.json()), 0)
+            check("删除后为空", len(resp.json()["items"]), 0)
 
             # ---- 7. 不存在的会话 ----
             resp = await client.get(f"{BASE}/api/sessions/999", headers=auth_headers())

@@ -3,6 +3,7 @@ package handler
 
 import (
 	"net/http"
+	"nutri.go/backend/internal/httperr"
 	"strconv"
 	"time"
 
@@ -18,26 +19,45 @@ type SummaryHandler struct {
 	DB *gorm.DB
 }
 
-// List GET /api/diet/summaries?start=2026-01-01&end=2026-08-01
+// List GET /api/diet/summaries?start=2026-01-01&end=2026-08-01&limit=&offset=
+// 返回分页信封 { items, total, limit, offset }
 func (h *SummaryHandler) List(c *gin.Context) {
 	userID := c.GetUint("userID")
 	start := c.Query("start")
 	end := c.Query("end")
 	if start == "" || end == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 start 和 end 参数，格式 YYYY-MM-DD"})
+		httperr.Response(c, http.StatusBadRequest, "请提供 start 和 end 参数，格式 YYYY-MM-DD")
 		return
 	}
 	if !validDate(start) || !validDate(end) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "start/end 参数格式应为 YYYY-MM-DD"})
+		httperr.Response(c, http.StatusBadRequest, "start/end 参数格式应为 YYYY-MM-DD")
+		return
+	}
+	limit, offset := parsePagination(c, 30, 100)
+
+	var total int64
+	if err := h.DB.Model(&model.DailySummary{}).
+		Where("user_id = ? AND date >= ? AND date <= ?", userID, start, end).
+		Count(&total).Error; err != nil {
+		httperr.Response(c, http.StatusInternalServerError, "查询汇总失败")
 		return
 	}
 
 	var summaries []model.DailySummary
-	h.DB.Where("user_id = ? AND date >= ? AND date <= ?", userID, start, end).
+	if err := h.DB.Where("user_id = ? AND date >= ? AND date <= ?", userID, start, end).
 		Order("date DESC").
-		Find(&summaries)
+		Limit(limit).Offset(offset).
+		Find(&summaries).Error; err != nil {
+		httperr.Response(c, http.StatusInternalServerError, "查询汇总失败")
+		return
+	}
 
-	c.JSON(http.StatusOK, summaries)
+	c.JSON(http.StatusOK, gin.H{
+		"items":  summaries,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
 }
 
 // ListInternal GET /api/internal/diet/summaries?user_id=&start=&end=（内部路由）
@@ -47,17 +67,17 @@ func (h *SummaryHandler) List(c *gin.Context) {
 func (h *SummaryHandler) ListInternal(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Query("user_id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 user_id 参数"})
+		httperr.Response(c, http.StatusBadRequest, "请提供 user_id 参数")
 		return
 	}
 	start := c.Query("start")
 	end := c.Query("end")
 	if start == "" || end == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 start 和 end 参数，格式 YYYY-MM-DD"})
+		httperr.Response(c, http.StatusBadRequest, "请提供 start 和 end 参数，格式 YYYY-MM-DD")
 		return
 	}
 	if !validDate(start) || !validDate(end) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "start/end 参数格式应为 YYYY-MM-DD"})
+		httperr.Response(c, http.StatusBadRequest, "start/end 参数格式应为 YYYY-MM-DD")
 		return
 	}
 

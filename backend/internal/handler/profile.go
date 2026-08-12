@@ -3,6 +3,7 @@ package handler
 
 import (
 	"net/http"
+	"nutri.go/backend/internal/httperr"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +23,7 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 	userID := c.GetUint("userID")
 	paramID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil || uint(paramID) != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "无权查看其他用户的档案"})
+		httperr.Response(c, http.StatusForbidden, "无权查看其他用户的档案")
 		return
 	}
 
@@ -52,7 +53,7 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	userID := c.GetUint("userID")
 	paramID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil || uint(paramID) != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "无权修改其他用户的档案"})
+		httperr.Response(c, http.StatusForbidden, "无权修改其他用户的档案")
 		return
 	}
 
@@ -68,7 +69,7 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效: " + err.Error()})
+		httperr.Response(c, http.StatusBadRequest, "参数无效: "+err.Error())
 		return
 	}
 
@@ -90,7 +91,7 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 			ChronicDiseases: req.ChronicDiseases,
 		}
 		if err := h.DB.Create(&profile).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "创建档案失败"})
+			httperr.Response(c, http.StatusInternalServerError, "创建档案失败")
 			return
 		}
 	} else {
@@ -104,7 +105,7 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 		profile.DietaryHabits = req.DietaryHabits
 		profile.ChronicDiseases = req.ChronicDiseases
 		if err := h.DB.Save(&profile).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新档案失败"})
+			httperr.Response(c, http.StatusInternalServerError, "更新档案失败")
 			return
 		}
 	}
@@ -116,7 +117,7 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 func (h *ProfileHandler) GetProfileInternal(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		httperr.Response(c, http.StatusBadRequest, "无效的用户ID")
 		return
 	}
 

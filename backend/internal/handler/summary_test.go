@@ -156,3 +156,69 @@ func TestListInternalInvalidDates(t *testing.T) {
 		}
 	}
 }
+
+// 测试 List：分页返回 { items, total, limit, offset }
+func TestListPaginated(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	// 插入 5 条不同日期的汇总
+	for i, d := range []string{"2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05"} {
+		db.Create(&model.DailySummary{UserID: 1, Date: d, TotalCalories: float64(i + 1), MealCount: 1})
+	}
+	h := &SummaryHandler{DB: db}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("userID", uint(1))
+	c.Request = httptest.NewRequest(http.MethodGet,
+		"/api/diet/summaries?start=2026-08-01&end=2026-08-31&limit=2&offset=2", nil)
+
+	h.List(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d, 期望 200", w.Code)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if body["total"].(float64) != 5 {
+		t.Errorf("total = %v, 期望 5", body["total"])
+	}
+	if body["limit"].(float64) != 2 || body["offset"].(float64) != 2 {
+		t.Errorf("limit/offset = %v/%v, 期望 2/2", body["limit"], body["offset"])
+	}
+	items := body["items"].([]any)
+	if len(items) != 2 {
+		t.Fatalf("items 条数 = %d, 期望 2", len(items))
+	}
+	// 按日期倒序：第 3/4 条 → 08-03、08-02
+	first := items[0].(map[string]any)
+	if first["date"] != "2026-08-03" {
+		t.Errorf("第一项日期 = %v, 期望 2026-08-03（倒序+分页）", first["date"])
+	}
+}
+
+// 测试 List：limit 超过上限被钳制，非法 offset 回退 0
+func TestListPaginationClamps(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	db.Create(&model.DailySummary{UserID: 1, Date: "2026-08-01", TotalCalories: 1, MealCount: 1})
+	h := &SummaryHandler{DB: db}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("userID", uint(1))
+	c.Request = httptest.NewRequest(http.MethodGet,
+		"/api/diet/summaries?start=2026-08-01&end=2026-08-31&limit=9999&offset=-5", nil)
+
+	h.List(c)
+	var body map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if body["limit"].(float64) != 100 {
+		t.Errorf("limit = %v, 期望钳制为 100", body["limit"])
+	}
+	if body["offset"].(float64) != 0 {
+		t.Errorf("offset = %v, 期望非法值回退 0", body["offset"])
+	}
+}

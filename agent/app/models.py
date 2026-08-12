@@ -21,6 +21,14 @@ class SessionInfo(BaseModel):
     created_at: str
 
 
+class PagedSessions(BaseModel):
+    """会话列表分页信封"""
+    items: list[SessionInfo]
+    total: int
+    limit: int
+    offset: int
+
+
 class SessionDetail(BaseModel):
     """会话详情（含完整消息历史）"""
     id: int

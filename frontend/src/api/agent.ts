@@ -3,7 +3,7 @@ const AGENT_URL = '/agent-api'
 import { useAuthStore } from '../stores/auth'
 import { tryRefresh } from './authSession'
 import type {
-  IdentifyResult, IntakeResult, SessionInfo, SessionDetail,
+  IdentifyResult, IntakeResult, SessionInfo, SessionDetail, Paginated,
 } from '../types'
 
 function authHeaders(): Record<string, string> {
@@ -29,7 +29,7 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }))
-    throw new Error(err.detail || `HTTP ${resp.status}`)
+    throw new Error(err.detail || err.message || `HTTP ${resp.status}`)
   }
   return resp.json()
 }
@@ -57,7 +57,8 @@ export const agentApi = {
   calculateIntake: (foodName: string, grams: number) =>
     post<IntakeResult>('/calculate-intake', { food_name: foodName, grams }),
 
-  getSessions: () => get<SessionInfo[]>('/sessions'),
+  getSessions: (limit = 20, offset = 0) =>
+    get<Paginated<SessionInfo>>(`/sessions?limit=${limit}&offset=${offset}`),
 
   getSession: (id: number) => get<SessionDetail>(`/sessions/${id}`),
 

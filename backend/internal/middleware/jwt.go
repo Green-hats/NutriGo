@@ -4,6 +4,7 @@ package middleware
 
 import (
 	"net/http"
+	"nutri.go/backend/internal/httperr"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -20,14 +21,14 @@ func JWTAuth(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "未提供认证信息"})
+			httperr.Abort(c, http.StatusUnauthorized, "未提供认证信息")
 			return
 		}
 
 		// 切分 "Bearer <token>" → ["Bearer", "<token>"]
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "认证格式错误"})
+			httperr.Abort(c, http.StatusUnauthorized, "认证格式错误")
 			return
 		}
 
@@ -36,14 +37,14 @@ func JWTAuth(db *gorm.DB) gin.HandlerFunc {
 			return config.JWTSecret, nil
 		})
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token无效或已过期"})
+			httperr.Abort(c, http.StatusUnauthorized, "token无效或已过期")
 			return
 		}
 
 		// 类型断言：取出我们嵌入的 JWTClaims
 		claims, ok := token.Claims.(*config.JWTClaims)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token解析失败"})
+			httperr.Abort(c, http.StatusUnauthorized, "token解析失败")
 			return
 		}
 
@@ -52,7 +53,7 @@ func JWTAuth(db *gorm.DB) gin.HandlerFunc {
 			var count int64
 			db.Model(&model.BlacklistedToken{}).Where("jti = ?", claims.ID).Count(&count)
 			if count > 0 {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token已失效，请重新登录"})
+				httperr.Abort(c, http.StatusUnauthorized, "token已失效，请重新登录")
 				return
 			}
 		}
