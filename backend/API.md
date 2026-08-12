@@ -163,7 +163,7 @@ POST /api/auth/refresh
 |------|------|------|
 | `refresh_token` | string | 是 |
 
-成功时返回与登录相同的响应（新的 `token` + `refresh_token`）。**轮换机制**：每次刷新都会吊销旧刷新令牌，防止重放；旧令牌再次使用返回 `401`。
+成功时返回与登录相同的响应（新的 `token` + `refresh_token`）。**轮换机制**：每次刷新都会吊销旧刷新令牌，防止重放；旧令牌再次使用返回 `401`，并触发**令牌家族吊销**（同一次登录派生的所有刷新令牌一并失效）。
 
 ```bash
 curl -X POST http://localhost:3333/api/auth/refresh \
@@ -622,6 +622,8 @@ curl http://localhost:3333/api/internal/example \
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
 | `GET` | `/api/health` | 无 | 健康检查 |
+| `GET` | `/api/ready` | 无 | 就绪探针（校验数据库连接） |
+| `GET` | `/api/metrics` | 无 | Prometheus 格式指标 |
 | `POST` | `/api/auth/register` | 无 | 注册（限流：每 IP 5 次/分） |
 | `POST` | `/api/auth/login` | 无 | 登录，签发访问+刷新令牌（限流：每 IP 5 次/分） |
 | `POST` | `/api/auth/refresh` | 无 | 刷新令牌轮换（限流：每 IP 5 次/分） |

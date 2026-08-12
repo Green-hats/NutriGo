@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                 React + TypeScript (前端)                        │
-│           Vite / shadcn-ui / TailwindCSS / Zustand               │
+│        Vite / TailwindCSS / Zustand / React Router               │
 └──┬──────────────┬──────────────────┬────────────────────────────┘
    │ REST (CRUD)  │ REST (识别触发)    │ SSE (对话流)
    ▼              ▼                  ▼
@@ -16,9 +16,9 @@
 │ • 用户注册/登录 │  │ • LLM 对话 + Agent Loop ── SSE 流式输出          │
 │ • 健康档案 CRUD│  │ • 食物图片识别 (Chinese-CLIP) ── REST            │
 │ • 饮食记录 CRUD│  │ • RAG 营养知识检索 (ChromaDB)                    │
-│ • 图片上传存储  │  │ • 外部营养 API 调用                              │
-│ • JWT 认证    │  │ • 调用 Go API 获取用户/图片数据                    │
-│ • 图片获取 API │  │                                                  │
+│ • 图片上传存储  │  │ • 食物营养库查询 (nutrition.db)                   │
+│ • JWT+刷新令牌 │  │ • 调用 Go API 获取用户/图片数据                    │
+│ • IP 限流      │  │                                                  │
 │   SQLite     │  │                                                  │
 └──────┬───────┘  └─────────────────────────────────────────────────┘
        │                        │
@@ -32,7 +32,7 @@
 
 | 层 | 技术 |
 |----|------|
-| **前端** | React 18+ / TypeScript / Vite / shadcn-ui / TailwindCSS / Zustand / React Router |
+| **前端** | React 19 / TypeScript (strict) / Vite / TailwindCSS / Zustand / React Router |
 | **Go 后端**（数据服务） | Gin / GORM / golang-jwt / SQLite |
 | **Python 后端**（AI 服务） | FastAPI / litellm / ChromaDB / Chinese-CLIP / Pillow / httpx |
 
@@ -170,9 +170,8 @@ Python → GET Go /api/users/:id/profile  (带内部服务鉴权 token)
 | `conversation.py` | **保留** | 会话状态 + 回滚，适配 SSE ChatIO |
 | `chat_io.py` | **保留重构** | ChatIO 抽象接口保留，新增 `SSEChatIO` 实现 |
 | `db.py` | **保留** | SQLite 操作保留，仅用于会话持久化 |
-| `nutrition_tools.py` | **新增** | Agent 工具：查营养、查用户画像、查食谱等 |
+| `nutrition.py` | **新增** | Agent 工具实现：查营养、查用户画像、查饮食记录/汇总 |
 | `rag.py` | **新增** | ChromaDB 向量检索，加载营养知识文档 |
-| `food_api.py` | **新增** | 调用 USDA / OpenFoodFacts 等外部营养 API |
 | `multimodal.py` | **新增** | Chinese-CLIP 食物识别模型加载与推理 |
 | `go_client.py` | **新增** | 封装对 Go 后端的 HTTP 调用 |
 | `config.py` | **新增** | 配置管理，读取 .env |
@@ -288,23 +287,28 @@ NutriGo/
 │   ├── cmd/server/main.go
 │   ├── internal/
 │   │   ├── handler/
-│   │   │   ├── auth.go
-│   │   │   ├── user.go
+│   │   │   ├── auth.go        # 注册/登录/刷新令牌/登出
+│   │   │   ├── profile.go
 │   │   │   ├── diet.go
-│   │   │   └── image.go
+│   │   │   ├── image.go
+│   │   │   └── summary.go
 │   │   ├── middleware/
-│   │   │   ├── jwt.go
-│   │   │   └── internal_auth.go
+│   │   │   ├── jwt.go         # JWT 校验 + 黑名单
+│   │   │   ├── internal_auth.go
+│   │   │   ├── rate_limit.go  # IP 令牌桶限流
+│   │   │   └── observability.go # 请求日志 + 指标
 │   │   ├── model/
 │   │   │   ├── user.go
-│   │   │   ├── user_profile.go
 │   │   │   ├── food_diary.go
-│   │   │   └── food_image.go
-│   │   ├── repository/
-│   │   ├── service/
-│   │   └── config/
-│   ├── migrations/
-│   ├── uploads/
+│   │   │   ├── food_image.go
+│   │   │   ├── daily_summary.go
+│   │   │   └── token.go       # 刷新令牌 / 黑名单表
+│   │   ├── service/           # 后台任务
+│   │   │   ├── aggregator.go
+│   │   │   ├── cleanup.go
+│   │   │   └── token_cleanup.go
+│   │   └── config/            # 密钥/DB/限流/保留期配置
+│   ├── uploads/               # 运行期生成（.gitignore）
 │   ├── go.mod
 │   └── go.sum
 │
@@ -316,41 +320,41 @@ NutriGo/
 │   │   ├── conversation.py
 │   │   ├── tools.py
 │   │   ├── chat_io.py
-│   │   ├── db.py
-│   │   ├── nutrition_tools.py
-│   │   ├── rag.py
-│   │   ├── food_api.py
-│   │   ├── multimodal.py
-│   │   └── go_client.py
-│   ├── data/
-│   │   └── kb/                # RAG 知识文档（中国膳食指南等）
+│   │   ├── db.py              # 会话持久化
+│   │   └── auth.py            # JWT 校验（标准库）
+│   ├── recognition/
+│   │   ├── nutrition.py       # Agent 工具函数
+│   │   ├── rag.py             # ChromaDB 检索
+│   │   ├── multimodal.py      # Chinese-CLIP 识别
+│   │   ├── db.py              # nutrition.db 食物库
+│   │   └── go_client.py       # Go 后端 HTTP 客户端
+│   ├── tests/                 # pytest 单元测试
+│   ├── chroma_db/             # RAG 向量库（运行期生成）
+│   ├── nutrition.db           # 预置食物营养库（8407 条）
 │   ├── pyproject.toml
 │   └── uv.lock
 │
 ├── frontend/                  # React + TypeScript
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── ui/            # shadcn-ui 组件
+│   │   │   ├── ui/            # 自定义基础组件
 │   │   │   ├── chat/
-│   │   │   ├── food/
+│   │   │   ├── diary/
 │   │   │   └── layout/
 │   │   ├── pages/
 │   │   │   ├── Login.tsx
 │   │   │   ├── Register.tsx
-│   │   │   ├── Dashboard.tsx
 │   │   │   ├── Chat.tsx
-│   │   │   ├── DietDiary.tsx
+│   │   │   ├── Diary.tsx
 │   │   │   └── Profile.tsx
-│   │   ├── hooks/
-│   │   ├── stores/            # Zustand
-│   │   ├── api/               # Go + Python API 调用封装
+│   │   ├── stores/            # Zustand（auth / chat）
+│   │   ├── api/               # Go + Agent API 调用封装
 │   │   ├── types/             # TypeScript 类型定义
+│   │   ├── test/              # vitest 配置
 │   │   ├── App.tsx
 │   │   └── main.tsx
 │   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.ts
-│   └── tsconfig.json
+│   └── vite.config.ts
 │
 └── agentn_ref/                # 原 AgentN 代码引用（可选，方便对照）
     └── (复制自原 AgentN 项目)
@@ -363,15 +367,42 @@ NutriGo/
 | 层面 | 措施 |
 |------|------|
 | 传输安全 | 本地部署，服务间内网通信；公网部署需加 HTTPS |
-| 认证 | JWT（用户认证）+ 静态 internal_token（Go ↔ Python 服务间鉴权） |
+| 认证 | JWT（用户认证，短时 2h + 刷新令牌轮换 + 登出黑名单 + 重放检测）+ 静态 internal_token（Go ↔ Python 服务间鉴权） |
+| 防爆破 | 登录/注册/刷新接口 IP 级令牌桶限流（5 次/分） |
 | 密码存储 | bcrypt 哈希 |
 | 文件上传 | 限制文件类型（仅图片）和大小（10MB），文件名 UUID 化防遍历 |
 | API Key | 通过 .env 注入，不编码在代码中，.gitignore 排除 |
 | 数据隔离 | 用户只能访问自己的数据，通过 JWT 中的 user_id 校验 |
+| 令牌安全 | 刷新令牌只存 SHA-256 哈希；轮换后旧令牌立即失效 |
 
 ---
 
-## 十二、部署方案
+## 十二、选型与架构权衡
+
+### 为什么用 SQLite 而不是 PostgreSQL
+
+当前为**单实例、中小规模**部署（2C4G），数据量级为个位数用户 × 每日数十条记录：
+
+- **零运维**：单文件、无独立进程，备份即复制文件，契合 Docker 单机部署
+- **写入瓶颈不在当前量级**：SQLite 单写者限制在 QPS 远低于本项目流量时无感知
+- **与聚合任务匹配**：后台聚合按日批量写入，天然符合 SQLite 的写模型
+
+**何时需要迁移到 PostgreSQL**：多实例水平扩展、QPS 超过 SQLite 单写者上限、或需要外部写入方。
+此时仅需替换 GORM driver（`config/db.go` 一行）并引入版本化迁移工具（如 golang-migrate）。
+
+### 已知的并发限制（诚实声明）
+
+以下机制均为**进程内**实现，仅适用于单实例部署：
+
+- IP 限流表（`middleware/rate_limit.go`）与 Agent 的用户并发上限（`MAX_ACTIVE_PER_USER`）按进程计数
+- 会话写锁（`app/rate_limit.py`）为单进程 asyncio.Lock
+
+横向扩容到多实例时，需要把限流/并发控制外置到 Redis 等共享存储，
+或通过负载均衡器的连接数控制兜底。
+
+---
+
+## 十三、部署方案
 
 ### 开发环境
 

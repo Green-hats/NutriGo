@@ -112,8 +112,9 @@ cp agent/.env.example agent/.env
 
 ```bash
 # 单元测试（无需启动服务，适合 CI）
-make test-go-unit        # Go：64 用例
+make test-go-unit        # Go：75 用例
 make test-frontend       # 前端 vitest：28 用例（store + 组件）
+make test-agent-unit     # Agent pytest：42 用例（不联网、不加载模型）
 
 # 集成测试（需服务运行）
 make test-backend        # Go 后端：66 用例
@@ -136,7 +137,7 @@ make test
 | 前端 | React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
 | Agent | Python 3.13 · FastAPI · litellm · Chinese-CLIP · ChromaDB · SSE |
 | 后端 | Go 1.26 · Gin · GORM · SQLite · JWT · bcrypt |
-| 质量 | ruff · mypy · oxlint · GitHub Actions CI |
+| 质量 | Go test · pytest · ruff · mypy · oxlint · vitest · GitHub Actions CI |
 
 ---
 

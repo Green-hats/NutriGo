@@ -45,7 +45,7 @@ jobs:
 
       - name: Lint Python (ruff)
         working-directory: agent
-        run: ruff check app/ recognition/
+        run: ruff check app/ recognition/ tests/
 
       - name: Type check Python (mypy)
         working-directory: agent
@@ -82,6 +82,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
       - name: Install frontend deps
         working-directory: frontend
         run: npm ci
@@ -89,6 +94,16 @@ jobs:
       - name: Go unit tests
         working-directory: backend
         run: go test ./internal/...
+
+      - name: Install Agent test deps
+        working-directory: agent
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio aiosqlite httpx chromadb python-dotenv pydantic
+
+      - name: Agent unit tests (pytest)
+        working-directory: agent
+        run: pytest
 
       - name: Frontend unit tests (vitest)
         working-directory: frontend

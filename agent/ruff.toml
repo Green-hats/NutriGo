@@ -37,3 +37,6 @@ ignore = [
 
 # multimodal.py：transformers 延迟导入，避免启动加载 torch/CLIP 模型
 "recognition/multimodal.py" = ["PLC0415"]
+
+# 测试文件：assert 是测试惯例，注解放宽，测试口令为明文
+"tests/**" = ["S101", "S106", "ANN001", "ANN201"]

@@ -9,7 +9,7 @@
 SHELL := /bin/bash
 ROOT := $(shell pwd)
 
-.PHONY: dev stop status build test test-agent test-backend test-identify lint lint-frontend lint-backend env
+.PHONY: dev stop status build test test-agent-unit test-agent test-backend test-identify lint lint-frontend lint-backend env
 
 ## ---- 启动/停止 ----
 dev:
@@ -28,7 +28,7 @@ build:
 	@echo "✅ 构建完成"
 
 ## ---- 测试 ----
-test: test-go-unit test-frontend test-backend test-agent test-identify
+test: test-go-unit test-frontend test-agent-unit test-backend test-agent test-identify
 
 # Go 单元测试（无需启动服务）
 test-go-unit:
@@ -50,6 +50,12 @@ test-agent:
 	@echo "== Agent 基础测试 =="
 	cd agent && uv run python ../test/agent/test_agent.py
 
+# Agent 单元测试（pytest，不联网、不加载模型）
+test-agent-unit:
+	@echo "== Agent 单元测试（pytest）=="
+	cd agent && uv run pytest
+	@echo "✅ Agent 单元测试通过"
+
 test-identify:
 	@echo "== Agent 图片识别测试 =="
 	cd agent && uv run python ../test/agent/test_identify.py
@@ -68,7 +74,7 @@ lint-frontend:
 
 lint-backend:
 	@echo "== Python ruff =="
-	cd agent && uv run ruff check app/ recognition/
+	cd agent && uv run ruff check app/ recognition/ tests/
 	@echo "✅ Python lint 通过"
 
 # mypy 类型检查
@@ -81,3 +87,5 @@ typecheck:
 env:
 	@echo "== 检查 .env 文件 =="
 	@test -f agent/.env && echo "✅ agent/.env 存在" || echo "⚠️  agent/.env 缺失，请复制 agent/.env.example 为 agent/.env"
+	@echo "== 后端环境变量 =="
+	@echo "ℹ️  后端由 docker-compose/部署脚本注入环境变量（见 backend/.env.example、deploy/compose/.env.production.example），本地开发使用内置默认值即可"

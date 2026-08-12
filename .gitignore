@@ -23,6 +23,9 @@ agent/data/chroma_db/
 node_modules/
 frontend/dist/
 
+# 部署构建产物（deploy/scripts/build-frontend.sh 生成）
+deploy/dist/
+
 # IDE
 .vscode/
 .idea/

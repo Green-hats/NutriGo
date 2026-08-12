@@ -112,8 +112,9 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 
 ```bash
 # Unit tests (no services required, CI-friendly)
-make test-go-unit        # Go: 64 cases
+make test-go-unit        # Go: 75 cases
 make test-frontend       # Frontend vitest: 28 cases (store + component)
+make test-agent-unit     # Agent pytest: 42 cases (no LLM / models)
 
 # Integration tests (services must be running)
 make test-backend        # Go backend: 66 cases
@@ -136,7 +137,7 @@ make test
 | Frontend | React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
 | Agent | Python 3.13 · FastAPI · litellm · Chinese-CLIP · ChromaDB · SSE |
 | Backend | Go 1.26 · Gin · GORM · SQLite · JWT · bcrypt |
-| Quality | ruff · mypy · oxlint · GitHub Actions CI |
+| Quality | Go test · pytest · ruff · mypy · oxlint · vitest · GitHub Actions CI |
 
 ---
 

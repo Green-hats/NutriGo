@@ -350,3 +350,46 @@ func TestLogoutBlacklistsAccessToken(t *testing.T) {
 		t.Error("refresh token 应被吊销")
 	}
 }
+
+// 测试 Refresh：重放检测——被轮换的旧令牌再次使用，吊销整个令牌家族
+func TestRefreshReuseRevokesFamily(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	body := loginForTokens(t, db)
+	h := &AuthHandler{DB: db}
+
+	// 第一次刷新：轮换，得到新令牌对
+	oldRefresh := body["refresh_token"].(string)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/auth/refresh",
+		bytes.NewBufferString(`{"refresh_token":"`+oldRefresh+`"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.Refresh(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("首次刷新状态码 = %d, 期望 200", w.Code)
+	}
+	newRefresh := mustJSONBody(t, w.Body.Bytes())["refresh_token"].(string)
+
+	// 攻击者重放旧令牌 → 401，且触发家族吊销
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	c2.Request = httptest.NewRequest(http.MethodPost, "/api/auth/refresh",
+		bytes.NewBufferString(`{"refresh_token":"`+oldRefresh+`"}`))
+	c2.Request.Header.Set("Content-Type", "application/json")
+	h.Refresh(c2)
+	if w2.Code != http.StatusUnauthorized {
+		t.Fatalf("重放旧令牌状态码 = %d, 期望 401", w2.Code)
+	}
+
+	// 家族已被吊销：刚换到的新令牌也不可用
+	w3 := httptest.NewRecorder()
+	c3, _ := gin.CreateTestContext(w3)
+	c3.Request = httptest.NewRequest(http.MethodPost, "/api/auth/refresh",
+		bytes.NewBufferString(`{"refresh_token":"`+newRefresh+`"}`))
+	c3.Request.Header.Set("Content-Type", "application/json")
+	h.Refresh(c3)
+	if w3.Code != http.StatusUnauthorized {
+		t.Fatalf("家族吊销后新令牌状态码 = %d, 期望 401", w3.Code)
+	}
+}

@@ -53,7 +53,10 @@ func main() {
 	authLimiter := middleware.NewIPRateLimiter(config.AuthRateLimitRPS, config.AuthRateLimitBurst)
 	authLimiter.StartCleanup(5 * time.Minute)
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	metrics := middleware.NewMetrics()
+	r.Use(metrics.Middleware())
 
 	// 创建各处理器实例
 	authHandler := &handler.AuthHandler{DB: config.DB}
@@ -66,6 +69,20 @@ func main() {
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	})
+	// 就绪探针：校验数据库连接可用
+	r.GET("/api/ready", func(c *gin.Context) {
+		sqlDB, err := config.DB.DB()
+		if err == nil {
+			err = sqlDB.Ping()
+		}
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unready", "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ready"})
+	})
+	// 指标：Prometheus 文本格式
+	r.GET("/api/metrics", metrics.Handler())
 	r.POST("/api/auth/register", authLimiter.Middleware(), authHandler.Register)
 	r.POST("/api/auth/login", authLimiter.Middleware(), authHandler.Login)
 	r.POST("/api/auth/refresh", authLimiter.Middleware(), authHandler.Refresh)

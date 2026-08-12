@@ -86,7 +86,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.issueTokenPair(&user)
+	accessToken, refreshToken, err := h.issueTokenPair(&user, "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "登录失败"})
 		return
@@ -102,7 +102,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 // Refresh POST /api/auth/refresh
-// 用刷新令牌换取新的令牌对，并轮换（旧刷新令牌立即失效，防重放）。
+// 用刷新令牌换取新的令牌对，并轮换（旧刷新令牌立即失效）。
+// 已吊销的令牌被再次使用 → 判定为令牌泄露，吊销整个令牌家族。
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req struct {
 		RefreshToken string `json:"refresh_token" binding:"required"`
@@ -112,13 +113,24 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	rt, err := h.findValidRefreshToken(req.RefreshToken)
-	if err != nil {
+	var rt model.RefreshToken
+	if err := h.DB.Where("token_hash = ?", config.HashToken(req.RefreshToken)).First(&rt).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token 无效或已过期"})
 		return
 	}
 
-	// 轮换：吊销旧刷新令牌（防重放攻击）
+	// 已吊销却被再次使用 → 重放攻击信号，吊销整个家族
+	if rt.RevokedAt != nil {
+		h.revokeTokenFamily(rt.FamilyID, rt.UserID)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token 已失效"})
+		return
+	}
+	if time.Now().After(rt.ExpiresAt) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token 已过期"})
+		return
+	}
+
+	// 轮换：吊销旧刷新令牌（防重放）
 	now := time.Now()
 	rt.RevokedAt = &now
 	if err := h.DB.Save(&rt).Error; err != nil {
@@ -126,13 +138,13 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	// 签发新令牌对
+	// 签发新令牌对（继承同一家族）
 	var user model.User
 	if err := h.DB.First(&user, rt.UserID).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 		return
 	}
-	accessToken, refreshToken, err := h.issueTokenPair(&user)
+	accessToken, refreshToken, err := h.issueTokenPair(&user, rt.FamilyID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "刷新失败"})
 		return
@@ -147,37 +159,64 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	})
 }
 
+// revokeTokenFamily 吊销某用户下整个令牌家族中仍有效的刷新令牌
+func (h *AuthHandler) revokeTokenFamily(familyID string, userID uint) {
+	if familyID == "" {
+		return
+	}
+	now := time.Now()
+	h.DB.Model(&model.RefreshToken{}).
+		Where("user_id = ? AND family_id = ? AND revoked_at IS NULL", userID, familyID).
+		Update("revoked_at", now)
+}
+
 // Logout POST /api/auth/logout（需 JWT）
 // 将当前 access token 的 jti 加入黑名单使其立即失效；若附上 refresh_token 则一并吊销。
+// 两个写入在单个事务中完成，保证一致性。
 func (h *AuthHandler) Logout(c *gin.Context) {
 	userID := c.GetUint("userID")
 	jti := c.GetString("jti")
 
-	// 吊销 access token（写入黑名单，到期后由清理任务删除）
-	if jti != "" {
-		h.DB.Create(&model.BlacklistedToken{
-			UserID:    userID,
-			JTI:       jti,
-			ExpiresAt: c.GetTime("tokenExp"),
-		})
-	}
-
-	// 可选：吊销 refresh token
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
 	}
-	if err := c.ShouldBindJSON(&req); err == nil && req.RefreshToken != "" {
-		now := time.Now()
-		h.DB.Model(&model.RefreshToken{}).
-			Where("user_id = ? AND token_hash = ?", userID, config.HashToken(req.RefreshToken)).
-			Update("revoked_at", now)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
+		return
+	}
+
+	// 事务：黑名单写入 + refresh 吊销要么都成功，要么都回滚
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if jti != "" {
+			if err := tx.Create(&model.BlacklistedToken{
+				UserID:    userID,
+				JTI:       jti,
+				ExpiresAt: c.GetTime("tokenExp"),
+			}).Error; err != nil {
+				return err
+			}
+		}
+		if req.RefreshToken != "" {
+			now := time.Now()
+			if err := tx.Model(&model.RefreshToken{}).
+				Where("user_id = ? AND token_hash = ?", userID, config.HashToken(req.RefreshToken)).
+				Update("revoked_at", now).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "登出失败"})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "退出成功"})
 }
 
-// issueTokenPair 签发 access + refresh 令牌对，并将 refresh 令牌哈希持久化
-func (h *AuthHandler) issueTokenPair(user *model.User) (accessToken, refreshToken string, err error) {
+// issueTokenPair 签发 access + refresh 令牌对，并将 refresh 令牌哈希持久化。
+// familyID 为空时创建新家族（登录场景）；轮换场景传入原家族 ID。
+func (h *AuthHandler) issueTokenPair(user *model.User, familyID string) (accessToken, refreshToken string, err error) {
 	accessToken, err = config.GenerateToken(user.ID, user.Username)
 	if err != nil {
 		return "", "", err
@@ -186,8 +225,12 @@ func (h *AuthHandler) issueTokenPair(user *model.User) (accessToken, refreshToke
 	if err != nil {
 		return "", "", err
 	}
+	if familyID == "" {
+		familyID = config.NewTokenID()
+	}
 	rt := model.RefreshToken{
 		UserID:    user.ID,
+		FamilyID:  familyID,
 		TokenHash: config.HashToken(refreshToken),
 		ExpiresAt: time.Now().Add(config.RefreshTokenTTL),
 	}
@@ -195,19 +238,4 @@ func (h *AuthHandler) issueTokenPair(user *model.User) (accessToken, refreshToke
 		return "", "", err
 	}
 	return accessToken, refreshToken, nil
-}
-
-// findValidRefreshToken 按明文哈希查刷新令牌，校验存在、未吊销、未过期
-func (h *AuthHandler) findValidRefreshToken(token string) (*model.RefreshToken, error) {
-	var rt model.RefreshToken
-	if err := h.DB.Where("token_hash = ?", config.HashToken(token)).First(&rt).Error; err != nil {
-		return nil, err
-	}
-	if rt.RevokedAt != nil {
-		return nil, gorm.ErrRecordNotFound
-	}
-	if time.Now().After(rt.ExpiresAt) {
-		return nil, gorm.ErrRecordNotFound
-	}
-	return &rt, nil
 }

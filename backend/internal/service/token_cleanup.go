@@ -17,23 +17,26 @@ const tokenCleanupInterval = 6 * time.Hour
 func StartTokenCleanup(db *gorm.DB) {
 	go func() {
 		for {
-			now := time.Now()
-
-			// 清理已到期的黑名单记录
-			blacklisted := db.Where("expires_at < ?", now).Delete(&model.BlacklistedToken{})
-			// 清理已过期或已吊销的刷新令牌
-			expired := db.Where("expires_at < ?", now).Delete(&model.RefreshToken{})
-			revoked := db.Where("revoked_at IS NOT NULL").Delete(&model.RefreshToken{})
-
-			if blacklisted.RowsAffected > 0 || expired.RowsAffected > 0 || revoked.RowsAffected > 0 {
-				slog.Info("清理过期令牌",
-					"blacklisted", blacklisted.RowsAffected,
-					"expired_refresh", expired.RowsAffected,
-					"revoked_refresh", revoked.RowsAffected,
-				)
-			}
-
+			runTokenCleanup(db)
 			time.Sleep(tokenCleanupInterval)
 		}
 	}()
+}
+
+// runTokenCleanup 执行一次清理：删除过期黑名单与过期/已吊销刷新令牌。
+// 独立函数便于单元测试。
+func runTokenCleanup(db *gorm.DB) {
+	now := time.Now()
+
+	blacklisted := db.Where("expires_at < ?", now).Delete(&model.BlacklistedToken{})
+	expired := db.Where("expires_at < ?", now).Delete(&model.RefreshToken{})
+	revoked := db.Where("revoked_at IS NOT NULL").Delete(&model.RefreshToken{})
+
+	if blacklisted.RowsAffected > 0 || expired.RowsAffected > 0 || revoked.RowsAffected > 0 {
+		slog.Info("清理过期令牌",
+			"blacklisted", blacklisted.RowsAffected,
+			"expired_refresh", expired.RowsAffected,
+			"revoked_refresh", revoked.RowsAffected,
+		)
+	}
 }
