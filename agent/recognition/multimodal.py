@@ -64,7 +64,7 @@ def load_model() -> None:
             model, {torch.nn.Linear}, dtype=torch.qint8
         )
         logger.info("Chinese-CLIP 已启用 int8 动态量化")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("int8 量化失败，回退 fp32: %s", e)
 
     model.eval()
