@@ -27,6 +27,10 @@ func (h *SummaryHandler) List(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 start 和 end 参数，格式 YYYY-MM-DD"})
 		return
 	}
+	if !validDate(start) || !validDate(end) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "start/end 参数格式应为 YYYY-MM-DD"})
+		return
+	}
 
 	var summaries []model.DailySummary
 	h.DB.Where("user_id = ? AND date >= ? AND date <= ?", userID, start, end).
@@ -52,6 +56,10 @@ func (h *SummaryHandler) ListInternal(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 start 和 end 参数，格式 YYYY-MM-DD"})
 		return
 	}
+	if !validDate(start) || !validDate(end) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "start/end 参数格式应为 YYYY-MM-DD"})
+		return
+	}
 
 	// 以 date -> summary 的 map 合并两段数据
 	merged := make(map[string]map[string]any)
@@ -74,13 +82,13 @@ func (h *SummaryHandler) ListInternal(c *gin.Context) {
 		Find(&recent)
 	for _, r := range recent {
 		merged[r.Date] = map[string]any{
-			"date":             r.Date,
-			"total_calories":   r.TotalCal,
-			"total_protein_g":  r.TotalPro,
-			"total_fat_g":      r.TotalFat,
-			"total_carbs_g":    r.TotalCarb,
-			"meal_count":       r.MealCount,
-			"source":           "live",
+			"date":            r.Date,
+			"total_calories":  r.TotalCal,
+			"total_protein_g": r.TotalPro,
+			"total_fat_g":     r.TotalFat,
+			"total_carbs_g":   r.TotalCarb,
+			"meal_count":      r.MealCount,
+			"source":          "live",
 		}
 	}
 

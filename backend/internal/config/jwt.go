@@ -11,8 +11,8 @@ import (
 
 // 开发环境默认值（仅当 APP_ENV != production 时允许使用）
 const (
-	devJWTSecret      = "nutri-go-secret-key-change-in-production"
-	devInternalToken  = "nutri-go-internal-token-dev"
+	devJWTSecret     = "nutri-go-secret-key-change-in-production"
+	devInternalToken = "nutri-go-internal-token-dev"
 )
 
 // JWTSecret 签名密钥，由 InitSecrets 初始化

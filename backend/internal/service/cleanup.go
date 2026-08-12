@@ -2,7 +2,7 @@
 package service
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -11,7 +11,7 @@ import (
 	"nutri.go/backend/internal/model"
 )
 
-const retentionDays = 7            // 图片保留天数
+const retentionDays = 7               // 图片保留天数
 const cleanupInterval = 1 * time.Hour // 清理间隔
 
 // StartImageCleanup 启动后台 goroutine，定期删除过期图片
@@ -27,17 +27,17 @@ func StartImageCleanup(db *gorm.DB) {
 				// 先删磁盘文件
 				if _, err := os.Stat(img.Path); err == nil {
 					if err := os.Remove(img.Path); err != nil {
-						log.Printf("[cleanup] 删除文件失败 id=%d path=%s: %v", img.ID, img.Path, err)
+						slog.Error("删除图片文件失败", "id", img.ID, "path", img.Path, "error", err)
 						continue
 					}
 				}
 				// 再删数据库记录
 				db.Delete(&img)
-				log.Printf("[cleanup] 已清理过期图片 id=%d name=%s", img.ID, img.Filename)
+				slog.Info("已清理过期图片", "id", img.ID, "filename", img.Filename)
 			}
 
 			if len(images) > 0 {
-				log.Printf("[cleanup] 本次清理 %d 张图片", len(images))
+				slog.Info("本次清理过期图片", "count", len(images))
 			}
 
 			time.Sleep(cleanupInterval)

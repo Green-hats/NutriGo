@@ -3,7 +3,7 @@
 package service
 
 import (
-	"log"
+	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -21,13 +21,13 @@ func StartDietAggregator(db *gorm.DB) {
 			cutoff := time.Now().AddDate(0, 0, -config.AggregationRetentionDays).Format("2006-01-02")
 
 			var results []struct {
-				UserID     uint    `gorm:"column:user_id"`
-				Date       string  `gorm:"column:date"`
-				TotalCal   float64 `gorm:"column:total_cal"`
-				TotalPro   float64 `gorm:"column:total_pro"`
-				TotalFat   float64 `gorm:"column:total_fat"`
-				TotalCarb  float64 `gorm:"column:total_carb"`
-				MealCount  int     `gorm:"column:meal_count"`
+				UserID    uint    `gorm:"column:user_id"`
+				Date      string  `gorm:"column:date"`
+				TotalCal  float64 `gorm:"column:total_cal"`
+				TotalPro  float64 `gorm:"column:total_pro"`
+				TotalFat  float64 `gorm:"column:total_fat"`
+				TotalCarb float64 `gorm:"column:total_carb"`
+				MealCount int     `gorm:"column:meal_count"`
 			}
 
 			// 按 (user_id, date) 分组计算总和
@@ -40,7 +40,7 @@ func StartDietAggregator(db *gorm.DB) {
 				Find(&results).Error
 
 			if err != nil {
-				log.Printf("[aggregator] 查询失败: %v", err)
+				slog.Error("聚合查询失败", "error", err)
 				time.Sleep(aggregationInterval)
 				continue
 			}
@@ -66,8 +66,11 @@ func StartDietAggregator(db *gorm.DB) {
 			// 删除已聚合的原始记录
 			if inserted > 0 {
 				result := db.Where("date < ?", cutoff).Delete(&model.FoodDiary{})
-				log.Printf("[aggregator] 聚合 %d 天数据 → %d 条汇总, 删除 %d 条原始记录",
-					len(results), inserted, result.RowsAffected)
+				slog.Info("饮食记录聚合完成",
+					"days", len(results),
+					"summaries", inserted,
+					"deleted", result.RowsAffected,
+				)
 			}
 
 			time.Sleep(aggregationInterval)

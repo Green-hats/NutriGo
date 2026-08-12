@@ -133,3 +133,26 @@ func TestListInternalMissingDates(t *testing.T) {
 		t.Fatalf("状态码 = %d, 期望 400", w.Code)
 	}
 }
+
+// 测试 ListInternal 非法日期格式返回 400
+func TestListInternalInvalidDates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	h := &SummaryHandler{DB: db}
+
+	for _, qs := range []string{
+		"user_id=1&start=2026-7-1&end=2026-08-31",
+		"user_id=1&start=2026-07-01&end=2026/08/31",
+		"user_id=1&start=2026-02-30&end=2026-08-31",
+		"user_id=1&start=20260701&end=2026-08-31",
+	} {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/internal/diet/summaries?"+qs, nil)
+
+		h.ListInternal(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("query=%q 状态码 = %d, 期望 400", qs, w.Code)
+		}
+	}
+}

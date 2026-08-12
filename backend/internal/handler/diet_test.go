@@ -115,6 +115,25 @@ func TestDietListMissingDate(t *testing.T) {
 	}
 }
 
+// 测试 List：非法日期格式返回 400
+func TestDietListInvalidDate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	h := &DietHandler{DB: db}
+
+	for _, date := range []string{"2026-8-1", "2026/08/01", "2026-08-32", "20260801", "2026-08-01T00:00:00"} {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userID", uint(1))
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/diet/logs?date="+date, nil)
+
+		h.List(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("date=%q 状态码 = %d, 期望 400", date, w.Code)
+		}
+	}
+}
+
 // 测试 Delete：本人记录删除成功
 func TestDietDeleteOwnRecord(t *testing.T) {
 	gin.SetMode(gin.TestMode)

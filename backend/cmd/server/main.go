@@ -4,7 +4,14 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,22 +22,31 @@ import (
 	"nutri.go/backend/internal/service"
 )
 
+const shutdownTimeout = 10 * time.Second
+
 func main() {
+	logger := slog.Default()
+
 	// 生产环境校验密钥（缺失则启动失败）
 	if err := config.InitSecrets(); err != nil {
-		panic("安全配置错误: " + err.Error())
+		logger.Error("安全配置错误，启动中止", "error", err)
+		os.Exit(1)
 	}
 
 	if err := config.InitDB(); err != nil {
-		panic("连接数据库失败: " + err.Error())
+		logger.Error("连接数据库失败，启动中止", "error", err)
+		os.Exit(1)
 	}
 
 	// 自动建表
-	config.DB.AutoMigrate(&model.User{}, &model.UserProfile{}, &model.FoodImage{}, &model.FoodDiary{}, &model.DailySummary{})
+	if err := config.DB.AutoMigrate(&model.User{}, &model.UserProfile{}, &model.FoodImage{}, &model.FoodDiary{}, &model.DailySummary{}); err != nil {
+		logger.Error("自动建表失败，启动中止", "error", err)
+		os.Exit(1)
+	}
 
 	// 启动后台任务
-	service.StartImageCleanup(config.DB)    // 每 1 小时删除 7 天前的图片
-	service.StartDietAggregator(config.DB)  // 每 24 小时聚合 7 天前的饮食记录
+	service.StartImageCleanup(config.DB)   // 每 1 小时删除 7 天前的图片
+	service.StartDietAggregator(config.DB) // 每 24 小时聚合 7 天前的饮食记录
 
 	r := gin.Default()
 
@@ -91,5 +107,32 @@ func main() {
 		internal.GET("/internal/diet/summaries", summaryHandler.ListInternal)
 	}
 
-	r.Run(":3333")
+	srv := &http.Server{
+		Addr:              ":3333",
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	// 启动 HTTP 服务（goroutine 内运行，主协程等待退出信号）
+	go func() {
+		logger.Info("HTTP 服务启动", "addr", ":3333")
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("HTTP 服务异常退出", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// 监听 SIGINT/SIGTERM，触发优雅关闭
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	logger.Info("收到退出信号，开始优雅关闭")
+
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error("优雅关闭超时或失败", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("HTTP 服务已关闭")
 }

@@ -68,6 +68,10 @@ func (h *DietHandler) List(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 date 参数，格式 YYYY-MM-DD"})
 		return
 	}
+	if !validDate(date) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date 参数格式应为 YYYY-MM-DD"})
+		return
+	}
 
 	var records []model.FoodDiary
 	h.DB.Where("user_id = ? AND date = ?", userID, date).
@@ -117,6 +121,10 @@ func (h *DietHandler) ListInternal(c *gin.Context) {
 	date := c.Query("date")
 	if date == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供 date 参数，格式 YYYY-MM-DD"})
+		return
+	}
+	if !validDate(date) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date 参数格式应为 YYYY-MM-DD"})
 		return
 	}
 

@@ -31,13 +31,13 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 	if result.Error != nil {
 		// 没填过档案，返回空数据而非 404
 		c.JSON(http.StatusOK, gin.H{
-			"height_cm":       0,
-			"weight_kg":       0,
-			"age":             0,
-			"gender":          "",
-			"goal":            "",
-			"allergies":       []string{},
-			"dietary_habits":  []string{},
+			"height_cm":        0,
+			"weight_kg":        0,
+			"age":              0,
+			"gender":           "",
+			"goal":             "",
+			"allergies":        []string{},
+			"dietary_habits":   []string{},
 			"chronic_diseases": []string{},
 		})
 		return
