@@ -64,6 +64,9 @@ export const agentApi = {
 
   deleteSession: (id: number) => del(`/sessions/${id}`),
 
+  batchDeleteSessions: (ids: number[]) =>
+    post<{ deleted: number }>('/sessions/batch-delete', { ids }),
+
   renameSession: (id: number, name: string) =>
     patch<{ message: string }>(`/sessions/${id}`, { name }),
 

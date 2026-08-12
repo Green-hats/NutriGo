@@ -89,3 +89,23 @@ async def test_list_sessions_pagination(db_path):
     assert await db.count_sessions(user_id=1) == 5
     # offset 超出范围返回空
     assert await db.list_sessions(limit=2, offset=99, user_id=1) == []
+
+
+async def test_batch_delete_sessions(db_path):
+    await db.init_db()
+    ids = [await db.create_session(user_id=1) for _ in range(4)]
+    await db.create_session(user_id=2)  # 他人会话，不应被删除
+
+    # 批量删除本人的 2 个
+    deleted = await db.delete_sessions([ids[0], ids[1]], user_id=1)
+    assert deleted == 2
+    assert await db.get_session(ids[0]) is None
+    assert await db.get_session(ids[1]) is None
+    assert await db.get_session(ids[2]) is not None
+
+    # 越权批量删除：他人会话不在删除范围内
+    assert await db.delete_sessions([ids[2], ids[3]], user_id=99) == 0
+    assert await db.count_sessions(user_id=1) == 2
+
+    # 空列表返回 0
+    assert await db.delete_sessions([], user_id=1) == 0

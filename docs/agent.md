@@ -58,7 +58,7 @@ agent/
 │   ├── go_client.py             # httpx → Go 后端
 │   ├── nutrition.py             # 营养计算 + Agent 工具函数
 │   └── rag.py                   # ChromaDB RAG 知识库
-├── tests/                       # pytest 单元测试（64 用例，不联网）
+├── tests/                       # pytest 单元测试（69 用例，不联网）
 ├── chroma_db/                   # 向量数据库（2277 条教材文档）
 ├── nutrition.db                 # 食物营养数据库（8407 条）
 ├── .env.example
@@ -76,6 +76,7 @@ agent/
 | GET | `/api/sessions/:id` | JWT | 会话详情（校验归属，越权 404） |
 | POST | `/api/sessions/:id/regenerate` | JWT | 重新生成最后一条回复 |
 | DELETE | `/api/sessions/:id` | JWT | 删除会话（校验归属） |
+| POST | `/api/sessions/batch-delete` | JWT | 批量删除会话（body `{ ids: [...] }`，仅本人，返回 `{ deleted }`） |
 | PATCH | `/api/sessions/:id` | JWT | 重命名会话 |
 | POST | `/api/identify-food` | JWT | CLIP 食物识别（家常菜分类） |
 | POST | `/api/calculate-intake` | JWT | 按克数算实际摄入营养 |
@@ -176,7 +177,7 @@ docs = search("糖尿病饮食建议", top_k=3)
 cd agent && uv run pytest
 ```
 
-64 个用例，覆盖：Agent Loop（流式/工具调用/重试/取消）、工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport + 重试）、会话锁清理。
+69 个用例，覆盖：Agent Loop（流式/工具调用/重试/取消）、工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport + 重试）、会话锁清理。
 
 ### 集成测试
 

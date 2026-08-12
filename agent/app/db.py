@@ -189,3 +189,26 @@ async def delete_session(session_id: int, user_id: int | None = None) -> bool:
             cursor = await db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         await db.commit()
         return cursor.rowcount > 0
+
+
+async def delete_sessions(session_ids: list[int], user_id: int | None = None) -> int:
+    """批量删除会话，返回实际删除条数。传入 user_id 时仅删除本人会话"""
+    if not session_ids:
+        return 0
+    # 限制单次批量条数，避免超大 IN 子句
+    session_ids = session_ids[:100]
+    # placeholders 仅由固定 '?' 组成，不含用户输入；参数全部走绑定（见下方 noqa）
+    placeholders = ",".join("?" for _ in session_ids)
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        if user_id is not None:
+            cursor = await db.execute(
+                f"DELETE FROM sessions WHERE id IN ({placeholders}) AND user_id = ?",  # noqa: S608
+                (*session_ids, user_id),
+            )
+        else:
+            cursor = await db.execute(
+                f"DELETE FROM sessions WHERE id IN ({placeholders})",  # noqa: S608
+                tuple(session_ids),
+            )
+        await db.commit()
+        return cursor.rowcount

@@ -328,6 +328,22 @@ async def delete_session(session_id: int, request: Request) -> dict:
     return {"message": "删除成功"}
 
 
+class BatchDeleteRequest(BaseModel):
+    ids: list[int]
+
+
+@app.post("/api/sessions/batch-delete")
+async def batch_delete_sessions(req: BatchDeleteRequest, request: Request) -> dict:
+    """批量删除会话（仅本人），返回实际删除条数"""
+    user_id = extract_user_id(request.headers.get("Authorization"))
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    if not req.ids:
+        raise HTTPException(status_code=400, detail="请提供要删除的会话 id 列表")
+    deleted = await db.delete_sessions(req.ids, user_id=user_id)
+    return {"deleted": deleted}
+
+
 class RenameRequest(BaseModel):
     name: str
 
