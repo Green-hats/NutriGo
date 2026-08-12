@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
@@ -35,18 +36,27 @@ func TestListInternalMergesLiveAndAggregated(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupTestDB(t)
 
+	// 用相对日期保证与聚合保留期（7 天）逻辑一致，不受运行日期影响
+	now := time.Now()
+	day := func(offset int) string {
+		return now.AddDate(0, 0, offset).Format("2006-01-02")
+	}
+	recent1 := day(-2) // 近 7 天内 → 实时聚合
+	recent2 := day(-1)
+	old := day(-30) // 7 天前 → 已聚合进 daily_summaries
+
 	// 近 7 天的记录存在 food_diaries（实时聚合）
-	db.Create(&model.FoodDiary{UserID: 1, Date: "2026-08-04", FoodName: "米饭", Calories: 200, ProteinG: 6})
-	db.Create(&model.FoodDiary{UserID: 1, Date: "2026-08-05", FoodName: "面条", Calories: 300, ProteinG: 8})
+	db.Create(&model.FoodDiary{UserID: 1, Date: recent1, FoodName: "米饭", Calories: 200, ProteinG: 6})
+	db.Create(&model.FoodDiary{UserID: 1, Date: recent2, FoodName: "面条", Calories: 300, ProteinG: 8})
 
 	// 7 天前的记录已聚合进 daily_summaries
-	db.Create(&model.DailySummary{UserID: 1, Date: "2026-07-20", TotalCalories: 500, TotalProteinG: 20, MealCount: 2})
+	db.Create(&model.DailySummary{UserID: 1, Date: old, TotalCalories: 500, TotalProteinG: 20, MealCount: 2})
 
 	h := &SummaryHandler{DB: db}
 
 	// 构造请求：跨两段日期
 	req := httptest.NewRequest(http.MethodGet,
-		"/api/internal/diet/summaries?user_id=1&start=2026-07-01&end=2026-08-31", nil)
+		fmt.Sprintf("/api/internal/diet/summaries?user_id=1&start=%s&end=%s", day(-31), day(0)), nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = req
@@ -66,7 +76,7 @@ func TestListInternalMergesLiveAndAggregated(t *testing.T) {
 	}
 
 	// 验证日期升序排序
-	if result[0]["date"] != "2026-07-20" || result[1]["date"] != "2026-08-04" || result[2]["date"] != "2026-08-05" {
+	if result[0]["date"] != old || result[1]["date"] != recent1 || result[2]["date"] != recent2 {
 		t.Errorf("排序错误: %v", []string{
 			fmt.Sprint(result[0]["date"]), fmt.Sprint(result[1]["date"]), fmt.Sprint(result[2]["date"]),
 		})
@@ -74,15 +84,15 @@ func TestListInternalMergesLiveAndAggregated(t *testing.T) {
 
 	// 验证 source 标记
 	if result[0]["source"] != "aggregated" {
-		t.Errorf("2026-07-20 应来自聚合表, got %v", result[0]["source"])
+		t.Errorf("%s 应来自聚合表, got %v", old, result[0]["source"])
 	}
 	if result[1]["source"] != "live" {
-		t.Errorf("2026-08-04 应来自实时聚合, got %v", result[1]["source"])
+		t.Errorf("%s 应来自实时聚合, got %v", recent1, result[1]["source"])
 	}
 
-	// 验证实时聚合的热量正确（只有 200，无 8-05 混淆）
+	// 验证实时聚合的热量正确（只有 200，无 recent2 混淆）
 	if cal := result[1]["total_calories"].(float64); cal != 200 {
-		t.Errorf("2026-08-04 热量 = %v, 期望 200", cal)
+		t.Errorf("%s 热量 = %v, 期望 200", recent1, cal)
 	}
 }
 
