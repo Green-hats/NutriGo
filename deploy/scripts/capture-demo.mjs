@@ -34,7 +34,7 @@ const OUT_DIR = resolve(ROOT, process.env.OUT_DIR || 'docs/screenshots')
 const FRAMES_DIR = join(OUT_DIR, '.frames')
 
 const VIEWPORT = { width: 430, height: 900 }
-const GIF_FPS = 8
+const GIF_FPS = 5
 
 const log = (...a) => console.log('\x1b[32m[capture]\x1b[0m', ...a)
 const warn = (...a) => console.log('\x1b[33m[capture]\x1b[0m', ...a)
@@ -80,9 +80,17 @@ async function seedProfile(token, id) {
 }
 
 async function seedDiaries(token) {
-  // 今天 + 前两天各一条饮食记录（diary 页面展示）
   const today = new Date()
   const day = (n) => new Date(today.getTime() - n * 86400000).toISOString().slice(0, 10)
+  // 先清掉 demo 用户已有记录，保证脚本可重复运行
+  for (let n = 0; n <= 2; n++) {
+    const res = await api(`/api/diet/logs?date=${day(n)}`, { token })
+    const existing = Array.isArray(res.data) ? res.data : []
+    for (const r of existing) {
+      await api(`/api/diet/logs/${r.id}`, { method: 'DELETE', token })
+    }
+  }
+  // 今天 + 前两天各一条饮食记录（diary 页面展示）
   const menu = [
     { date: day(0), food_name: '燕麦粥', calories: 350, protein_g: 12, fat_g: 6, carbs_g: 60, meal_type: 'breakfast' },
     { date: day(1), food_name: '宫保鸡丁', calories: 450, protein_g: 30, fat_g: 22, carbs_g: 35, meal_type: 'lunch' },
@@ -165,16 +173,14 @@ async function run() {
     await page.waitForSelector('input[placeholder="输入消息..."]')
     await page.fill('input[placeholder="输入消息..."]', '我今天吃了燕麦粥和宫保鸡丁，帮我分析一下营养')
     await page.click('button[aria-label="发送"]')
-    // 等待流结束：停止按钮出现后再消失
-    await page.waitForSelector('button[title="停止生成"]', { timeout: 10000 }).catch(() => {})
-    const t0 = Date.now()
+    // 等待流结束（停止按钮消失），期间每 400ms 截一帧用于 GIF；上限 60s
+    const deadline = Date.now() + 60000
     let frame = 0
-    while (await page.locator('button[title="停止生成"]').count()) {
-      if (Date.now() - t0 > 20000) break
+    while (await page.locator('button[title="停止生成"]').count() && Date.now() < deadline) {
       await page.screenshot({ path: join(FRAMES_DIR, `f_${String(frame++).padStart(3, '0')}.png`) })
-      await page.waitForTimeout(250)
+      await page.waitForTimeout(400)
     }
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(800)
     await screenshot(page, 'chat')
 
     // ---- 日记 ----
@@ -196,14 +202,15 @@ async function run() {
     await browser.close()
   }
 
-  // ---- GIF：用截图序列合成 ----
+  // ---- GIF：用截图序列合成（调色板压缩 + 较小尺寸）----
   const frames = (await import('node:fs')).readdirSync(FRAMES_DIR).filter((f) => f.endsWith('.png'))
   if (frames.length >= 3) {
     const gif = join(OUT_DIR, 'demo.gif')
     const r = spawnSync('ffmpeg', [
       '-y', '-framerate', String(GIF_FPS),
       '-i', join(FRAMES_DIR, 'f_%03d.png'),
-      '-vf', 'scale=400:-1', '-loop', '0', gif,
+      '-vf', 'scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=64[p];[s1][p]paletteuse',
+      '-loop', '0', gif,
     ], { stdio: 'ignore' })
     if (r.status === 0) {
       log(`已保存 demo.gif（${frames.length} 帧）`)

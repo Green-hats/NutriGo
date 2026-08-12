@@ -1,0 +1,13 @@
+{
+  "name": "nutrigo-deploy-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NutriGo 部署与演示工具（capture-demo 截图/GIF 生成等）",
+  "type": "module",
+  "scripts": {
+    "capture": "node scripts/capture-demo.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}
