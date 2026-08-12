@@ -15,6 +15,7 @@ ignore = [
     "S105",     # 开发默认密钥常量（生产已由 InitSecrets 强制校验）
     "DTZ011",   # 会话时间用本地 naive datetime（SQLite 存储格式一致）
     "DTZ005",
+    "S311",     # 重试抖动用伪随机数（非加密用途，crypto 随机无必要）
     "RUF012",   # Config 类可变默认值（CORS 白名单）
     "RUF001",   # 中文项目大量使用全角标点，无需警告
     "RUF002",

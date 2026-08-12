@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { MessageCircle, Trash2, X, Loader2, Pencil } from 'lucide-react'
 import { agentApi } from '../../api/agent'
 import { toast } from '../../lib/toast'
@@ -14,6 +14,10 @@ export default function HistorySidebar({ onSelect, onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // 打开时把焦点移入面板，键盘用户可直接操作
+  useEffect(() => { panelRef.current?.focus() }, [])
 
   useEffect(() => {
     agentApi.getSessions().then((s) => { setSessions(s.filter((x) => x.name)) }).finally(() => setLoading(false))
@@ -60,10 +64,10 @@ export default function HistorySidebar({ onSelect, onClose }: Props) {
   }
 
   return (
-    <div className="absolute top-12 left-0 right-0 bottom-0 bg-white z-40 flex flex-col">
+    <div ref={panelRef} tabIndex={-1} className="absolute top-12 left-0 right-0 bottom-0 bg-white z-40 flex flex-col outline-none">
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <span className="font-semibold text-sm">历史会话</span>
-        <button onClick={onClose}><X size={18} /></button>
+        <button onClick={onClose} aria-label="关闭历史会话"><X size={18} /></button>
       </div>
       <div className="flex-1 overflow-y-auto">
         {loading && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-400" /></div>}
@@ -96,8 +100,8 @@ export default function HistorySidebar({ onSelect, onClose }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button onClick={(e) => startRename(s.id, s.name, e)} className="text-gray-300 hover:text-green-500"><Pencil size={14} /></button>
-              <button onClick={(e) => deleteSession(s.id, e)} className="text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+              <button onClick={(e) => startRename(s.id, s.name, e)} aria-label="重命名" className="text-gray-300 hover:text-green-500"><Pencil size={14} /></button>
+              <button onClick={(e) => deleteSession(s.id, e)} aria-label="删除会话" className="text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
             </div>
           </div>
         ))}

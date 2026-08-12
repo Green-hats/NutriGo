@@ -36,6 +36,12 @@ async def init_db() -> None:
         await db.commit()
 
 
+async def ping() -> None:
+    """就绪探针：校验数据库可连接"""
+    async with aiosqlite.connect(settings.DATABASE_PATH) as db:
+        await db.execute("SELECT 1")
+
+
 async def create_session(
     name: str = "",
     system_msg: str = "",

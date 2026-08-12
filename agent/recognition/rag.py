@@ -6,8 +6,12 @@ ChromaDB RAG — 营养知识库检索
 
 嵌入模型：BAAI/bge-small-zh-v1.5（免费，~100MB）
 """
+import logging
+
 import chromadb
 from chromadb.utils import embedding_functions
+
+logger = logging.getLogger("uvicorn")
 
 COLLECTION_NAME = "nutrition_textbook"
 DB_PATH = "./chroma_db"
@@ -16,14 +20,22 @@ _collection = None
 
 
 def init_rag() -> None:
-    """加载 ChromaDB collection（服务启动时调用一次）"""
+    """加载 ChromaDB collection（服务启动时调用一次）。
+
+    知识库缺失/损坏时降级为 None（搜索返回"未初始化"提示），不阻塞服务启动。
+    """
     global _collection
-    ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name="BAAI/bge-small-zh-v1.5"
-    )
-    client = chromadb.PersistentClient(path=DB_PATH)
-    # chromadb 的 EmbeddingFunction 类型与 sentence-transformers 不兼容（第三方 stub 问题）
-    _collection = client.get_collection(COLLECTION_NAME, embedding_function=ef)  # type: ignore[arg-type]
+    try:
+        ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="BAAI/bge-small-zh-v1.5"
+        )
+        client = chromadb.PersistentClient(path=DB_PATH)
+        # chromadb 的 EmbeddingFunction 类型与 sentence-transformers 不兼容（第三方 stub 问题）
+        _collection = client.get_collection(COLLECTION_NAME, embedding_function=ef)  # type: ignore[arg-type]
+        logger.info(f"RAG 知识库已加载: {DB_PATH}")
+    except Exception as e:
+        logger.warning(f"RAG 初始化失败（知识库缺失或损坏？），营养知识搜索不可用: {e}")
+        _collection = None
 
 
 def search(query: str, top_k: int = 3) -> list[str]:

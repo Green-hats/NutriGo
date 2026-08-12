@@ -99,7 +99,7 @@ export default function Chat() {
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] relative">
       <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative">
-        <button onClick={() => setShowHistory(true)} className="absolute left-4 top-1/2 -translate-y-1/2"><History size={22} /></button>
+        <button onClick={() => setShowHistory(true)} aria-label="历史会话" className="absolute left-4 top-1/2 -translate-y-1/2"><History size={22} /></button>
         NutriGo AI 营养师
         <button onClick={clearMessages} title="新建会话" className="absolute right-4 top-1/2 -translate-y-1/2"><Plus size={24} /></button>
       </div>
@@ -126,7 +126,10 @@ export default function Chat() {
             )}
             {msg.role === 'assistant' && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3 max-w-[88%] text-sm markdown-body">
+                <div
+                  className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3 max-w-[88%] text-sm markdown-body"
+                  aria-live={isStreaming && i === messages.length - 1 ? 'polite' : undefined}
+                >
                   {msg.thinking && (
                     <details className="mb-2 text-xs">
                       <summary className="cursor-pointer select-none text-gray-500 hover:text-gray-700">🤔 思考过程</summary>
@@ -200,7 +203,7 @@ export default function Chat() {
               <Square size={16} className="fill-current" />
             </button>
           ) : (
-            <button onClick={() => send(input)} disabled={isStreaming}
+            <button onClick={() => send(input)} disabled={isStreaming} aria-label="发送"
               className="bg-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-green-700 transition-colors disabled:opacity-50">➤</button>
           )}
         </div>

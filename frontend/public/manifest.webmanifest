@@ -1,0 +1,19 @@
+{
+  "name": "NutriGo — AI 营养师",
+  "short_name": "NutriGo",
+  "description": "AI 营养助手：拍照识别食物、饮食记录、营养分析与智能对话",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

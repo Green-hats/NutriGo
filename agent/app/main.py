@@ -16,12 +16,12 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from app import db
@@ -32,7 +32,7 @@ from app.conversation import Conversation
 from app.llm_client import run_agent_loop
 from app.logging_setup import configure_logging, new_request_id, request_id_var
 from app.models import SessionDetail, SessionInfo
-from app.rate_limit import acquire_user, get_session_lock, release_user
+from app.rate_limit import acquire_user, get_session_lock, prune_session_locks, release_user
 from app.tools import registry as tool_registry
 from recognition.db import get_by_name, get_portion, list_names, seed_data
 
@@ -60,7 +60,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     init_rag()                         # ChromaDB — 营养知识库
     logger.info(f"LLM 模型: {settings.LLM_MODEL}")
     logger.info(f"Go 后端:  {settings.GO_BACKEND_URL}")
-    yield
+
+    # 后台：周期清理空闲会话锁，防内存泄漏
+    async def _lock_cleanup_loop() -> None:
+        while True:
+            await asyncio.sleep(10 * 60)
+            removed = await prune_session_locks()
+            if removed:
+                logger.info(f"清理空闲会话锁 {removed} 个")
+
+    cleanup_task = asyncio.create_task(_lock_cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="NutriGo Agent", version="0.1.0", lifespan=lifespan)
@@ -73,12 +90,43 @@ app.add_middleware(
 
 
 # ============================================================
-# 健康检查（无鉴权，供负载均衡/容器编排探活）
+# 请求日志中间件（结构化：method / path / status / 耗时 / 客户端 IP）
+# ============================================================
+
+@app.middleware("http")
+async def request_logging(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    start = time.monotonic()
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("请求处理异常 method=%s path=%s", request.method, request.url.path)
+        raise
+    duration_ms = (time.monotonic() - start) * 1000
+    client_ip = request.client.host if request.client else "-"
+    logger.info(
+        "http request method=%s path=%s status=%d duration_ms=%.1f client_ip=%s",
+        request.method, request.url.path, response.status_code, duration_ms, client_ip,
+    )
+    return response
+
+
+# ============================================================
+# 健康检查 / 就绪探针（无鉴权，供负载均衡/容器编排探活）
 # ============================================================
 
 @app.get("/api/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/api/ready")
+async def ready() -> dict:
+    """就绪探针：数据库可连接即就绪"""
+    try:
+        await db.ping()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"数据库不可用: {e}") from e
+    return {"status": "ready"}
 
 
 # ============================================================

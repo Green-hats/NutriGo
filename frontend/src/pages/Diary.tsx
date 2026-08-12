@@ -36,13 +36,13 @@ export default function Diary() {
     <div className="min-h-screen bg-gray-50 relative">
       <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative">
         饮食日记
-        <button onClick={() => setShowChart(true)} className="absolute right-4 top-1/2 -translate-y-1/2"><BarChart3 size={22} /></button>
+        <button onClick={() => setShowChart(true)} aria-label="查看营养趋势" className="absolute right-4 top-1/2 -translate-y-1/2"><BarChart3 size={22} /></button>
       </div>
       {showChart && <NutritionChart onClose={() => setShowChart(false)} />}
       <div className="bg-white px-4 py-3 flex items-center justify-between border-b">
-        <button onClick={() => setDate(addDays(date, -1))}><ChevronLeft /></button>
+        <button onClick={() => setDate(addDays(date, -1))} aria-label="前一天"><ChevronLeft /></button>
         <span className="font-medium">{fmt(date)}</span>
-        <button onClick={() => setDate(addDays(date, 1))}><ChevronRight /></button>
+        <button onClick={() => setDate(addDays(date, 1))} aria-label="后一天"><ChevronRight /></button>
       </div>
 
       <div className="bg-white mx-4 mt-3 rounded-2xl p-4 shadow-sm">
@@ -66,12 +66,12 @@ export default function Diary() {
               <div className="font-medium">{r.food_name}</div>
               <div className="text-xs text-gray-400 mt-1">{r.portion} · {r.calories?.toFixed(0)}kcal · 蛋白质{r.protein_g?.toFixed(0)}g</div>
             </div>
-            <button onClick={() => del(r.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button>
+            <button onClick={() => del(r.id)} aria-label="删除记录" className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button>
           </div>
         ))}
       </div>
 
-      <button onClick={() => setShowFlow(true)} className="fixed bottom-20 right-6 bg-green-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-green-700 transition-colors z-40"><Plus size={28} /></button>
+      <button onClick={() => setShowFlow(true)} aria-label="添加记录" className="fixed bottom-20 right-6 bg-green-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-green-700 transition-colors z-40"><Plus size={28} /></button>
 
       {showFlow && <FoodFlow date={fmt(date)} onDone={() => { loadRecords(); setShowFlow(false) }} onClose={() => setShowFlow(false)} />}
     </div>
@@ -92,7 +92,11 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   const [estimated, setEstimated] = useState<IntakeResult | null>(null)
   const [estimating, setEstimating] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // 打开时把焦点移入面板，便于键盘/读屏操作
+  useEffect(() => { closeRef.current?.focus() }, [])
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -154,7 +158,7 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
       <div className="bg-green-600 text-white py-4 px-6 flex justify-between items-center">
         <span className="font-semibold">{STEP_LABELS[stepIdx]}</span>
-        <button onClick={onClose} className="text-white">✕</button>
+        <button ref={closeRef} onClick={onClose} aria-label="关闭" className="text-white">✕</button>
       </div>
       {/* 步骤条 */}
       <div className="flex items-center justify-center gap-2 px-6 py-3 bg-green-50">
@@ -210,10 +214,10 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
             <div className="bg-gray-50 rounded-2xl p-6">
               <label className="text-sm text-gray-400">吃了多少克？</label>
               <div className="flex items-center gap-4 mt-2">
-                <button onClick={() => { setGrams(Math.max(10, grams - 50)); updateEstimate(selected.name, Math.max(10, grams - 50)) }} className="bg-white border rounded-xl w-10 h-10 flex items-center justify-center text-lg">−</button>
+                <button onClick={() => { setGrams(Math.max(10, grams - 50)); updateEstimate(selected.name, Math.max(10, grams - 50)) }} aria-label="减少 50 克" className="bg-white border rounded-xl w-10 h-10 flex items-center justify-center text-lg">−</button>
                 <input type="number" className="flex-1 text-center text-3xl font-bold bg-transparent outline-none"
                   value={grams} onChange={(e) => { const g = parseInt(e.target.value) || 0; setGrams(g); updateEstimate(selected.name, g) }} />
-                <button onClick={() => { const g = grams + 50; setGrams(g); updateEstimate(selected.name, g) }} className="bg-white border rounded-xl w-10 h-10 flex items-center justify-center text-lg">+</button>
+                <button onClick={() => { const g = grams + 50; setGrams(g); updateEstimate(selected.name, g) }} aria-label="增加 50 克" className="bg-white border rounded-xl w-10 h-10 flex items-center justify-center text-lg">+</button>
               </div>
               <div className="text-center text-gray-400 text-sm mt-1">克</div>
             </div>

@@ -43,7 +43,7 @@ beforeEach(() => {
 
 async function sendMessage(user: ReturnType<typeof userEvent.setup>, text: string) {
   await user.type(screen.getByPlaceholderText('输入消息...'), text)
-  await user.click(screen.getByRole('button', { name: '➤' }))
+  await user.click(screen.getByRole('button', { name: '发送' }))
   await waitFor(() => expect(mocks.createChatStream).toHaveBeenCalled())
 }
 

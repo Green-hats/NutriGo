@@ -114,7 +114,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 # Unit tests (no services required, CI-friendly)
 make test-go-unit        # Go: 75 cases
 make test-frontend       # Frontend vitest: 34 cases (store + component)
-make test-agent-unit     # Agent pytest: 55 cases (no LLM / models)
+make test-agent-unit     # Agent pytest: 63 cases (no LLM / models)
 
 # Integration tests (services must be running)
 make test-backend        # Go backend: 67 cases

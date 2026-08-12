@@ -58,7 +58,7 @@ agent/
 │   ├── go_client.py             # httpx → Go 后端
 │   ├── nutrition.py             # 营养计算 + Agent 工具函数
 │   └── rag.py                   # ChromaDB RAG 知识库
-├── tests/                       # pytest 单元测试（55 用例，不联网）
+├── tests/                       # pytest 单元测试（63 用例，不联网）
 ├── chroma_db/                   # 向量数据库（2277 条教材文档）
 ├── nutrition.db                 # 食物营养数据库（8407 条）
 ├── .env.example
@@ -70,6 +70,7 @@ agent/
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
 | GET | `/api/health` | 无 | 健康检查 |
+| GET | `/api/ready` | 无 | 就绪探针（校验 agent.db 可连接） |
 | GET | `/api/chat?message=&session_id=` | JWT | SSE 流式对话（含 thinking + 工具调用事件） |
 | GET | `/api/sessions` | JWT | 会话列表（仅当前用户） |
 | GET | `/api/sessions/:id` | JWT | 会话详情（校验归属，越权 404） |
@@ -126,6 +127,14 @@ JWT 校验（提取 user_id） → 系统提示词注入 user_id
   让 LLM 调用 `get_user_profile` 等工具时直接使用，不再向用户索要 ID
 - `llm_client.py` 执行工具时还会用 `defaults={"user_id": conv.user_id}` 兜底补齐参数
 
+### 健壮性
+
+- **重试退避**：LLM 调用失败/超时最多重试 2 次，指数退避 + 随机抖动
+- **Go 客户端**：共享连接池、统一超时（连接 5s/读写 30s），网络错误与 502/503/504 自动重试
+- **RAG 容错**：`chroma_db/` 缺失/损坏时降级为"知识库未初始化"，不阻塞启动
+- **会话锁清理**：空闲 30 分钟的会话锁被后台任务定期清除，防内存泄漏
+- **可观测性**：请求日志中间件（method/path/status/耗时/IP）+ `/api/ready` 就绪探针
+
 ## 数据库
 
 | 文件 | 表/集合 | 说明 |
@@ -167,7 +176,7 @@ docs = search("糖尿病饮食建议", top_k=3)
 cd agent && uv run pytest
 ```
 
-55 个用例，覆盖：Agent Loop（流式/工具调用/重试/取消）、工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport）。
+63 个用例，覆盖：Agent Loop（流式/工具调用/重试/取消）、工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport + 重试）、会话锁清理。
 
 ### 集成测试
 

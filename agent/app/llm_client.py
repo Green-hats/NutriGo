@@ -3,6 +3,7 @@ LLM 客户端 — Agent Loop（流式版本）
 """
 import asyncio
 import logging
+import random
 import time
 
 import litellm
@@ -14,6 +15,11 @@ from app.tools import ToolRegistry
 
 logger = logging.getLogger("uvicorn")
 litellm.drop_params = True
+
+
+def _backoff(attempt: int) -> float:
+    """指数退避 + 抖动（0.5s * 2^n，封顶 8s）"""
+    return min(0.5 * (2 ** attempt), 8.0) + random.uniform(0, 0.3)
 
 
 async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatIO) -> None:
@@ -28,7 +34,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
         iter_start = time.monotonic()
         logger.info(f"第 {iteration+1} 轮")
         kwargs = _build_kwargs(conv.to_messages(), tools_list, stream=True)
-        # 网络抖动时自动重试，最多 2 次
+        # 网络抖动时自动重试，最多 2 次；每次失败指数退避
         response = None
         for attempt in range(3):
             try:
@@ -41,7 +47,8 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
                 logger.warning(f"第 {iteration+1} 轮 LLM 超时 (尝试 {attempt+1}/3)")
             except Exception as e:
                 logger.warning(f"第 {iteration+1} 轮 LLM 调用失败: {e} (尝试 {attempt+1}/3)")
-                await asyncio.sleep(1)
+            if attempt < 2:
+                await asyncio.sleep(_backoff(attempt))
         if response is None:
             await chat_io.emit_error("LLM 调用多次失败，请稍后重试")
             return

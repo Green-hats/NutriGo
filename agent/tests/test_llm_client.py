@@ -211,6 +211,7 @@ async def test_unknown_tool_reports_error(monkeypatch, registry):
 
 
 async def test_retry_after_transient_failure(monkeypatch, registry):
+    monkeypatch.setattr("app.llm_client._backoff", lambda attempt: 0)
     chat_io = RecordingChatIO()
     conv = make_conv()
     attempts = 0
@@ -246,6 +247,7 @@ async def test_all_attempts_fail_emits_error(monkeypatch, registry):
 
 async def test_timeout_emits_error(monkeypatch, registry):
     monkeypatch.setattr("app.llm_client.settings.LLM_TIMEOUT", 0.05)
+    monkeypatch.setattr("app.llm_client._backoff", lambda attempt: 0)
     chat_io = RecordingChatIO()
     conv = make_conv()
 
