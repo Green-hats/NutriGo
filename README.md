@@ -143,7 +143,7 @@ make test
 
 ## 🚀 Deployment
 
-See [`deploy/`](deploy/README.md) for a complete production deployment guide:
+See [`deploy/`](deploy/README.md) for a deployment example (author's personal setup, not a universal recommendation):
 
 - **Frontend node** — static hosting + Caddy reverse proxy with automatic HTTPS
 - **Backend node** — backend + agent orchestrated with Docker Compose
