@@ -28,13 +28,9 @@
 
 <img src="docs/screenshots/demo.gif" alt="Demo" width="420" />
 
-| Login | AI Chat | Food Diary |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/login.png" alt="Login" width="160" /> | <img src="docs/screenshots/chat.png" alt="AI Chat with tool cards" width="160" /> | <img src="docs/screenshots/diary.png" alt="Food Diary" width="160" /> |
-
-| Nutrition Trend | Health Profile |
-| :---: | :---: |
-| <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="160" /> | <img src="docs/screenshots/profile.png" alt="Health profile" width="160" /> |
+| Login | AI Chat | Food Diary | Nutrition Trend | Health Profile |
+| :---: | :---: | :---: | :---: | :---: |
+| <img src="docs/screenshots/login.png" alt="Login" width="150" /> | <img src="docs/screenshots/chat.png" alt="AI Chat with tool cards" width="150" /> | <img src="docs/screenshots/diary.png" alt="Food Diary" width="150" /> | <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="150" /> | <img src="docs/screenshots/profile.png" alt="Health profile" width="150" /> |
 
 </div>
 
