@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { goApi } from '../api/go'
 import { useAuthStore } from '../stores/auth'
 import { LoadingButton } from '../components/ui/LoadingButton'
-import { toast } from '../components/ui/Toast'
+import { toast } from '../lib/toast'
 
 export default function Login() {
   const [username, setUsername] = useState('')

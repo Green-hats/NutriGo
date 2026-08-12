@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { MessageCircle, Trash2, X, Loader2, Pencil } from 'lucide-react'
 import { agentApi } from '../../api/agent'
+import { toast } from '../../lib/toast'
 import type { ChatMessage, SessionInfo } from '../../types'
 
 interface Props {
@@ -29,7 +30,9 @@ export default function HistorySidebar({ onSelect, onClose }: Props) {
           toolName: m.tool_calls?.[0]?.function?.name,
         }))
       onSelect(id, msgs)
-    } catch {}
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '加载会话失败')
+    }
   }
 
   const deleteSession = async (id: number, e: React.MouseEvent) => {
@@ -51,7 +54,9 @@ export default function HistorySidebar({ onSelect, onClose }: Props) {
     try {
       await agentApi.renameSession(id, name)
       setSessions((s) => s.map((x) => (x.id === id ? { ...x, name } : x)))
-    } catch {}
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '重命名失败')
+    }
   }
 
   return (

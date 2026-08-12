@@ -120,7 +120,7 @@ export default function Chat() {
         )}
 
         {messages.map((msg, i) => (
-          <div key={i}>
+          <div key={msg.id ?? i}>
             {msg.role === 'user' && (
               <div className="flex justify-end"><div className="bg-green-600 text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%] text-sm">{msg.content}</div></div>
             )}
@@ -134,7 +134,7 @@ export default function Chat() {
                     </details>
                   )}
                   {msg.content ? (
-                    <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown key={msg.id ?? i} remarkPlugins={[remarkGfm]}>
                       {msg.content + (isStreaming && i === messages.length - 1 ? '▍' : '')}
                     </ReactMarkdown>
                   ) : (

@@ -10,7 +10,8 @@ describe('chat store', () => {
     useChatStore.getState().addMessage({ role: 'user', content: '你好' })
     const msgs = useChatStore.getState().messages
     expect(msgs).toHaveLength(1)
-    expect(msgs[0]).toEqual({ role: 'user', content: '你好' })
+    expect(msgs[0]).toEqual(expect.objectContaining({ role: 'user', content: '你好' }))
+    expect(msgs[0].id).toBeGreaterThan(0) // 分配了稳定的 React key
   })
 
   it('appendToLast 追加到最后一条 assistant 消息', () => {

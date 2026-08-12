@@ -58,7 +58,7 @@ agent/
 │   ├── go_client.py             # httpx → Go 后端
 │   ├── nutrition.py             # 营养计算 + Agent 工具函数
 │   └── rag.py                   # ChromaDB RAG 知识库
-├── tests/                       # pytest 单元测试（42 用例，不联网）
+├── tests/                       # pytest 单元测试（55 用例，不联网）
 ├── chroma_db/                   # 向量数据库（2277 条教材文档）
 ├── nutrition.db                 # 食物营养数据库（8407 条）
 ├── .env.example
@@ -167,7 +167,7 @@ docs = search("糖尿病饮食建议", top_k=3)
 cd agent && uv run pytest
 ```
 
-42 个用例，覆盖：工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport）。
+55 个用例，覆盖：Agent Loop（流式/工具调用/重试/取消）、工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport）。
 
 ### 集成测试
 

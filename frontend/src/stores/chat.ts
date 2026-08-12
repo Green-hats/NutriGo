@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import type { ChatMessage } from '../types'
 
+// 单调递增的消息 ID，作为 React key（稳定，避免用数组下标）
+let messageSeq = 0
+function nextId(): number {
+  messageSeq += 1
+  return messageSeq
+}
+
 interface ChatState {
   messages: ChatMessage[]
   sessionId: number | null
@@ -21,7 +28,7 @@ export const useChatStore = create<ChatState>((set) => ({
   sessionId: null,
   isStreaming: false,
 
-  addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
+  addMessage: (msg) => set((s) => ({ messages: [...s.messages, { ...msg, id: msg.id ?? nextId() }] })),
 
   appendToLast: (text) =>
     set((s) => {
@@ -30,7 +37,7 @@ export const useChatStore = create<ChatState>((set) => ({
       if (last && last.role === 'assistant') {
         msgs[msgs.length - 1] = { ...last, content: last.content + text }
       } else {
-        msgs.push({ role: 'assistant', content: text })
+        msgs.push({ role: 'assistant', content: text, id: nextId() })
       }
       return { messages: msgs }
     }),
@@ -42,7 +49,7 @@ export const useChatStore = create<ChatState>((set) => ({
       if (last && last.role === 'assistant') {
         msgs[msgs.length - 1] = { ...last, thinking: (last.thinking || '') + text }
       } else {
-        msgs.push({ role: 'assistant', content: '', thinking: text })
+        msgs.push({ role: 'assistant', content: '', thinking: text, id: nextId() })
       }
       return { messages: msgs }
     }),
@@ -57,13 +64,14 @@ export const useChatStore = create<ChatState>((set) => ({
         }
       }
       // 找不到对应的 tool 消息，追加一个新的
-      msgs.push({ role: 'tool', content: '', toolName, toolResult: result })
+      msgs.push({ role: 'tool', content: '', toolName, toolResult: result, id: nextId() })
       return { messages: msgs }
     }),
 
   setSessionId: (id) => set({ sessionId: id }),
   setStreaming: (v) => set({ isStreaming: v }),
-  setMessages: (msgs) => set({ messages: msgs }),
+  setMessages: (msgs) =>
+    set({ messages: msgs.map((m) => (m.id != null ? m : { ...m, id: nextId() })) }),
   truncateToLastUser: () =>
     set((s) => {
       const msgs = [...s.messages]

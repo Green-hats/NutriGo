@@ -39,4 +39,4 @@ ignore = [
 "recognition/multimodal.py" = ["PLC0415"]
 
 # 测试文件：assert 是测试惯例，注解放宽，测试口令为明文
-"tests/**" = ["S101", "S106", "ANN001", "ANN201"]
+"tests/**" = ["S101", "S106", "ANN001", "ANN003", "ANN201", "ANN202", "PLC0415"]

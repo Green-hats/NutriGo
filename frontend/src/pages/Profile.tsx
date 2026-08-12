@@ -7,7 +7,7 @@ import { LogOut } from 'lucide-react'
 import { LoadingButton } from '../components/ui/LoadingButton'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
-import { toast } from '../components/ui/Toast'
+import { toast } from '../lib/toast'
 import type { UserProfile } from '../types'
 
 const DISEASE_OPTIONS = [

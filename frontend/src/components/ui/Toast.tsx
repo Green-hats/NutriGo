@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AlertCircle, CheckCircle, X } from 'lucide-react'
+import { setToastHandler } from '../../lib/toast'
 
 interface ToastData {
   id: number
@@ -7,22 +8,19 @@ interface ToastData {
   type: 'error' | 'success'
 }
 
-let _addToast: ((msg: string, type: 'error' | 'success') => void) | null = null
-
-export function toast(message: string, type: 'error' | 'success' = 'error') {
-  _addToast?.(message, type)
-}
-
 export default function Toast() {
   const [toasts, setToasts] = useState<ToastData[]>([])
-  const [id, setId] = useState(0)
+  const idRef = useRef(0)
 
-  _addToast = useCallback((message: string, type: 'error' | 'success') => {
-    const newId = id + 1
-    setId(newId)
-    setToasts((prev) => [...prev, { id: newId, message, type }])
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== newId)), 3500)
-  }, [id])
+  // 模块级回调只在挂载后绑定，避免渲染期副作用（StrictMode 双渲染安全）
+  useEffect(() => {
+    setToastHandler((message, type) => {
+      const newId = ++idRef.current
+      setToasts((prev) => [...prev, { id: newId, message, type }])
+      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== newId)), 3500)
+    })
+    return () => setToastHandler(null)
+  }, [])
 
   const dismiss = (tid: number) => setToasts((prev) => prev.filter((t) => t.id !== tid))
 

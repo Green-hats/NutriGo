@@ -16,7 +16,7 @@ vi.mock('../api/go', () => ({
 }))
 
 const toastMock = vi.fn()
-vi.mock('../components/ui/Toast', () => ({
+vi.mock('../lib/toast', () => ({
   toast: (...args: unknown[]) => toastMock(...args),
 }))
 

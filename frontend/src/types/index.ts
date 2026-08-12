@@ -81,6 +81,7 @@ export interface IntakeResult {
 }
 
 export interface ChatMessage {
+  id?: number
   role: 'user' | 'assistant' | 'tool'
   content: string
   toolName?: string

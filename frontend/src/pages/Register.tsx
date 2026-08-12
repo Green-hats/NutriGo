@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { goApi } from '../api/go'
 import { LoadingButton } from '../components/ui/LoadingButton'
-import { toast } from '../components/ui/Toast'
+import { toast } from '../lib/toast'
 
 export default function Register() {
   const [username, setUsername] = useState('')
