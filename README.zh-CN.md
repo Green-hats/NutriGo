@@ -131,7 +131,7 @@ cp agent/.env.example agent/.env
 
 ```bash
 # 单元测试（无需启动服务，适合 CI）
-make test-go-unit        # Go：75 用例
+make test-go-unit        # Go：83 用例
 make test-frontend       # 前端 vitest：34 用例（store + 组件）
 make test-agent-unit     # Agent pytest：64 用例（不联网、不加载模型）
 

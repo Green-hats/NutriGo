@@ -86,7 +86,7 @@
 
 | 层 | 用例数 | 命令 |
 |----|--------|------|
-| Go 后端单元测试 | 75 | `cd backend && go test ./internal/...` |
+| Go 后端单元测试 | 83 | `cd backend && go test ./internal/...` |
 | Go 后端集成测试 | 67 | `cd backend && python3 ../test/backend/test_api.py` |
 | Agent 单元测试 | 64 | `cd agent && uv run pytest` |
 | Agent 基础集成测试 | 20 | `cd agent && uv run python ../test/agent/test_agent.py` |

@@ -95,6 +95,25 @@ jobs:
         working-directory: backend
         run: go test ./internal/...
 
+      # Go 集成测试：构建并启动真实服务，跑 test_api.py（67 用例）
+      # 放大限流参数，避免本地 IP 的 8 次认证请求触发 429
+      - name: Go integration tests (test_api.py)
+        working-directory: backend
+        env:
+          AUTH_RATE_LIMIT_PER_MIN: '1000'
+          AUTH_RATE_LIMIT_BURST: '1000'
+        run: |
+          go build -o /tmp/nutrigo-server ./cmd/server
+          /tmp/nutrigo-server > /tmp/nutrigo-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3333/api/health >/dev/null 2>&1; then
+              echo "server ready (try $i)"
+              break
+            fi
+            sleep 1
+          done
+          python3 ../test/backend/test_api.py
+
       - name: Install Agent test deps
         working-directory: agent
         run: |

@@ -24,6 +24,8 @@
 
 前端按 `code` 分支处理，不依赖 `message` 文案。
 
+> 认证接口限流默认 5 次/分，可通过环境变量 `AUTH_RATE_LIMIT_PER_MIN` / `AUTH_RATE_LIMIT_BURST` 覆盖（部署或集成测试调参）。
+
 ## 分页约定
 
 分页列表返回统一信封：

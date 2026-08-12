@@ -51,7 +51,7 @@ func main() {
 	service.StartTokenCleanup(config.DB)   // 每 6 小时清理过期令牌
 
 	// 认证接口限流（令牌桶，防密码爆破）
-	authLimiter := middleware.NewIPRateLimiter(config.AuthRateLimitRPS, config.AuthRateLimitBurst)
+	authLimiter := middleware.NewIPRateLimiter(config.AuthRateLimitRPS(), config.AuthRateLimitBurst())
 	authLimiter.StartCleanup(5 * time.Minute)
 
 	r := gin.New()

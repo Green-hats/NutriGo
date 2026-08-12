@@ -113,7 +113,8 @@ backend/
 - JWT（HS256，2h）携带唯一 `jti`；登录签发访问+刷新令牌对
 - 刷新令牌只存 SHA-256 哈希；每次刷新轮换旧令牌，重放检测吊销整个令牌家族
 - 登出将 jti 加入黑名单立即失效（与 refresh 吊销在同一事务）
-- 登录/注册/刷新接口 IP 级令牌桶限流（5 次/分，超限 429）
+- 登录/注册/刷新接口 IP 级令牌桶限流（默认 5 次/分，超限 429；可用环境变量
+  `AUTH_RATE_LIMIT_PER_MIN` / `AUTH_RATE_LIMIT_BURST` 覆盖，便于部署与集成测试调参）
 - 图片上传：类型嗅探（仅 jpg/png/webp）+ 10MB 上限 + UUID 文件名
 
 ## 测试
@@ -124,7 +125,7 @@ backend/
 cd backend && go test ./...
 ```
 
-75 个用例，覆盖：JWT 签发/过期/黑名单、auth（注册/登录/刷新/登出）、diet、image、middleware（JWT/内部鉴权/限流/指标）、service（聚合/清理/令牌清理）。
+83 个用例，覆盖：JWT 签发/过期/黑名单、auth（注册/登录/刷新/登出）、diet、image、middleware（JWT/内部鉴权/限流/指标）、service（聚合/清理/令牌清理）、限流配置。
 
 ### 集成测试（需 Go 服务运行）
 

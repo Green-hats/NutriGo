@@ -131,7 +131,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 
 ```bash
 # Unit tests (no services required, CI-friendly)
-make test-go-unit        # Go: 75 cases
+make test-go-unit        # Go: 83 cases
 make test-frontend       # Frontend vitest: 34 cases (store + component)
 make test-agent-unit     # Agent pytest: 64 cases (no LLM / models)
 
