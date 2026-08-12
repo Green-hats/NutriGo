@@ -572,8 +572,8 @@ curl http://localhost:3333/api/internal/example \
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
 | `GET` | `/api/health` | 无 | 健康检查 |
-| `POST` | `/api/auth/register` | 无 | 注册 |
-| `POST` | `/api/auth/login` | 无 | 登录 |
+| `POST` | `/api/auth/register` | 无 | 注册（限流：每 IP 5 次/分） |
+| `POST` | `/api/auth/login` | 无 | 登录（限流：每 IP 5 次/分） |
 | `GET` | `/api/users/:id/profile` | JWT | 查看档案 |
 | `PUT` | `/api/users/:id/profile` | JWT | 更新/创建档案 |
 | `POST` | `/api/images/upload` | JWT | 上传食物图片 |

@@ -48,6 +48,10 @@ func main() {
 	service.StartImageCleanup(config.DB)   // 每 1 小时删除 7 天前的图片
 	service.StartDietAggregator(config.DB) // 每 24 小时聚合 7 天前的饮食记录
 
+	// 认证接口限流（令牌桶，防密码爆破）
+	authLimiter := middleware.NewIPRateLimiter(config.AuthRateLimitRPS, config.AuthRateLimitBurst)
+	authLimiter.StartCleanup(5 * time.Minute)
+
 	r := gin.Default()
 
 	// 创建各处理器实例
@@ -61,8 +65,8 @@ func main() {
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	})
-	r.POST("/api/auth/register", authHandler.Register)
-	r.POST("/api/auth/login", authHandler.Login)
+	r.POST("/api/auth/register", authLimiter.Middleware(), authHandler.Register)
+	r.POST("/api/auth/login", authLimiter.Middleware(), authHandler.Login)
 
 	// 受保护路由：需要 JWT
 	protected := r.Group("/api")
