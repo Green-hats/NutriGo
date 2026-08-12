@@ -1,6 +1,7 @@
 """会话锁清理 / 用户并发限制单元测试"""
 
 import asyncio
+import time
 
 from app import rate_limit as rl
 
@@ -13,10 +14,11 @@ async def test_get_session_lock_reuses_same_lock():
 
 async def test_prune_removes_idle_locks():
     rl._session_locks.clear()
-    old = 100.0  # 很旧的时间戳（monotonic），必定超过 30 分钟空闲
-    fresh = 1e9  # 远在未来，不会过期
-    rl._session_locks[1] = (asyncio.Lock(), old)
-    rl._session_locks[2] = (asyncio.Lock(), fresh)
+    now = time.monotonic()
+    idle = now - 3600  # 1 小时前使用 → 空闲超阈值
+    future = now + 1000  # 未来使用 → 不会过期
+    rl._session_locks[1] = (asyncio.Lock(), idle)
+    rl._session_locks[2] = (asyncio.Lock(), future)
 
     removed = await rl.prune_session_locks()
     assert removed == 1
