@@ -23,17 +23,20 @@
 ## 📸 Screenshots
 
 <div align="center">
-  <img src="docs/screenshots/login.png" alt="Login" width="200" />
-  <img src="docs/screenshots/chat.png" alt="AI Chat with tool cards" width="200" />
-  <img src="docs/screenshots/diary.png" alt="Food Diary" width="200" />
-  <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="200" />
-  <img src="docs/screenshots/profile.png" alt="Health profile" width="200" />
-</div>
 
-<p align="center">
-  <b>Live demo:</b><br/>
-  <img src="docs/screenshots/demo.gif" alt="Demo" width="320" />
-</p>
+| Login | AI Chat | Food Diary |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/login.png" alt="Login" width="210" /> | <img src="docs/screenshots/chat.png" alt="AI Chat with tool cards" width="210" /> | <img src="docs/screenshots/diary.png" alt="Food Diary" width="210" /> |
+
+| Nutrition Trend | Health Profile |
+| :---: | :---: |
+| <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="210" /> | <img src="docs/screenshots/profile.png" alt="Health profile" width="210" /> |
+
+**Live demo**
+
+<img src="docs/screenshots/demo.gif" alt="Demo" width="420" />
+
+</div>
 
 > Screenshots are captured by `deploy/scripts/capture-demo.mjs` (Playwright). Regenerate anytime:
 > `node deploy/scripts/capture-demo.mjs`

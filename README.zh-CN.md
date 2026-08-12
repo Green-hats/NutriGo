@@ -23,17 +23,20 @@
 ## 📸 截图演示
 
 <div align="center">
-  <img src="docs/screenshots/login.png" alt="登录" width="200" />
-  <img src="docs/screenshots/chat.png" alt="AI 对话（含工具卡片）" width="200" />
-  <img src="docs/screenshots/diary.png" alt="饮食日记" width="200" />
-  <img src="docs/screenshots/chart.png" alt="营养趋势图" width="200" />
-  <img src="docs/screenshots/profile.png" alt="健康档案" width="200" />
-</div>
 
-<p align="center">
-  <b>演示动图：</b><br/>
-  <img src="docs/screenshots/demo.gif" alt="Demo" width="320" />
-</p>
+| 登录 | AI 对话 | 饮食日记 |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/login.png" alt="登录" width="210" /> | <img src="docs/screenshots/chat.png" alt="AI 对话（含工具卡片）" width="210" /> | <img src="docs/screenshots/diary.png" alt="饮食日记" width="210" /> |
+
+| 营养趋势 | 健康档案 |
+| :---: | :---: |
+| <img src="docs/screenshots/chart.png" alt="营养趋势图" width="210" /> | <img src="docs/screenshots/profile.png" alt="健康档案" width="210" /> |
+
+**演示动图**
+
+<img src="docs/screenshots/demo.gif" alt="Demo" width="420" />
+
+</div>
 
 > 截图由 `deploy/scripts/capture-demo.mjs`（Playwright）自动生成，随时可重新生成：
 > `node deploy/scripts/capture-demo.mjs`
