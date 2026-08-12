@@ -130,7 +130,7 @@ cd backend && go test ./...
 ### 集成测试（需 Go 服务运行）
 
 ```bash
-cd backend && python3 ../test/backend/test_api.py
+cd backend && python3 tests/test_api.py
 ```
 
 覆盖全部路由与鉴权逻辑。

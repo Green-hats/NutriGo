@@ -181,14 +181,14 @@ cd agent && uv run pytest
 
 ### 集成测试
 
-测试文件位于 `test/agent/`（需在 agent 目录用其 venv 运行，见 `docs/agent-test-prompts.md`）：
+测试文件位于 `agent/tests/integration/`（需在 agent 目录用其 venv 运行，见 `docs/agent-test-prompts.md`）：
 
 ```bash
 # 基础功能测试（自启动服务，20 用例）
-cd agent && uv run python ../test/agent/test_agent.py
+cd agent && uv run python tests/integration/test_agent.py
 
 # 全面提示词测试（需 Agent 服务已启动，26+ 用例）
-cd agent && uv run python ../test/agent/test_agent_prompts.py --quick
+cd agent && uv run python tests/integration/test_agent_prompts.py --quick
 ```
 
 基础测试覆盖：JWT 鉴权（无 token/坏 token → 401）、会话 CRUD、SSE 对话、营养计算（含无 token → 401）。

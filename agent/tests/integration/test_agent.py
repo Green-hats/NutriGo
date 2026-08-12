@@ -2,7 +2,7 @@
 NutriGo Agent 基础功能测试（不需要 LLM API Key）
 
 用法：先启动 Go 服务，再运行本脚本
-    cd NutriGo && uv run python test/agent/test_agent.py
+    cd agent && uv run python tests/integration/test_agent.py
 """
 
 import asyncio
@@ -18,9 +18,8 @@ import time
 import httpx
 
 # 切到项目 agent 目录，保证能 import app 包、找到 agent.db
-_THIS = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))  # <root>/test/agent
-_PROJECT = os.path.dirname(_THIS)                                      # <root>/test
-AGENT_DIR = os.path.join(os.path.dirname(_PROJECT), "agent")           # <root>/agent
+_THIS = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))  # <root>/agent/tests/integration
+AGENT_DIR = os.path.dirname(os.path.dirname(_THIS))                    # <root>/agent
 os.chdir(AGENT_DIR)
 
 BASE = "http://localhost:8000"

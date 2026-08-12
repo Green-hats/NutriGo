@@ -44,11 +44,11 @@ test-frontend:
 
 test-backend:
 	@echo "== Go 后端集成测试（需 Go 服务运行）=="
-	cd backend && python3 ../test/backend/test_api.py
+	cd backend && python3 tests/test_api.py
 
 test-agent:
 	@echo "== Agent 基础测试 =="
-	cd agent && uv run python ../test/agent/test_agent.py
+	cd agent && uv run python tests/integration/test_agent.py
 
 # Agent 单元测试（pytest，不联网、不加载模型）
 test-agent-unit:
@@ -58,11 +58,11 @@ test-agent-unit:
 
 test-identify:
 	@echo "== Agent 图片识别测试 =="
-	cd agent && uv run python ../test/agent/test_identify.py
+	cd agent && uv run python tests/integration/test_identify.py
 
 test-prompts:
 	@echo "== Agent 全面提示词测试（需 Agent 服务运行，耗时较长）=="
-	cd agent && uv run python -u ../test/agent/test_agent_prompts.py --quick
+	cd agent && uv run python -u tests/integration/test_agent_prompts.py --quick
 
 ## ---- Lint ----
 lint: lint-frontend lint-backend typecheck

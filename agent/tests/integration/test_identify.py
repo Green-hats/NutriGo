@@ -2,7 +2,7 @@
 NutriGo 图片识别测试 — 覆盖 /api/identify-food 的鉴权与功能
 
 用法：先启动 Go(:3333) 和 Agent(:8000)，再运行
-    cd agent && uv run python ../test/agent/test_identify.py
+    cd agent && uv run python tests/integration/test_identify.py
 """
 import asyncio
 import base64

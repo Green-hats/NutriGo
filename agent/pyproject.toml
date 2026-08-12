@@ -38,6 +38,7 @@ dev = [
 # 不联网、不加载模型，纯单元测试
 addopts = "-q"
 testpaths = ["tests"]
+norecursedirs = ["tests/integration"]
 asyncio_mode = "auto"
 # 确保从任意位置运行 pytest 都能 import app/（CI 未安装项目包时尤其必要）
 pythonpath = ["."]
