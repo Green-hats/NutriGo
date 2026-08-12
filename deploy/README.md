@@ -141,6 +141,17 @@ scp -r deploy/dist/* root@<frontend-ip>:/srv/nutrigo/
 
 浏览器打开 `https://<your-domain>`：注册 → 登录 → 上传食物图识别 → AI 对话 → 饮食统计。
 
+## 开发工具
+
+| 脚本 | 用途 |
+|------|------|
+| `scripts/capture-demo.mjs` | 用 Playwright 自动生成 README 演示截图与 GIF（`docs/screenshots/`） |
+
+```bash
+node deploy/scripts/capture-demo.mjs
+# 需先启动三端，并安装 playwright + firefox + ffmpeg；详见脚本头部注释
+```
+
 ## 常见问题
 
 **Q: 模型下载超时？**

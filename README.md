@@ -20,6 +20,26 @@
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+  <img src="docs/screenshots/login.png" alt="Login" width="200" />
+  <img src="docs/screenshots/chat.png" alt="AI Chat with tool cards" width="200" />
+  <img src="docs/screenshots/diary.png" alt="Food Diary" width="200" />
+  <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="200" />
+  <img src="docs/screenshots/profile.png" alt="Health profile" width="200" />
+</div>
+
+<p align="center">
+  <b>Live demo:</b><br/>
+  <img src="docs/screenshots/demo.gif" alt="Demo" width="320" />
+</p>
+
+> Screenshots are captured by `deploy/scripts/capture-demo.mjs` (Playwright). Regenerate anytime:
+> `node deploy/scripts/capture-demo.mjs`
+
+---
+
 ## ✨ Features
 
 - **📷 Photo Recognition** — Zero-shot food recognition with Chinese-CLIP, Top-5 candidates, 510+ home-cooked dishes
