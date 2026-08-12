@@ -173,12 +173,12 @@ async function run() {
     await page.waitForSelector('input[placeholder="输入消息..."]')
     await page.fill('input[placeholder="输入消息..."]', '我今天吃了燕麦粥和宫保鸡丁，帮我分析一下营养')
     await page.click('button[aria-label="发送"]')
-    // 等待流结束（停止按钮消失），期间每 400ms 截一帧用于 GIF；上限 60s
+    // 等待流结束（停止按钮消失），期间每 800ms 截一帧用于 GIF；上限 60s
     const deadline = Date.now() + 60000
     let frame = 0
     while (await page.locator('button[title="停止生成"]').count() && Date.now() < deadline) {
       await page.screenshot({ path: join(FRAMES_DIR, `f_${String(frame++).padStart(3, '0')}.png`) })
-      await page.waitForTimeout(400)
+      await page.waitForTimeout(800)
     }
     await page.waitForTimeout(800)
     await screenshot(page, 'chat')
