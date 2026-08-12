@@ -39,3 +39,5 @@ dev = [
 addopts = "-q"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# 确保从任意位置运行 pytest 都能 import app/（CI 未安装项目包时尤其必要）
+pythonpath = ["."]
