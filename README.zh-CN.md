@@ -145,7 +145,7 @@ make test
 
 欢迎贡献！请参考：
 
-- [贡献指南](CONTRIBUTING.md)
+- [贡献指南](CONTRIBUTING.zh-CN.md)
 - 提交前运行 `make lint && make test`
 - 遵循 Conventional Commits 规范
 

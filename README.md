@@ -151,7 +151,7 @@ See [`deploy/`](deploy/README.md) for a deployment example (author's personal se
 
 ```
 Frontend (Caddy)                  Backend (Docker)
- /  静态前端                       backend :3333
+ /  static frontend               backend :3333
  /api       → :3333               agent   :8000
  /agent-api → :8000                └─ litellm → LLM API
 ```

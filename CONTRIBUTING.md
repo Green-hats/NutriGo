@@ -1,60 +1,60 @@
-# 贡献指南
+# Contributing Guide
 
-感谢你对 NutriGo 感兴趣！以下指南帮助你顺利参与贡献。
+Thank you for your interest in NutriGo! Here's how to get started contributing.
 
-## 目录
+## Table of Contents
 
-- [开发环境](#开发环境)
-- [代码规范](#代码规范)
-- [提交流程](#提交流程)
-- [Commit 规范](#commit-规范)
+- [Development Environment](#development-environment)
+- [Code Style](#code-style)
+- [Submission Flow](#submission-flow)
+- [Commit Convention](#commit-convention)
 
-## 开发环境
+## Development Environment
 
 ```bash
-# 1. 克隆并安装依赖
+# 1. Clone and install dependencies
 git clone <repo-url> && cd NutriGo
-cp agent/.env.example agent/.env   # 填入 LLM_API_KEY
+cp agent/.env.example agent/.env   # Fill in LLM_API_KEY
 
-# 2. 启动开发环境
-./start.sh                          # 或 make dev
+# 2. Start the dev environment
+./start.sh                          # or make dev
 
-# 3. 验证环境就绪
-make env                            # 检查 .env
+# 3. Verify everything is ready
+make env                            # check .env
 ```
 
-需要：Go 1.26+、Python 3.13+、Node.js 22+、uv 0.11+
+Requirements: Go 1.26+, Python 3.13+, Node.js 22+, uv 0.11+
 
-## 代码规范
+## Code Style
 
-| 语言 | 工具 | 命令 |
-|------|------|------|
+| Language | Tools | Command |
+|----------|-------|---------|
 | Python | ruff + mypy + pytest | `cd agent && uv run ruff check app/ recognition/ tests/ && uv run mypy app/ recognition/ && uv run pytest` |
 | Go | gofmt + go vet | `cd backend && gofmt -l . && go vet ./...` |
 | TypeScript | oxlint + tsc strict | `cd frontend && npx oxlint src && npx tsc -b` |
 
-**提交前必须通过**：`make lint && make test`（Go / Agent pytest / vitest 单元测试，无需启动服务）
+**Must pass before submitting**: `make lint && make test` (Go / Agent pytest / vitest unit tests run without starting any services)
 
-## 提交流程
+## Submission Flow
 
-1. **Fork** 本仓库，创建特性分支：`git checkout -b feat/your-feature`
-2. 编写代码并**补充/更新测试**
-3. 本地验证：`make lint && make test`
-4. 提交并推送，创建 Pull Request
-5. 等待 CI 通过 + 维护者 review
+1. **Fork** this repository and create a feature branch: `git checkout -b feat/your-feature`
+2. Write code and **add/update tests**
+3. Verify locally: `make lint && make test`
+4. Commit and push, then open a Pull Request
+5. Wait for CI to pass + maintainer review
 
-## Commit 规范
+## Commit Convention
 
-遵循 [Conventional Commits](https://www.conventionalcommits.org)：
+Follow [Conventional Commits](https://www.conventionalcommits.org):
 
 ```
-feat: 新功能
-fix: 修复 bug
-docs: 文档变更
-refactor: 重构（非修复非功能）
-test: 增加测试
-chore: 构建/工具/依赖
-style: 格式调整
+feat: new feature
+fix: bug fix
+docs: documentation changes
+refactor: refactoring (neither a fix nor a feature)
+test: adding tests
+chore: build/tooling/dependency changes
+style: formatting changes
 ```
 
-示例：`feat: 添加摄入达标率分析工具`
+Example: `feat: add intake goal achievement analysis tool`
