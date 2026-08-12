@@ -4,6 +4,9 @@
 # 行宽（顶层字段）
 line-length = 110
 
+# 集成测试脚本（手动冒烟测试，不纳入 ruff 检查）
+extend-exclude = ["tests/integration"]
+
 [lint]
 # 启用常用规则组
 select = ["E", "F", "W", "I", "UP", "B", "S", "RUF", "PLC", "ISC", "DTZ", "ANN"]

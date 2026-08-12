@@ -112,7 +112,7 @@ jobs:
             fi
             sleep 1
           done
-          python3 ../test/backend/test_api.py
+          python3 tests/test_api.py
 
       - name: Install Agent test deps
         working-directory: agent
