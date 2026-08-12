@@ -34,9 +34,6 @@
 
 </div>
 
-> 截图由 `deploy/scripts/capture-demo.mjs`（Playwright）自动生成，随时可重新生成：
-> `node deploy/scripts/capture-demo.mjs`
-
 ---
 
 ## ✨ 功能特性

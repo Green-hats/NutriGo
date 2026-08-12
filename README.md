@@ -34,9 +34,6 @@
 
 </div>
 
-> Screenshots are captured by `deploy/scripts/capture-demo.mjs` (Playwright). Regenerate anytime:
-> `node deploy/scripts/capture-demo.mjs`
-
 ---
 
 ## ✨ Features
