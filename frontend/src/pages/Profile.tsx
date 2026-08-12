@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../stores/auth'
 import { goApi } from '../api/go'
+import { logoutRemote } from '../api/authSession'
 import { useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { LoadingButton } from '../components/ui/LoadingButton'
@@ -49,7 +50,11 @@ export default function Profile() {
     }
   }
 
-  const handleLogout = () => { logout(); navigate('/login') }
+  const handleLogout = async () => {
+    await logoutRemote() // 尽力吊销后端令牌（失败不阻塞）
+    logout()
+    navigate('/login')
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50">

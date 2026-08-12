@@ -37,7 +37,7 @@ func TestGenerateToken(t *testing.T) {
 	}
 }
 
-// 测试 token 有效期约为 72 小时
+// 测试 token 有效期约为 AccessTokenTTL
 func TestTokenExpiry(t *testing.T) {
 	tokenStr, err := GenerateToken(1, "test")
 	if err != nil {
@@ -52,11 +52,63 @@ func TestTokenExpiry(t *testing.T) {
 		t.Fatalf("解析失败: %v", err)
 	}
 
-	// ExpiresAt 应约为 72 小时后
-	expected := time.Now().Add(72 * time.Hour)
+	// ExpiresAt 应约为 AccessTokenTTL 后
+	expected := time.Now().Add(AccessTokenTTL)
 	delta := claims.ExpiresAt.Time.Sub(expected)
 	if delta < -time.Minute || delta > time.Minute {
-		t.Errorf("ExpiresAt 偏移异常: %v, 期望约72h", delta)
+		t.Errorf("ExpiresAt 偏移异常: %v, 期望约 %v", delta, AccessTokenTTL)
+	}
+}
+
+// 测试 token 携带唯一 jti（供登出黑名单使用）
+func TestTokenHasUniqueJTI(t *testing.T) {
+	token1, err := GenerateToken(1, "a")
+	if err != nil {
+		t.Fatalf("GenerateToken 失败: %v", err)
+	}
+	token2, err := GenerateToken(1, "a")
+	if err != nil {
+		t.Fatalf("GenerateToken 失败: %v", err)
+	}
+
+	extractJTI := func(s string) string {
+		claims := &JWTClaims{}
+		_, err := jwt.ParseWithClaims(s, claims, func(token *jwt.Token) (interface{}, error) {
+			return JWTSecret, nil
+		})
+		if err != nil {
+			t.Fatalf("解析 token 失败: %v", err)
+		}
+		return claims.ID
+	}
+
+	jti1, jti2 := extractJTI(token1), extractJTI(token2)
+	if jti1 == "" || jti2 == "" {
+		t.Fatal("jti 不应为空")
+	}
+	if jti1 == jti2 {
+		t.Errorf("两次签发的 jti 应不同, got %q", jti1)
+	}
+}
+
+// 测试刷新令牌：生成结果唯一且可哈希
+func TestGenerateAndHashRefreshToken(t *testing.T) {
+	t1, err := GenerateRefreshToken()
+	if err != nil {
+		t.Fatalf("GenerateRefreshToken 失败: %v", err)
+	}
+	t2, err := GenerateRefreshToken()
+	if err != nil {
+		t.Fatalf("GenerateRefreshToken 失败: %v", err)
+	}
+	if t1 == "" || t1 == t2 {
+		t.Errorf("刷新令牌应唯一非空, got %q vs %q", t1, t2)
+	}
+	if HashToken(t1) == t1 {
+		t.Error("哈希结果不应等于明文")
+	}
+	if HashToken(t1) == HashToken(t2) {
+		t.Error("不同令牌哈希应不同")
 	}
 }
 

@@ -1,4 +1,5 @@
 import { useAuthStore } from '../stores/auth'
+import { tryRefresh } from './authSession'
 import type { UserProfile, DietRecord, DailySummary, DietLogInput } from '../types'
 
 const GO_URL = '/api'
@@ -14,7 +15,16 @@ interface ApiErrorBody {
   detail?: string
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+interface AuthResponse {
+  token: string
+  refresh_token: string
+  expires_in: number
+  id: number
+  username: string
+}
+
+// 401 后自动用 refresh_token 换新令牌并重试一次；失败则清除本地登录态
+async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const token = useAuthStore.getState().token
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -27,6 +37,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   const resp = await fetch(`${GO_URL}${path}`, { ...options, headers })
+
+  if (resp.status === 401 && !retried) {
+    const refreshed = await tryRefresh()
+    if (refreshed) {
+      return request<T>(path, options, true)
+    }
+    useAuthStore.getState().logout()
+    throw new Error('登录已过期，请重新登录')
+  }
+
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText })) as ApiErrorBody
     throw new Error(err.error || err.detail || `HTTP ${resp.status}`)
@@ -42,9 +62,15 @@ export const goApi = {
     }),
 
   login: (username: string, password: string) =>
-    request<{ token: string; id: number; username: string }>('/auth/login', {
+    request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
+    }),
+
+  logout: () =>
+    request<{ message: string }>('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: useAuthStore.getState().refreshToken }),
     }),
 
   getProfile: () =>

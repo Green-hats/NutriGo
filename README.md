@@ -28,7 +28,7 @@
 - **📊 Nutrition Analysis** — 8,407 real nutrition data points, precise gram-based calculation, multi-day trend insights
 - **🗓️ Food Diary** — Record meals by date, nutrition trends visualized with recharts bar charts
 - **👤 Personalized Profile** — Height/weight, goals, allergies, pre-existing conditions; AI-tailored dietary advice
-- **🛡️ Enterprise-grade Security** — JWT auth, internal service token, strict key validation in production
+- **🛡️ Enterprise-grade Security** — JWT + refresh-token rotation & logout blacklist, IP rate limiting on auth, internal service token, strict key validation in production
 
 ---
 
@@ -112,8 +112,8 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 
 ```bash
 # Unit tests (no services required, CI-friendly)
-make test-go-unit        # Go: 49 cases
-make test-frontend       # Frontend vitest: 24 cases (store + component)
+make test-go-unit        # Go: 64 cases
+make test-frontend       # Frontend vitest: 28 cases (store + component)
 
 # Integration tests (services must be running)
 make test-backend        # Go backend: 66 cases

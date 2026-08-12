@@ -9,8 +9,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 
+	"nutri.go/backend/internal/config"
 	"nutri.go/backend/internal/model"
 )
 
@@ -180,5 +183,170 @@ func TestLoginMissingParams(t *testing.T) {
 	h.Login(c)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("状态码 = %d, 期望 400", w.Code)
+	}
+}
+
+// ============================================================
+// 刷新令牌 + 登出黑名单测试
+// ============================================================
+
+// loginForTokens 注册并登录，返回响应体（含 token / refresh_token）
+func loginForTokens(t *testing.T, db *gorm.DB) map[string]any {
+	t.Helper()
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+	db.Create(&model.User{Username: "xiaoming", Password: string(hashed)})
+	h := &AuthHandler{DB: db}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/auth/login",
+		bytes.NewBufferString(`{"username":"xiaoming","password":"secret123"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.Login(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("登录状态码 = %d, 期望 200", w.Code)
+	}
+	return mustJSONBody(t, w.Body.Bytes())
+}
+
+// 测试 Login：返回 refresh_token，且刷新令牌以哈希入库
+func TestLoginReturnsRefreshToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	body := loginForTokens(t, db)
+
+	if body["refresh_token"] == nil || body["refresh_token"] == "" {
+		t.Fatal("登录应返回 refresh_token")
+	}
+	if body["token"] == nil || body["token"] == "" {
+		t.Fatal("登录应返回 token")
+	}
+
+	// 数据库只存哈希，不存明文
+	var count int64
+	db.Model(&model.RefreshToken{}).Count(&count)
+	if count != 1 {
+		t.Fatalf("refresh 记录数 = %d, 期望 1", count)
+	}
+	raw := body["refresh_token"].(string)
+	var hashedCount int64
+	db.Model(&model.RefreshToken{}).Where("token_hash = ?", config.HashToken(raw)).Count(&hashedCount)
+	if hashedCount != 1 {
+		t.Error("refresh_token 应以 SHA-256 哈希入库")
+	}
+	var plainCount int64
+	db.Model(&model.RefreshToken{}).Where("token_hash = ?", raw).Count(&plainCount)
+	if plainCount > 0 {
+		t.Error("数据库不应存 refresh_token 明文")
+	}
+}
+
+// 测试 Refresh：轮换机制——旧刷新令牌立即失效，新令牌对可用
+func TestRefreshRotatesTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	body := loginForTokens(t, db)
+	oldRefresh := body["refresh_token"].(string)
+
+	h := &AuthHandler{DB: db}
+	// 用旧刷新令牌换取新令牌对
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/auth/refresh",
+		bytes.NewBufferString(`{"refresh_token":"`+oldRefresh+`"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.Refresh(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("刷新状态码 = %d, 期望 200", w.Code)
+	}
+	newBody := mustJSONBody(t, w.Body.Bytes())
+	if newBody["refresh_token"].(string) == oldRefresh {
+		t.Error("刷新后应返回新的 refresh_token")
+	}
+
+	// 旧刷新令牌已被轮换，再次使用应失败（防重放）
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	c2.Request = httptest.NewRequest(http.MethodPost, "/api/auth/refresh",
+		bytes.NewBufferString(`{"refresh_token":"`+oldRefresh+`"}`))
+	c2.Request.Header.Set("Content-Type", "application/json")
+	h.Refresh(c2)
+	if w2.Code != http.StatusUnauthorized {
+		t.Fatalf("复用旧 refresh_token 状态码 = %d, 期望 401", w2.Code)
+	}
+}
+
+// 测试 Refresh：无效/缺失令牌返回 401/400
+func TestRefreshRejectsInvalid(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	h := &AuthHandler{DB: db}
+
+	// 缺失字段
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/auth/refresh", bytes.NewBufferString(`{}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.Refresh(c)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("缺失字段状态码 = %d, 期望 400", w.Code)
+	}
+
+	// 伪造令牌
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	c2.Request = httptest.NewRequest(http.MethodPost, "/api/auth/refresh",
+		bytes.NewBufferString(`{"refresh_token":"fake-token"}`))
+	c2.Request.Header.Set("Content-Type", "application/json")
+	h.Refresh(c2)
+	if w2.Code != http.StatusUnauthorized {
+		t.Fatalf("伪造令牌状态码 = %d, 期望 401", w2.Code)
+	}
+}
+
+// 测试 Logout：将当前 access token 的 jti 加入黑名单，并可吊销 refresh token
+func TestLogoutBlacklistsAccessToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	body := loginForTokens(t, db)
+	h := &AuthHandler{DB: db}
+
+	// 解析 access token 的 jti 和过期时间
+	tokenStr := body["token"].(string)
+	claims := &config.JWTClaims{}
+	_, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+		return config.JWTSecret, nil
+	})
+	if err != nil {
+		t.Fatalf("解析 token 失败: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("userID", uint(1))
+	c.Set("jti", claims.ID)
+	c.Set("tokenExp", claims.ExpiresAt.Time)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/auth/logout",
+		bytes.NewBufferString(`{"refresh_token":"`+body["refresh_token"].(string)+`"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.Logout(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("登出状态码 = %d, 期望 200", w.Code)
+	}
+
+	// jti 已入黑名单
+	var blackCount int64
+	db.Model(&model.BlacklistedToken{}).Where("jti = ?", claims.ID).Count(&blackCount)
+	if blackCount != 1 {
+		t.Errorf("jti 应写入黑名单, 命中 %d 条", blackCount)
+	}
+
+	// refresh token 已吊销
+	var rt model.RefreshToken
+	if err := db.Where("token_hash = ?", config.HashToken(body["refresh_token"].(string))).First(&rt).Error; err != nil {
+		t.Fatalf("查询 refresh 记录失败: %v", err)
+	}
+	if rt.RevokedAt == nil {
+		t.Error("refresh token 应被吊销")
 	}
 }

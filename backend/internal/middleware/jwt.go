@@ -1,5 +1,5 @@
 // JWT 认证中间件
-// 从 Authorization 头提取 Bearer token → 验签 → 把 userID/username 存入上下文
+// 从 Authorization 头提取 Bearer token → 验签 → 查黑名单 → 把 userID/jti/username 存入上下文
 package middleware
 
 import (
@@ -8,11 +8,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 
 	"nutri.go/backend/internal/config"
+	"nutri.go/backend/internal/model"
 )
 
-func JWTAuth() gin.HandlerFunc {
+// JWTAuth 返回 JWT 认证中间件。
+// db 用于查询被登出吊销的令牌黑名单。
+func JWTAuth(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -43,9 +47,21 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 
+		// 查黑名单：登出后的 jti 应立即失效
+		if claims.ID != "" {
+			var count int64
+			db.Model(&model.BlacklistedToken{}).Where("jti = ?", claims.ID).Count(&count)
+			if count > 0 {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token已失效，请重新登录"})
+				return
+			}
+		}
+
 		// 存入上下文，后续 handler 通过 c.GetUint("userID") 获取
 		c.Set("userID", claims.UserID)
 		c.Set("username", claims.Username)
+		c.Set("jti", claims.ID)
+		c.Set("tokenExp", claims.ExpiresAt.Time)
 		c.Next()
 	}
 }

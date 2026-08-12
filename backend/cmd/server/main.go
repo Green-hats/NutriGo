@@ -39,7 +39,7 @@ func main() {
 	}
 
 	// 自动建表
-	if err := config.DB.AutoMigrate(&model.User{}, &model.UserProfile{}, &model.FoodImage{}, &model.FoodDiary{}, &model.DailySummary{}); err != nil {
+	if err := config.DB.AutoMigrate(&model.User{}, &model.UserProfile{}, &model.FoodImage{}, &model.FoodDiary{}, &model.DailySummary{}, &model.RefreshToken{}, &model.BlacklistedToken{}); err != nil {
 		logger.Error("自动建表失败，启动中止", "error", err)
 		os.Exit(1)
 	}
@@ -47,6 +47,7 @@ func main() {
 	// 启动后台任务
 	service.StartImageCleanup(config.DB)   // 每 1 小时删除 7 天前的图片
 	service.StartDietAggregator(config.DB) // 每 24 小时聚合 7 天前的饮食记录
+	service.StartTokenCleanup(config.DB)   // 每 6 小时清理过期令牌
 
 	// 认证接口限流（令牌桶，防密码爆破）
 	authLimiter := middleware.NewIPRateLimiter(config.AuthRateLimitRPS, config.AuthRateLimitBurst)
@@ -67,11 +68,14 @@ func main() {
 	})
 	r.POST("/api/auth/register", authLimiter.Middleware(), authHandler.Register)
 	r.POST("/api/auth/login", authLimiter.Middleware(), authHandler.Login)
+	r.POST("/api/auth/refresh", authLimiter.Middleware(), authHandler.Refresh)
 
 	// 受保护路由：需要 JWT
 	protected := r.Group("/api")
-	protected.Use(middleware.JWTAuth())
+	protected.Use(middleware.JWTAuth(config.DB))
 	{
+		// 登出：吊销当前 access token + 可选 refresh token
+		protected.POST("/auth/logout", authHandler.Logout)
 		protected.GET("/protected/example", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"message":  "受保护路由示例",

@@ -2,11 +2,21 @@
 package config
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+)
+
+// 令牌有效期
+const (
+	AccessTokenTTL  = 2 * time.Hour       // 访问令牌（JWT）有效期
+	RefreshTokenTTL = 14 * 24 * time.Hour // 刷新令牌有效期
 )
 
 // 开发环境默认值（仅当 APP_ENV != production 时允许使用）
@@ -52,24 +62,51 @@ func InitSecrets() error {
 }
 
 // JWTClaims 定义 JWT 的 payload 结构。
-// jwt.RegisteredClaims 通过嵌入展开，自动包含 ExpiresAt、IssuedAt 等标准字段。
+// jwt.RegisteredClaims 通过嵌入展开，自动包含 ExpiresAt、IssuedAt、ID(jti) 等标准字段。
 type JWTClaims struct {
 	UserID   uint   `json:"user_id"`
 	Username string `json:"username"`
 	jwt.RegisteredClaims
 }
 
-// GenerateToken 签发 JWT，有效期 72 小时
+// GenerateToken 签发访问令牌（JWT）。
+// 携带唯一 jti（用于登出后加入黑名单），有效期 AccessTokenTTL。
 func GenerateToken(userID uint, username string) (string, error) {
 	claims := JWTClaims{
 		UserID:   userID,
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
+			ID:        NewTokenID(),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(JWTSecret)
+}
+
+// NewTokenID 生成随机 JTI（16 字节 → 32 位十六进制）
+func NewTokenID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return hex.EncodeToString([]byte(time.Now().Format("20060102150405.000000000")))
+	}
+	return hex.EncodeToString(b)
+}
+
+// GenerateRefreshToken 生成不透明刷新令牌（32 字节随机数，base64url）
+func GenerateRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// HashToken 对令牌做 SHA-256 哈希。
+// 刷新令牌以哈希形式入库，即使数据库泄露也无法被直接盗用。
+func HashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

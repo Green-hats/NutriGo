@@ -122,6 +122,8 @@ POST /api/auth/login
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "YISu8n24V6VmiJLZyaXr1kvCvae2XK0lfxXa1ufXKe4",
+  "expires_in": 7200,
   "id": 1,
   "username": "zhangsan"
 }
@@ -129,7 +131,9 @@ POST /api/auth/login
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `token` | string | JWT 令牌，有效期 72 小时 |
+| `token` | string | 访问令牌（JWT），有效期 `expires_in` 秒（默认 2 小时） |
+| `refresh_token` | string | 刷新令牌（不透明，14 天有效，仅存哈希于服务端） |
+| `expires_in` | number | 访问令牌剩余有效秒数 |
 | `id` | number | 用户 ID |
 | `username` | string | 用户名 |
 
@@ -147,7 +151,52 @@ curl -X POST http://localhost:3333/api/auth/login \
 
 ---
 
-### 2.3 JWT 使用说明
+### 2.3 刷新令牌
+
+```
+POST /api/auth/refresh
+```
+
+**请求体**
+
+| 字段 | 类型 | 必填 |
+|------|------|------|
+| `refresh_token` | string | 是 |
+
+成功时返回与登录相同的响应（新的 `token` + `refresh_token`）。**轮换机制**：每次刷新都会吊销旧刷新令牌，防止重放；旧令牌再次使用返回 `401`。
+
+```bash
+curl -X POST http://localhost:3333/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token":"YISu8n24V6VmiJLZyaXr1kvCvae2XK0lfxXa1ufXKe4"}'
+```
+
+---
+
+### 2.4 登出（吊销令牌）
+
+```
+POST /api/auth/logout
+```
+
+需 **JWT** 认证。将当前访问令牌的 `jti` 加入黑名单使其立即失效；请求体可附带 `refresh_token` 一并吊销。
+
+**请求体（可选）**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `refresh_token` | string | 需要吊销的刷新令牌 |
+
+```bash
+curl -X POST http://localhost:3333/api/auth/logout \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token":"YISu8n24V6VmiJLZyaXr1kvCvae2XK0lfxXa1ufXKe4"}'
+```
+
+---
+
+### 2.5 JWT 使用说明
 
 所有标注 **JWT** 认证的接口，需在请求头携带：
 
@@ -156,8 +205,9 @@ Authorization: Bearer <从登录接口拿到的 token>
 ```
 
 - 算法：HS256
-- 有效期：72 小时
-- 内容：`{ "user_id": 1, "username": "zhangsan", "exp": ..., "iat": ... }`
+- 有效期：2 小时（短时访问令牌，过期后由前端用 refresh_token 自动换取）
+- 内容：`{ "user_id": 1, "username": "zhangsan", "jti": "...", "exp": ..., "iat": ... }`
+- `jti` 为令牌唯一 ID，登出后进入黑名单立即失效
 
 > 任何人可解码 payload 查看内容，但签名防篡改。**Payload 中不放敏感信息（密码、手机号等）**。
 
@@ -573,7 +623,9 @@ curl http://localhost:3333/api/internal/example \
 |------|------|------|------|
 | `GET` | `/api/health` | 无 | 健康检查 |
 | `POST` | `/api/auth/register` | 无 | 注册（限流：每 IP 5 次/分） |
-| `POST` | `/api/auth/login` | 无 | 登录（限流：每 IP 5 次/分） |
+| `POST` | `/api/auth/login` | 无 | 登录，签发访问+刷新令牌（限流：每 IP 5 次/分） |
+| `POST` | `/api/auth/refresh` | 无 | 刷新令牌轮换（限流：每 IP 5 次/分） |
+| `POST` | `/api/auth/logout` | JWT | 登出，吊销访问+刷新令牌 |
 | `GET` | `/api/users/:id/profile` | JWT | 查看档案 |
 | `PUT` | `/api/users/:id/profile` | JWT | 更新/创建档案 |
 | `POST` | `/api/images/upload` | JWT | 上传食物图片 |

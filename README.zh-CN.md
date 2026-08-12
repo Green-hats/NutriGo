@@ -28,7 +28,7 @@
 - **📊 营养分析** — 8407 条真实营养数据，按克数精确换算，多日趋势洞察
 - **🗓️ 饮食日记** — 按日期记录三餐，recharts 柱状图展示营养趋势
 - **👤 个性化档案** — 身高体重/目标/过敏原/基础病，AI 定制饮食建议
-- **🛡️ 企业级安全** — JWT 认证、内部服务鉴权、生产环境密钥强制校验
+- **🛡️ 企业级安全** — JWT + 刷新令牌轮换与登出黑名单、认证接口 IP 限流、内部服务鉴权、生产环境密钥强制校验
 
 ---
 
@@ -112,8 +112,8 @@ cp agent/.env.example agent/.env
 
 ```bash
 # 单元测试（无需启动服务，适合 CI）
-make test-go-unit        # Go：49 用例
-make test-frontend       # 前端 vitest：24 用例（store + 组件）
+make test-go-unit        # Go：64 用例
+make test-frontend       # 前端 vitest：28 用例（store + 组件）
 
 # 集成测试（需服务运行）
 make test-backend        # Go 后端：66 用例

@@ -1,6 +1,7 @@
 const AGENT_URL = '/agent-api'
 
 import { useAuthStore } from '../stores/auth'
+import { tryRefresh } from './authSession'
 import type {
   IdentifyResult, IntakeResult, SessionInfo, SessionDetail,
 } from '../types'
@@ -10,44 +11,43 @@ function authHeaders(): Record<string, string> {
   return token ? { 'Authorization': `Bearer ${token}` } : {}
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+// 401 后自动用 refresh_token 换新令牌并重试一次；失败则清除本地登录态
+async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
   const resp = await fetch(`${AGENT_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers as Record<string, string>) },
   })
+
+  if (resp.status === 401 && !retried) {
+    const refreshed = await tryRefresh()
+    if (refreshed) {
+      return request<T>(path, init, true)
+    }
+    useAuthStore.getState().logout()
+    throw new Error('登录已过期，请重新登录')
+  }
+
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }))
     throw new Error(err.detail || `HTTP ${resp.status}`)
   }
   return resp.json()
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, { method: 'POST', body: JSON.stringify(body) })
 }
 
 async function del(path: string): Promise<void> {
-  const resp = await fetch(`${AGENT_URL}${path}`, { method: 'DELETE', headers: authHeaders() })
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  await request<{ message: string }>(path, { method: 'DELETE' })
 }
 
 async function patch<T>(path: string, body: unknown): Promise<T> {
-  const resp = await fetch(`${AGENT_URL}${path}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
-  })
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ detail: resp.statusText }))
-    throw new Error(err.detail || `HTTP ${resp.status}`)
-  }
-  return resp.json()
+  return request<T>(path, { method: 'PATCH', body: JSON.stringify(body) })
 }
 
 async function get<T>(path: string): Promise<T> {
-  const resp = await fetch(`${AGENT_URL}${path}`, { headers: authHeaders() })
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ detail: resp.statusText }))
-    throw new Error(err.detail || `HTTP ${resp.status}`)
-  }
-  return resp.json()
+  return request<T>(path)
 }
 
 export const agentApi = {
