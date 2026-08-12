@@ -1,11 +1,12 @@
 # ============================================================
-# NutriGo — 香港服务器 Caddy 配置
-# 部署于香港 1C1G，自动 HTTPS
-# 用法: 将本项目构建产物 dist 放到 /srv/nutrigo，
+# NutriGo — Caddy 反向代理配置（模板）
+# 自动 HTTPS，用于前端静态托管 + API 反代到后端节点。
+# 用法: 把 <your-domain> 换成你的域名、<backend-ip> 换成后端节点公网 IP，
+#       将前端构建产物 dist 放到 /srv/nutrigo，
 #       caddy run --config deploy/caddy/Caddyfile（或复制到 /etc/caddy/Caddyfile）
 # ============================================================
 
-nutrigo.greenhats.dev {
+<your-domain> {
 	encode gzip
 
 	# 前端静态资源（React 构建产物）
@@ -13,15 +14,15 @@ nutrigo.greenhats.dev {
 	try_files {path} /index.html
 	file_server
 
-	# 反代到国内 Debian 服务器 backend (Go :3333)
+	# 反代到后端节点 backend (Go :3333)
 	handle /api/* {
-		reverse_proxy 国内服务器IP:3333
+		reverse_proxy <backend-ip>:3333
 	}
 
-	# 反代到国内 Debian 服务器 agent (FastAPI :8000)
+	# 反代到后端节点 agent (FastAPI :8000)
 	handle /agent-api/* {
 		# SSE 流式对话（聊天流），需关闭缓冲
-		reverse_proxy 国内服务器IP:8000 {
+		reverse_proxy <backend-ip>:8000 {
 			flush_interval -1
 		}
 	}

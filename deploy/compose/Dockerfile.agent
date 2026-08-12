@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # ============================================================
 # NutriGo agent — FastAPI + Chinese-CLIP + ChromaDB + bge-small
-# 面向 2C4G CPU 服务器优化:
+# 面向低配 CPU 服务器优化:
 #   - torch CPU-only 版（无 CUDA 依赖，镜像体积小一半）
 #   - 构建期预下载 Chinese-CLIP + bge-small 模型到 /models
 #   - 推理线程数、int8 量化已在 recognition/multimodal.py 处理

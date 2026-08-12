@@ -1,13 +1,13 @@
 # NutriGo 部署
 
-本目录提供 NutriGo 的完整可部署方案：**国内 Debian 服务器跑 backend + agent（Docker）**，**香港服务器跑前端 + Caddy 反代**。
+本目录提供 NutriGo 的通用生产部署方案：**后端节点跑 backend + agent（Docker Compose）**，**前端节点跑静态站点 + Caddy 反代（自动 HTTPS）**。两个节点可以是同一台或不同的服务器，按实际资源调整。
 
 ```
-香港 (Caddy 自动 HTTPS)              国内 (Docker + swap)
-nutrigo.greenhats.dev                backend :3333 (Go+SQLite)
- ├── /          静态前端              agent   :8000 (FastAPI+CLIP)
- ├── /api       → 国内:3333
- └── /agent-api → 国内:8000
+前端节点 (Caddy 自动 HTTPS)              后端节点 (Docker)
+<your-domain>                            backend :3333 (Go+SQLite)
+ ├── /          静态前端                  agent   :8000 (FastAPI+CLIP)
+ ├── /api       → <backend-ip>:3333
+ └── /agent-api → <backend-ip>:8000
 ```
 
 架构细节见 [docs/architecture.md](docs/architecture.md)。
@@ -17,21 +17,21 @@ nutrigo.greenhats.dev                backend :3333 (Go+SQLite)
 ```
 deploy/
 ├── compose/
-│   ├── docker-compose.yml        # 国内服务器编排 (backend + agent)
+│   ├── docker-compose.yml        # 后端节点编排 (backend + agent)
 │   ├── Dockerfile.backend        # Go 多阶段构建
 │   ├── Dockerfile.agent          # Python + torch-cpu + CLIP + bge
 │   └── .env.production.example   # 生产环境变量模板
 ├── caddy/
-│   └── Caddyfile                 # 香港服务器反代配置
+│   └── Caddyfile                 # 前端节点反代配置（模板）
 ├── scripts/
-│   ├── setup-server.sh           # 国内: 装 Docker + 4G swap
+│   ├── setup-server.sh           # 后端节点: 装 Docker + swap
 │   ├── build-frontend.sh         # 本地: 构建前端 dist
-│   └── deploy-hk.sh              # 本地: 部署前端到香港 + reload
+│   └── deploy-frontend.sh              # 本地: 部署前端到前端节点 + reload Caddy
 └── docs/
     └── architecture.md           # 架构与请求闭环
 ```
 
-## 一、国内 Debian 服务器（backend + agent）
+## 一、后端节点（backend + agent）
 
 ### 1. 初始化
 
@@ -39,11 +39,11 @@ deploy/
 sudo bash deploy/scripts/setup-server.sh
 ```
 
-脚本会安装 Docker Engine + compose 插件并创建 4G swap。
+脚本会安装 Docker Engine + compose 插件并创建 swap（低配机器防 OOM）。
 
 ### 2. 开放端口
 
-安全组/防火墙放行 **3333** 与 **8000**（供香港 Caddy 反代）。
+安全组/防火墙放行 **3333** 与 **8000**（供前端节点 Caddy 反代）。
 
 ### 3. 配置环境变量
 
@@ -53,7 +53,7 @@ cp .env.production.example .env
 # 编辑 .env：
 #   JWT_SECRET / INTERNAL_TOKEN  → openssl rand -hex 32 生成
 #   LLM_API_KEY                  → 你的 DeepSeek/OpenAI key
-#   CORS_ORIGINS                 → https://nutrigo.greenhats.dev
+#   CORS_ORIGINS                 → https://<your-domain>
 ```
 
 ### 4. 启动
@@ -72,7 +72,7 @@ curl http://localhost:8000/api/health
 
 > 首次构建会预下载模型（CLIP ~400MB + bge ~100MB），需等待几分钟。
 
-## 二、香港服务器（前端 + Caddy）
+## 二、前端节点（静态站点 + Caddy）
 
 ### 1. 安装 Caddy
 
@@ -86,20 +86,20 @@ apt update && apt install caddy
 
 ### 2. 配置 Caddy
 
-编辑 `/etc/caddy/Caddyfile`，参考 `deploy/caddy/Caddyfile`，把 `国内服务器IP` 替换成国内服务器公网 IP：
+编辑 `/etc/caddy/Caddyfile`，参考 `deploy/caddy/Caddyfile`：把 `<your-domain>` 换成你的域名、`<backend-ip>` 换成后端节点公网 IP：
 
 ```
-nutrigo.greenhats.dev {
+<your-domain> {
 	encode gzip
 	root * /srv/nutrigo
 	try_files {path} /index.html
 	file_server
 
 	handle /api/* {
-		reverse_proxy 国内服务器IP:3333
+		reverse_proxy <backend-ip>:3333
 	}
 	handle /agent-api/* {
-		reverse_proxy 国内服务器IP:8000 {
+		reverse_proxy <backend-ip>:8000 {
 			flush_interval -1
 		}
 	}
@@ -112,41 +112,41 @@ sudo systemctl reload caddy
 
 ### 3. 部署前端
 
-在**开发机**上执行（会自动构建 + scp 到香港）：
+在**开发机**上执行（会自动构建 + scp 到前端节点）：
 
 ```bash
-# 先编辑 deploy/scripts/deploy-hk.sh 配置 HK_HOST（香港 IP）等变量
-bash deploy/scripts/deploy-hk.sh
+# 先编辑 deploy/scripts/deploy-frontend.sh 配置主机 IP 等变量
+bash deploy/scripts/deploy-frontend.sh
 ```
 
 或手动：
 
 ```bash
 bash deploy/scripts/build-frontend.sh        # 产出 deploy/dist
-scp -r deploy/dist/* root@香港IP:/srv/nutrigo/
+scp -r deploy/dist/* root@<frontend-ip>:/srv/nutrigo/
 ```
 
 ## 三、端到端验证
 
 | 检查项 | 命令 |
 |---|---|
-| 前端可访问 | `curl -I https://nutrigo.greenhats.dev` |
-| backend 反代 | `curl https://nutrigo.greenhats.dev/api/health` |
-| agent 反代 | `curl https://nutrigo.greenhats.dev/agent-api/api/health` |
-| 注册 | `curl -X POST https://nutrigo.greenhats.dev/api/auth/register ...` |
+| 前端可访问 | `curl -I https://<your-domain>` |
+| backend 反代 | `curl https://<your-domain>/api/health` |
+| agent 反代 | `curl https://<your-domain>/agent-api/api/health` |
+| 注册 | `curl -X POST https://<your-domain>/api/auth/register ...` |
 
-浏览器打开 `https://nutrigo.greenhats.dev`：注册 → 登录 → 上传食物图识别 → AI 对话 → 饮食统计。
+浏览器打开 `https://<your-domain>`：注册 → 登录 → 上传食物图识别 → AI 对话 → 饮食统计。
 
 ## 常见问题
 
 **Q: 模型下载超时？**
-构建时预下载依赖外网，可在国内服务器设置镜像：`export HF_ENDPOINT=https://hf-mirror.com` 后重新构建。
+构建时预下载依赖外网，可设置镜像：`export HF_ENDPOINT=https://hf-mirror.com` 后重新构建。
 
 **Q: 识别很慢？**
-`agent/recognition/multimodal.py` 已做文本向量预计算 + int8 量化 + 线程限制。2C4G 下单张约 2-3s。
+`agent/recognition/multimodal.py` 已做文本向量预计算 + int8 量化 + 线程限制。低配 CPU（如 2C4G）下单张约 2-3s。
 
 **Q: 内存不足？**
-确认 `setup-server.sh` 已创建 4G swap：`swapon --show`。
+确认 `setup-server.sh` 已创建 swap：`swapon --show`。
 
 **Q: 想用本地 Ollama 替代外部 API？**
 加 ollama 服务，`LLM_MODEL=ollama/qwen2.5`、`LLM_BASE_URL=http://ollama:11434`。需 4G+ 内存，CPU 推理会变慢。

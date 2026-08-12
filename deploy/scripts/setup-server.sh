@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# NutriGo — 国内 Debian 服务器初始化脚本
+# NutriGo — 后端节点初始化脚本（Debian/Ubuntu）
 # 功能: 安装 Docker Engine + compose 插件、创建 4G swap
 # 用法: sudo bash deploy/scripts/setup-server.sh
 # ============================================================
@@ -62,7 +62,7 @@ free -h
 echo
 echo "✅ 初始化完成。"
 echo "下一步:"
-echo "  1. 开放安全组/防火墙端口 3333 与 8000（供香港 Caddy 反代）"
+echo "  1. 开放安全组/防火墙端口 3333 与 8000（供前端节点 Caddy 反代）"
 echo "  2. cp deploy/compose/.env.production.example deploy/compose/.env 并填写"
-echo "  3. 国内服务器 cd 到仓库根目录，执行:"
+echo "  3. 后端节点 cd 到仓库根目录，执行:"
 echo "     docker compose -f deploy/compose/docker-compose.yml up -d --build"

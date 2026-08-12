@@ -1,7 +1,7 @@
 # ============================================================
-# NutriGo — 国内 Debian 服务器编排 (backend + agent)
+# NutriGo — 后端节点编排 (backend + agent)
 # 部署:  docker compose -f deploy/compose/docker-compose.yml up -d --build
-# 香港前端由 deploy/caddy/Caddyfile 反代到本机 3333/8000
+# 前端节点由 deploy/caddy/Caddyfile 反代到本机 3333/8000
 # ============================================================
 
 name: nutrigo
@@ -17,7 +17,7 @@ services:
       APP_ENV: production
       JWT_SECRET: ${JWT_SECRET:?请在 .env 设置强随机 JWT_SECRET}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置强随机 INTERNAL_TOKEN}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://nutrigo.greenhats.dev}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://<your-domain>}
     volumes:
       - nutrigo-data:/app
     networks:
@@ -46,7 +46,7 @@ services:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置强随机 INTERNAL_TOKEN}
       JWT_SECRET: ${JWT_SECRET:?请在 .env 设置强随机 JWT_SECRET}
       DATABASE_PATH: /app/agent/data/agent.db
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://nutrigo.greenhats.dev}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://<your-domain>}
     volumes:
       - nutrigo-agent-data:/app/agent/data
       - nutrigo-chroma:/app/agent/chroma_db
