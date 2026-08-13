@@ -1,4 +1,4 @@
-# <img src="docs/logo.svg" alt="NutriGo logo" width="48" height="48" align="center" /> NutriGo — AI Nutrition Assistant
+# <img src="docs/logo-transparent.svg" alt="NutriGo logo" width="48" height="48" align="center" /> NutriGo — AI Nutrition Assistant
 
 <div align="center">
 
