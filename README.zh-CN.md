@@ -1,4 +1,10 @@
-# <img src="docs/logo-transparent.svg" alt="NutriGo logo" width="48" height="48" align="center" /> NutriGo — AI 智能营养师
+# <div align="center">
+
+<img src="docs/logo-transparent.svg" alt="NutriGo" width="128" height="128" />
+
+# NutriGo — AI 智能营养师
+
+</div>
 
 <div align="center">
 
