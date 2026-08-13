@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo-transparent.svg" alt="NutriGo" width="220" height="220" />
+<img src="docs/logo-transparent.svg" alt="NutriGo" width="320" height="320" />
 
 <h1 align="center">NutriGo — AI Nutrition Assistant</h1>
 
