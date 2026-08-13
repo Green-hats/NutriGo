@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <!-- 1. 全局渐变与滤镜定义 -->
+  <defs>
+    <!-- 背景柔和极简渐变 -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCFDFD" />
+      <stop offset="100%" stop-color="#F0F4F1" />
+    </linearGradient>
+
+    <!-- 主碗深邃质感绿 -->
+    <linearGradient id="bowlGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#276749" />
+      <stop offset="100%" stop-color="#1B4332" />
+    </linearGradient>
+
+    <!-- 渐变叶片色彩组 -->
+    <linearGradient id="leafDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2D6A4F" />
+      <stop offset="100%" stop-color="#1B4332" />
+    </linearGradient>
+    <linearGradient id="leafLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#52B788" />
+      <stop offset="100%" stop-color="#2D6A4F" />
+    </linearGradient>
+
+    <!-- 水果渐变 -->
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF9800" />
+      <stop offset="100%" stop-color="#F57C00" />
+    </linearGradient>
+    <linearGradient id="berryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E53935" />
+      <stop offset="100%" stop-color="#C62828" />
+    </linearGradient>
+
+    <!-- AI 科技星辉渐变 -->
+    <linearGradient id="starGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E676" />
+      <stop offset="100%" stop-color="#00B0FF" />
+    </linearGradient>
+
+    <!-- 细腻柔和投影 -->
+    <filter id="softShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#1B4332" flood-opacity="0.1" />
+    </filter>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="100%" height="100%" fill="url(#bgGrad)"/>
+
+  <!-- LOGO 主体组 -->
+  <g transform="translate(250, 270)" filter="url(#softShadow)">
+
+    <!-- ==================== 2. 全新非对称有机排布 (无蓝点) ==================== -->
+    <!-- 引力中心：AI 星 (0, -42) -->
+
+    <!-- [1. 深绿主叶] 放置在左后方，自然倾斜，为中间的 AI 星做背景衬托 -->
+    <g transform="translate(-24, -58) rotate(-30)">
+      <path d="M 0 -26 Q -15 -9 0 11 Q 15 -9 0 -26 Z" fill="url(#leafDark)" />
+      <path d="M 0 -20 L 0 5" stroke="#FCFDFD" stroke-width="1.5" stroke-linecap="round" />
+    </g>
+
+    <!-- [2. 橙子切片] 移动到左低位靠碗口处，大倾角，色彩鲜明 -->
+    <g transform="translate(-42, -26) rotate(-38)">
+      <path d="M -14 0 A 14 14 0 0 1 14 0 Z" fill="url(#orangeGrad)" />
+      <path d="M -9 -1 A 9 9 0 0 1 9 -1 Z" fill="#FFE0B2" opacity="0.9" />
+    </g>
+
+    <!-- [3. 红浆果] 落在左侧切片与 AI 星之间的中层，起到视觉衔接作用 -->
+    <g transform="translate(-16, -26)">
+      <circle cx="0" cy="0" r="6.5" fill="url(#berryGrad)" />
+      <circle cx="-1.4" cy="-1.4" r="1.4" fill="#FFEBEE" opacity="0.85" />
+    </g>
+
+    <!-- [4. 鲜绿主叶] 放置在右上方，向上伸展，拉开右侧的空间层次 -->
+    <g transform="translate(22, -62) rotate(22)">
+      <path d="M 0 -24 Q -13 -8 0 10 Q 13 -8 0 -24 Z" fill="url(#leafLight)" />
+      <path d="M 0 -18 L 0 4" stroke="#FCFDFD" stroke-width="1.5" stroke-linecap="round" />
+    </g>
+
+    <!-- [5. 黄瓜/牛油果切片] 沉在右侧碗口边缘，平衡右下方的视觉重量 -->
+    <g transform="translate(36, -24) rotate(15)">
+      <circle cx="0" cy="0" r="12" fill="#81C784" />
+      <circle cx="0" cy="0" r="7.5" fill="#E8F5E9" />
+      <circle cx="0" cy="0" r="2.5" fill="#2E7D32" opacity="0.6" />
+    </g>
+
+
+    <!-- ==================== 3. 视觉核心：AI 科技闪耀星 ==================== -->
+    
+    <g transform="translate(0, -42)">
+      <!-- 白色底衬 (隔离视觉层级) -->
+      <path d="M 0 -25 Q 0 -6 16 -6 Q 0 -6 0 9 Q 0 -6 -16 -6 Q 0 -6 0 -25 Z" fill="#FCFDFD" />
+      <!-- 核心渐变科技四角星 -->
+      <path d="M 0 -21 Q 0 -5 13 -5 Q 0 -5 0 7 Q 0 -5 -13 -5 Q 0 -5 0 -21 Z" fill="url(#starGrad)" />
+      <!-- 星光高亮核心 -->
+      <circle cx="0" cy="-5" r="1.8" fill="#FFFFFF" />
+    </g>
+
+
+    <!-- ==================== 4. 前景：小巧扁平底座沙拉碗 ==================== -->
+    
+    <!-- 碗主干：极简扁平椭圆弧度 (宽度 130，高度 38) -->
+    <path d="M -65 0 A 65 38 0 0 0 65 0 Z" fill="url(#bowlGrad)" />
+    
+    <!-- 碗沿微弧高光 -->
+    <path d="M -65 0 Q 0 6 65 0 Q 0 2.5 -65 0 Z" fill="#52B788" opacity="0.95" />
+
+  </g>
+</svg>

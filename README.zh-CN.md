@@ -1,4 +1,4 @@
-# 🥗 NutriGo — AI 智能营养师
+# <img src="docs/logo.svg" alt="NutriGo logo" width="48" height="48" align="center" /> NutriGo — AI 智能营养师
 
 <div align="center">
 
