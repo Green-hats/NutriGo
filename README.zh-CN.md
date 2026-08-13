@@ -1,8 +1,8 @@
-# <div align="center">
+<div align="center">
 
-<img src="docs/logo-transparent.svg" alt="NutriGo" width="128" height="128" />
+<img src="docs/logo-transparent.svg" alt="NutriGo" width="220" height="220" />
 
-# NutriGo — AI 智能营养师
+<h1 align="center">NutriGo — AI 智能营养师</h1>
 
 </div>
 
