@@ -60,14 +60,15 @@ COPY agent/ ./agent/
 COPY agent/nutrition.db ./agent/nutrition.db
 
 # 预下载 Chinese-CLIP + bge-small 模型（构建期，挂到 /models 卷避免运行时首次下载）
-RUN mkdir -p /models && python -c " \
+ARG PRELOAD_MODELS=1
+RUN mkdir -p /models && if [ "$PRELOAD_MODELS" = "1" ]; then python -c " \
 from transformers import ChineseCLIPModel, ChineseCLIPProcessor; \
 ChineseCLIPModel.from_pretrained('OFA-Sys/chinese-clip-vit-base-patch16'); \
 ChineseCLIPProcessor.from_pretrained('OFA-Sys/chinese-clip-vit-base-patch16'); \
 " && python -c " \
 from sentence_transformers import SentenceTransformer; \
 SentenceTransformer('BAAI/bge-small-zh-v1.5'); \
-"
+"; fi
 
 EXPOSE 8000
 

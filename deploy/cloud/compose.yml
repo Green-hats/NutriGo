@@ -11,7 +11,7 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CADDY_CONFIG_FILE:-./Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
@@ -42,14 +42,17 @@ services:
     build:
       context: ../..
       dockerfile: deploy/compose/Dockerfile.agent
+      args:
+        PRELOAD_MODELS: ${PRELOAD_MODELS:-1}
     restart: unless-stopped
     environment:
       APP_ENV: production
       JWT_SECRET: ${JWT_SECRET:?请设置强随机 JWT_SECRET}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请设置强随机 INTERNAL_TOKEN}
       LLM_MODEL: ${LLM_MODEL:-deepseek/deepseek-chat}
-      LLM_API_KEY: ${LLM_API_KEY:?请设置 LLM_API_KEY}
+      LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
+      AI_ENABLED: ${AI_ENABLED:-true}
       GO_BACKEND_URL: http://backend:3333
       DATABASE_PATH: /app/agent/data/agent.db
       CORS_ORIGINS: ${CORS_ORIGINS:-}

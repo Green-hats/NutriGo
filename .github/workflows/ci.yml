@@ -220,8 +220,21 @@ jobs:
       - name: Build Android ARM64 APK
         working-directory: frontend
         env:
-          VITE_API_BASE_URL: https://api.example.com
+          VITE_API_BASE_URL: ${{ vars.NUTRIGO_API_BASE_URL || 'https://api.example.com' }}
         run: NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" npm run android:build -- --debug --target aarch64 --apk --ci
+      - name: Prepare online download
+        if: vars.NUTRIGO_API_BASE_URL != ''
+        run: |
+          mkdir -p frontend/artifacts
+          cp frontend/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk frontend/artifacts/NutriGo-online-arm64.apk
+      - name: Upload installable online APK
+        if: vars.NUTRIGO_API_BASE_URL != ''
+        uses: actions/upload-artifact@v7
+        with:
+          path: frontend/artifacts/NutriGo-online-arm64.apk
+          archive: false
+          retention-days: 14
+          if-no-files-found: error
 
       - name: Build offline UI preview APK
         working-directory: frontend

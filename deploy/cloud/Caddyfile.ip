@@ -1,0 +1,39 @@
+# Public IP certificates require Caddy 2.11+ and automated short-lived renewal.
+{
+	# IP clients omit SNI; select the public IP certificate behind Docker/NAT.
+	default_sni {$API_DOMAIN}
+}
+
+{$API_DOMAIN} {
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
+	encode gzip
+
+	# 公网只开放 App 所需接口；内部服务鉴权和指标接口不经过此入口。
+	@go path /api/health /api/ready /api/auth/* /api/users/* /api/diet/* /api/images/upload
+	handle @go {
+		reverse_proxy backend:3333
+	}
+	@imageDelete {
+		method DELETE
+		path /api/images/*
+	}
+	handle @imageDelete {
+		reverse_proxy backend:3333
+	}
+
+	handle_path /agent-api/* {
+		rewrite * /api{uri}
+		reverse_proxy agent:8000 {
+			flush_interval -1
+		}
+	}
+
+	# 手机界面随安装包分发，云端无需托管 SPA。
+	handle {
+		respond "Not Found" 404
+	}
+}

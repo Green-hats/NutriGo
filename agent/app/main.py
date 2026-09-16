@@ -58,7 +58,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await db.init_db()                 # agent.db — sessions 表
     await init_nutrition_db()          # nutrition.db — 食物营养
     await seed_data()                  # 首次启动插入种子数据
-    init_rag()                         # ChromaDB — 营养知识库
+    if settings.AI_ENABLED:
+        init_rag()                     # ChromaDB — 营养知识库
     logger.info(f"LLM 模型: {settings.LLM_MODEL}")
     logger.info(f"Go 后端:  {settings.GO_BACKEND_URL}")
 
@@ -134,6 +135,10 @@ async def ready() -> dict:
 # SSE 对话路由
 # ============================================================
 
+def require_ai_enabled() -> None:
+    if not settings.AI_ENABLED:
+        raise HTTPException(status_code=409, detail="AI 功能尚未配置，暂时无法对话或识别照片。")
+
 async def _load_or_create_conv(session_id: int | None, user_id: int, message: str) -> Conversation:
     """加载已有会话或创建新会话，添加用户消息。会话级锁防并发写入冲突。"""
     if session_id:
@@ -162,6 +167,7 @@ async def chat(
 
     # 从 Authorization 头解析用户，不再信任 URL 里的 user_id
     user_id = await require_user_id(request.headers.get("Authorization"))
+    require_ai_enabled()
 
     # 输入长度限制，防 token 轰炸
     if len(message) > settings.MAX_MESSAGE_LENGTH:
@@ -192,6 +198,7 @@ async def chat(
 async def regenerate(session_id: int, request: Request) -> StreamingResponse:
     """重新生成最后一条回复：回滚到最后一次提问，重新跑 agent loop"""
     user_id = await require_user_id(request.headers.get("Authorization"))
+    require_ai_enabled()
 
     request_id_var.set(new_request_id())
 
@@ -398,6 +405,7 @@ async def identify_food(req: IdentifyRequest, request: Request) -> list:
     """
     # 0. JWT 鉴权
     user_id = await require_user_id(request.headers.get("Authorization"))
+    require_ai_enabled()
 
     # 内部接口持有服务级权限，必须先验证图片归属，再读取缓存或图片内容。
     try:

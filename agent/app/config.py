@@ -52,6 +52,8 @@ class Config:
     LLM_MODEL: str = os.getenv("LLM_MODEL", "deepseek/deepseek-v4-flash")  # 默认使用 DeepSeek V4 Flash
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
     LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "")  # 本地代理/Ollama 时设置
+    # 首次部署尚无模型配置时，保留账号、日记和营养计算，显式关闭 AI 请求。
+    AI_ENABLED: bool = os.getenv("AI_ENABLED", "true").lower() == "true"
 
     # --- Go 后端地址 ---
     GO_BACKEND_URL: str = os.getenv("GO_BACKEND_URL", "http://localhost:3333")
