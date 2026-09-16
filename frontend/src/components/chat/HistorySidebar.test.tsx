@@ -7,12 +7,13 @@ import HistorySidebar from './HistorySidebar'
 const getSessionsMock = vi.fn()
 const batchDeleteSessionsMock = vi.fn()
 const deleteSessionMock = vi.fn()
+const getSessionMock = vi.fn()
 vi.mock('../../api/agent', () => ({
   agentApi: {
     getSessions: (...args: unknown[]) => getSessionsMock(...args),
     batchDeleteSessions: (...args: unknown[]) =>
       batchDeleteSessionsMock(...args),
-    getSession: vi.fn(),
+    getSession: (...args: unknown[]) => getSessionMock(...args),
     deleteSession: (...args: unknown[]) => deleteSessionMock(...args),
     renameSession: vi.fn()
   }
@@ -38,6 +39,7 @@ beforeEach(() => {
   getSessionsMock.mockReset()
   batchDeleteSessionsMock.mockReset()
   deleteSessionMock.mockReset()
+  getSessionMock.mockReset()
   toastMock.mockClear()
   getSessionsMock.mockResolvedValue(sessions)
 })
@@ -102,6 +104,35 @@ describe('HistorySidebar 批量删除', () => {
 })
 
 describe('HistorySidebar 确认弹窗和重试', () => {
+  it('重开历史会话保留工具详情，按调用 ID 恢复多个工具的名称', async () => {
+    getSessionMock.mockResolvedValue({
+      messages: [
+        { role: 'system', content: '系统提示' },
+        { role: 'user', content: '回顾我的饮食' },
+        { role: 'assistant', content: null, tool_calls: [
+          { id: 'profile', function: { name: 'get_user_profile' } },
+          { id: 'today', function: { name: 'get_diet_history' } },
+          { id: 'yesterday', function: { name: 'get_diet_history' } }
+        ] },
+        { role: 'tool', tool_call_id: 'profile', name: 'get_user_profile', content: '身高：170 cm' },
+        { role: 'tool', tool_call_id: 'today', content: '今天：燕麦 150 kcal' },
+        { role: 'tool', tool_call_id: 'yesterday', content: '昨天：米饭 230 kcal' },
+        { role: 'assistant', content: '这是建议', thinking: '分析已完成' }
+      ]
+    })
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+    render(<HistorySidebar onSelect={onSelect} onClose={() => {}} />)
+    await user.click(await screen.findByRole('button', { name: /会话一/ }))
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(1, [
+      { role: 'user', content: '回顾我的饮食', thinking: undefined },
+      { role: 'tool', content: '', toolName: 'get_user_profile', toolResult: '身高：170 cm' },
+      { role: 'tool', content: '', toolName: 'get_diet_history', toolResult: '今天：燕麦 150 kcal' },
+      { role: 'tool', content: '', toolName: 'get_diet_history', toolResult: '昨天：米饭 230 kcal' },
+      { role: 'assistant', content: '这是建议', thinking: '分析已完成' }
+    ]))
+  })
+
   it('单项删除失败后保留会话和确认弹窗，允许重试', async () => {
     deleteSessionMock
       .mockRejectedValueOnce(new Error('网络暂时不可用'))

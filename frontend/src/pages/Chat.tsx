@@ -19,7 +19,6 @@ import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import ArrowUpwardRounded from '@mui/icons-material/ArrowUpwardRounded'
 import ArrowOutwardRounded from '@mui/icons-material/ArrowOutwardRounded'
 import SpaRounded from '@mui/icons-material/SpaRounded'
-import CheckCircleOutlineRounded from '@mui/icons-material/CheckCircleOutlineRounded'
 import RestaurantRounded from '@mui/icons-material/RestaurantRounded'
 import AutoAwesomeRounded from '@mui/icons-material/AutoAwesomeRounded'
 import ReactMarkdown from 'react-markdown'
@@ -31,6 +30,7 @@ import type { ChatStreamHandle } from '../api/sse'
 import { ChatErrorBoundary } from '../components/ui/ChatErrorBoundary'
 import { Brand } from '../components/ui/Brand'
 import HistorySidebar from '../components/chat/HistorySidebar'
+import ToolResultCard from '../components/chat/ToolResultCard'
 import type { ChatMessage } from '../types'
 
 const QUICK_CHIPS = [
@@ -59,15 +59,6 @@ const QUICK_CHIPS = [
     icon: SpaRounded
   }
 ]
-const TOOL_LABELS: Record<string, string> = {
-  lookup_food_nutrition: '查询食物营养',
-  get_user_profile: '查看健康档案',
-  get_diet_history: '回顾饮食记录',
-  get_nutrition_trend: '分析营养趋势',
-  get_nutrition_trends: '分析营养趋势',
-  search_nutrition_knowledge: '查找营养知识',
-  search_knowledge: '查找营养知识'
-}
 
 export default function Chat() {
   const [input, setInput] = useState('')
@@ -588,28 +579,7 @@ export default function Chat() {
                   </Stack>
                 )}
                 {msg.role === 'tool' && (
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{
-                      alignItems: 'center',
-                      ml: 4.5,
-                      color: 'text.secondary',
-                      py: 0.5
-                    }}
-                  >
-                    {msg.toolResult ? (
-                      <CheckCircleOutlineRounded
-                        sx={{ fontSize: 16, color: 'primary.main' }}
-                      />
-                    ) : (
-                      <CircularProgress size={14} />
-                    )}
-                    <Typography variant="caption">
-                      {TOOL_LABELS[msg.toolName || ''] || '整理营养信息'}
-                      {msg.toolResult ? ' · 已完成' : '中...'}
-                    </Typography>
-                  </Stack>
+                  <ToolResultCard message={msg} isStreaming={isStreaming} />
                 )}
               </Box>
             ))}

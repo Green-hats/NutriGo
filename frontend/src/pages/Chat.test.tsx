@@ -95,6 +95,46 @@ describe('Chat 页面', () => {
       )
     })
     expect(screen.getByText(/查询食物营养 · 已完成/)).toBeInTheDocument()
+    const details = screen.getByRole('button', { name: /查询食物营养 · 已完成 查看详情/ })
+    expect(details).toHaveAttribute('aria-expanded', 'false')
+    await user.click(details)
+    expect(screen.getByText('米饭 每100g 热量 116 kcal')).toBeVisible()
+    expect(details).toHaveAttribute('aria-expanded', 'true')
+    await user.click(details)
+    await waitFor(() => expect(screen.queryByText('米饭 每100g 热量 116 kcal')).not.toBeInTheDocument())
+  })
+
+  it('健康档案和饮食记录详情分别展开，后续回复不会覆盖查询结果', async () => {
+    const user = userEvent.setup()
+    render(<Chat />)
+    await sendMessage(user, '回顾我的饮食')
+    act(() => {
+      mocks.captured.cb.onToolCall('get_user_profile')
+      mocks.captured.cb.onToolResult('get_user_profile', '身高：170 cm\n体重：65 kg')
+      mocks.captured.cb.onToolCall('get_diet_history')
+      mocks.captured.cb.onToolResult('get_diet_history', '早餐：燕麦 200g，热量 150 kcal')
+      mocks.captured.cb.onChunk('这是饮食建议')
+      mocks.captured.cb.onDone()
+    })
+    await user.click(screen.getByRole('button', { name: /查看健康档案.*查看详情/ }))
+    expect(screen.getByText(/身高：170 cm/)).toBeVisible()
+    expect(screen.queryByText(/早餐：燕麦/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /回顾饮食记录.*查看详情/ }))
+    expect(screen.getByText(/早餐：燕麦/)).toBeVisible()
+    expect(screen.getByText('这是饮食建议')).toBeVisible()
+  })
+
+  it('历史查询的空结果能展开，未完成的查询不持续显示加载状态', async () => {
+    useChatStore.getState().setMessages([
+      { role: 'tool', content: '', toolName: 'get_diet_history', toolResult: '' },
+      { role: 'tool', content: '', toolName: 'get_user_profile' }
+    ])
+    const user = userEvent.setup()
+    render(<Chat />)
+    await user.click(screen.getByRole('button', { name: /回顾饮食记录.*查看详情/ }))
+    expect(screen.getByText('本次查询未返回内容。')).toBeVisible()
+    expect(screen.getByText('查看健康档案 · 未完成')).toBeVisible()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
   it('流结束后停止加载状态并显示重新生成按钮', async () => {

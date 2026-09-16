@@ -61,16 +61,26 @@ export default function HistorySidebar({
   const loadSession = async (id: number) => {
     try {
       const detail = await agentApi.getSession(id)
-      const msgs: ChatMessage[] = detail.messages
-        .filter((m) => m.role !== 'system')
-        .map((m) => ({
-          role:
-            m.role === 'assistant' || m.role === 'user' || m.role === 'tool'
-              ? m.role
-              : 'assistant',
-          content: m.content || '',
-          toolName: m.tool_calls?.[0]?.function?.name
-        }))
+      const toolNames = new Map<string, string>()
+      const msgs: ChatMessage[] = []
+      for (const m of detail.messages) {
+        for (const call of m.tool_calls ?? []) {
+          if (call.id && call.function?.name) toolNames.set(call.id, call.function.name)
+        }
+        if (m.role === 'tool') {
+          msgs.push({
+            role: 'tool',
+            content: '',
+            toolName: m.name || toolNames.get(m.tool_call_id || ''),
+            toolResult: m.content ?? ''
+          })
+        } else if (
+          m.role === 'user' ||
+          (m.role === 'assistant' && (m.content || m.thinking))
+        ) {
+          msgs.push({ role: m.role, content: m.content || '', thinking: m.thinking })
+        }
+      }
       onSelect(id, msgs)
     } catch (err) {
       toast(err instanceof Error ? err.message : '加载会话失败')
