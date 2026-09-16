@@ -52,7 +52,10 @@ deploy/dist/
 # OS
 .DS_Store
 Thumbs.db
-agent/chroma_db
+# ChromaDB transient SQLite files (database and vector indexes are versioned)
+agent/chroma_db/*.sqlite3-wal
+agent/chroma_db/*.sqlite3-shm
+agent/chroma_db/*.sqlite3-journal
 agent/nutrition_rag.tar.gz
 
 # macOS AppleDouble 元数据残留文件
