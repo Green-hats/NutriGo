@@ -34,10 +34,6 @@
 
 <img src="docs/screenshots/demo.gif" alt="NutriGo AI chat: ask a question, view the reply and expand tool details" width="390" />
 
-AI chat walkthrough: ask a question, view the reply and expand the health profile and food diary tool details.
-
-The walkthrough and screenshots use demo data; chat replies are illustrative.
-
 | Login | AI Chat | Food Diary | Nutrition Trend | Health Profile |
 | :---: | :---: | :---: | :---: | :---: |
 | <img src="docs/screenshots/login.png" alt="Login" width="150" /> | <img src="docs/screenshots/chat.png" alt="AI Chat" width="150" /> | <img src="docs/screenshots/diary.png" alt="Food Diary" width="150" /> | <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="150" /> | <img src="docs/screenshots/profile.png" alt="Health profile" width="150" /> |
