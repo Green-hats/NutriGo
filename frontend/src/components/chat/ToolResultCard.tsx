@@ -57,9 +57,11 @@ export default function ToolResultCard({
       slotProps={{ transition: { unmountOnExit: true } }}
       sx={{
         ml: 4.5,
+        width: expanded ? 'calc(100% - 36px)' : 'fit-content',
+        maxWidth: 'calc(100% - 36px)',
         border: '1px solid',
         borderColor: 'divider',
-        borderRadius: '14px !important',
+        borderRadius: '10px !important',
         '&::before': { display: 'none' }
       }}
     >
@@ -67,17 +69,21 @@ export default function ToolResultCard({
         id={`${id}-summary`}
         aria-controls={`${id}-details`}
         aria-label={`${label} · 已完成 ${expanded ? '收起详情' : '查看详情'}`}
-        expandIcon={<ExpandMoreRounded fontSize="small" />}
-        sx={{ px: 1.5, minHeight: 48, '& .MuiAccordionSummary-content': { minWidth: 0 } }}
+        expandIcon={<ExpandMoreRounded sx={{ fontSize: 18 }} />}
+        sx={{
+          px: 1.25,
+          minHeight: 44,
+          '& .MuiAccordionSummary-content': { minWidth: 0, my: 0, mr: 0.75 }
+        }}
       >
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
-          <CheckCircleOutlineRounded sx={{ fontSize: 16, color: 'primary.main', flexShrink: 0 }} />
-          <Stack>
-            <Typography variant="caption">{label} · 已完成</Typography>
-            <Typography variant="caption" color="primary">
-              {expanded ? '收起详情' : '查看详情'}
-            </Typography>
-          </Stack>
+        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <CheckCircleOutlineRounded sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />
+          <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>
+            {label} · 已完成
+          </Typography>
+          <Typography variant="caption" color="primary" sx={{ whiteSpace: 'nowrap', fontSize: 11 }}>
+            {expanded ? '收起详情' : '查看详情'}
+          </Typography>
         </Stack>
       </AccordionSummary>
       <AccordionDetails sx={{ px: 1.5, pt: 0, pb: 1.5 }}>
