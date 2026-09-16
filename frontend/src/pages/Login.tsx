@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import {
+  Button,
   IconButton,
   InputAdornment,
   Link,
@@ -14,6 +15,7 @@ import { goApi } from '../api/go'
 import { useAuthStore } from '../stores/auth'
 import { LoadingButton } from '../components/ui/LoadingButton'
 import AuthLayout from '../components/layout/AuthLayout'
+import { isPreviewBuild, usePreviewStore } from '../lib/preview'
 import { toast } from '../lib/toast'
 
 export default function Login() {
@@ -59,6 +61,20 @@ export default function Login() {
         </>
       }
     >
+      {isPreviewBuild() && (
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          onClick={() => {
+            usePreviewStore.getState().enter()
+            navigate('/chat')
+          }}
+          sx={{ my: 2 }}
+        >
+          离线界面体验（免登录）
+        </Button>
+      )}
       <Stack component="form" onSubmit={handleSubmit} spacing={2.5}>
         <TextField
           label="用户名"

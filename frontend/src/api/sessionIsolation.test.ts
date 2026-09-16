@@ -3,6 +3,7 @@ import { goApi } from './go'
 import { agentApi } from './agent'
 import { tryRefresh } from './authSession'
 import { useAuthStore } from '../stores/auth'
+import { ConnectionError } from '../lib/connection'
 import { deferred } from '../test/deferred'
 
 const fetch = vi.hoisted(() => vi.fn())
@@ -69,5 +70,24 @@ it('登录接口的 401 不触发刷新或清除现有账号', async () => {
   fetch.mockResolvedValueOnce(new Response(JSON.stringify({ message: '密码错误' }), { status: 401 }))
   await expect(goApi.login('second', 'wrong-password')).rejects.toThrow('密码错误')
   expect(fetch).toHaveBeenCalledTimes(1)
+  expect(useAuthStore.getState().token).toBe('first')
+})
+
+
+it.each(['offline', 'timeout', 'service'] as const)('刷新期间发生 %s 保留登录态，恢复后可重试', async (kind) => {
+  fetch.mockResolvedValueOnce(new Response('{}', { status: 401 })).mockRejectedValueOnce(new ConnectionError(kind))
+  await expect(goApi.getDietLogs('2026-09-16')).rejects.toBeInstanceOf(ConnectionError)
+  expect(useAuthStore.getState().token).toBe('first')
+  expect(useAuthStore.getState().refreshToken).toBe('r1')
+  fetch.mockResolvedValueOnce(new Response('{}', { status: 401 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'fresh', refresh_token: 'r-new' })))
+    .mockResolvedValueOnce(new Response('[]'))
+  expect(await goApi.getDietLogs('2026-09-16')).toEqual([])
+  expect(useAuthStore.getState().token).toBe('fresh')
+})
+
+it('刷新端点临时返回 503 不会误登出', async () => {
+  fetch.mockResolvedValueOnce(new Response('{}', { status: 401 })).mockResolvedValueOnce(new Response('{}', { status: 503 }))
+  await expect(goApi.getDietLogs('2026-09-16')).rejects.toThrow('服务暂时不可用')
   expect(useAuthStore.getState().token).toBe('first')
 })

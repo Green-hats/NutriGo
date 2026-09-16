@@ -192,6 +192,8 @@ jobs:
   android:
     name: Android debug APK
     runs-on: ubuntu-latest
+    env:
+      CARGO_PROFILE_DEV_STRIP: debuginfo
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -220,6 +222,23 @@ jobs:
         env:
           VITE_API_BASE_URL: https://api.example.com
         run: NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" npm run android:build -- --debug --target aarch64 --apk --ci
+
+      - name: Build offline UI preview APK
+        working-directory: frontend
+        run: |
+          src-tauri/gen/android/gradlew -p src-tauri/gen/android :app:clean
+          NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" npm run android:preview -- --ci
+      - name: Prepare preview download
+        run: |
+          mkdir -p frontend/artifacts
+          cp frontend/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk frontend/artifacts/NutriGo-preview-arm64.apk
+      - name: Upload installable preview APK
+        uses: actions/upload-artifact@v7
+        with:
+          path: frontend/artifacts/NutriGo-preview-arm64.apk
+          archive: false
+          retention-days: 14
+          if-no-files-found: error
 
   gateway:
     name: Cloud gateway

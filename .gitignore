@@ -57,3 +57,6 @@ agent/nutrition_rag.tar.gz
 
 # macOS AppleDouble 元数据残留文件
 ._*
+
+# Installable local APK deliverables (distributed as CI artifacts)
+frontend/artifacts/

@@ -1,10 +1,19 @@
 import { useAuthStore } from '../stores/auth'
 import { assertSessionCurrent, refreshForRequest } from './authSession'
 import { apiUrl } from './config'
+import { isPreviewBuild, usePreviewStore } from '../lib/preview'
+import { ConnectionError } from '../lib/connection'
 import { apiFetch } from './http'
-import type { UserProfile, DietRecord, DailySummary, DietLogInput, Paginated } from '../types'
+import type {
+  UserProfile,
+  DietRecord,
+  DailySummary,
+  DietLogInput,
+  Paginated
+} from '../types'
 
 function getUserId(): number {
+  if (isPreviewBuild() && usePreviewStore.getState().active) return 0
   const user = useAuthStore.getState().user
   if (!user) throw new Error('未登录')
   return user.id
@@ -27,10 +36,15 @@ interface AuthResponse {
 }
 
 // 401 后自动用 refresh_token 换新令牌并重试一次；失败则清除本地登录态
-async function request<T>(path: string, options: RequestInit = {}, retried = false, authenticated = true): Promise<T> {
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  retried = false,
+  authenticated = true
+): Promise<T> {
   const { token, sessionVersion } = useAuthStore.getState()
   const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string>),
+    ...(options.headers as Record<string, string>)
   }
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
@@ -43,6 +57,7 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
   if (authenticated) assertSessionCurrent(sessionVersion)
 
   if (resp.status === 401 && authenticated) {
+    void resp.body?.cancel().catch(() => {})
     if (!retried) {
       await refreshForRequest(sessionVersion, token)
       assertSessionCurrent(sessionVersion)
@@ -52,9 +67,17 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
     throw new Error('登录已过期，请重新登录')
   }
 
+  if (resp.status >= 500) {
+    void resp.body?.cancel().catch(() => {})
+    throw new ConnectionError('service')
+  }
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ message: resp.statusText })) as ApiErrorBody
-    throw new Error(err.message || err.error || err.detail || `HTTP ${resp.status}`)
+    const err = (await resp
+      .json()
+      .catch(() => ({ message: resp.statusText }))) as ApiErrorBody
+    throw new Error(
+      err.message || err.error || err.detail || `HTTP ${resp.status}`
+    )
   }
   const data = await resp.json()
   if (authenticated) assertSessionCurrent(sessionVersion)
@@ -63,39 +86,52 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
 
 export const goApi = {
   register: (username: string, password: string) =>
-    request<{ id: number; username: string }>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    }, false, false),
+    request<{ id: number; username: string }>(
+      '/auth/register',
+      {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+      },
+      false,
+      false
+    ),
 
   login: (username: string, password: string) =>
-    request<AuthResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    }, false, false),
+    request<AuthResponse>(
+      '/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+      },
+      false,
+      false
+    ),
 
   logout: () =>
     request<{ message: string }>('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify({ refresh_token: useAuthStore.getState().refreshToken }),
+      body: JSON.stringify({
+        refresh_token: useAuthStore.getState().refreshToken
+      })
     }),
 
-  getProfile: () =>
-    request<UserProfile>(`/users/${getUserId()}/profile`),
+  getProfile: () => request<UserProfile>(`/users/${getUserId()}/profile`),
 
   updateProfile: (data: UserProfile) =>
     request<UserProfile>(`/users/${getUserId()}/profile`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify(data)
     }),
 
   uploadImage: (file: File) => {
     const fd = new FormData()
     fd.append('image', file)
-    return request<{ id: number; filename: string; mime_type: string; size: number }>(
-      '/images/upload',
-      { method: 'POST', body: fd }
-    )
+    return request<{
+      id: number
+      filename: string
+      mime_type: string
+      size: number
+    }>('/images/upload', { method: 'POST', body: fd })
   },
 
   deleteImage: (id: number) =>
@@ -104,7 +140,7 @@ export const goApi = {
   createDietLog: (data: DietLogInput) =>
     request<DietRecord>('/diet/logs', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(data)
     }),
 
   getDietLogs: (date: string) =>
@@ -114,5 +150,7 @@ export const goApi = {
     request<{ message: string }>(`/diet/logs/${id}`, { method: 'DELETE' }),
 
   getSummaries: (start: string, end: string, limit = 100, offset = 0) =>
-    request<Paginated<DailySummary>>(`/diet/summaries?start=${start}&end=${end}&limit=${limit}&offset=${offset}`),
+    request<Paginated<DailySummary>>(
+      `/diet/summaries?start=${start}&end=${end}&limit=${limit}&offset=${offset}`
+    )
 }

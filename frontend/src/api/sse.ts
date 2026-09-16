@@ -1,4 +1,5 @@
 import { apiUrl } from './config'
+import { ConnectionError, errorMessage } from '../lib/connection'
 import { apiFetch } from './http'
 import { assertSessionCurrent, refreshForRequest } from './authSession'
 import { useAuthStore } from '../stores/auth'
@@ -41,19 +42,24 @@ export function createChatStream(
       const params = new URLSearchParams({ message: message || '' })
       if (sessionId) params.set('session_id', String(sessionId))
       const regenerating = mode === 'regenerate' && sessionId !== null
-      const path = regenerating ? `/sessions/${sessionId}/regenerate` : `/chat?${params}`
-      const send = (accessToken: string | null) => apiFetch(apiUrl('agent', path), {
-        method: regenerating ? 'POST' : 'GET',
-        headers: {
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-          Accept: 'text/event-stream',
-        },
-        signal: controller.signal,
-      })
+      const path = regenerating
+        ? `/sessions/${sessionId}/regenerate`
+        : `/chat?${params}`
+      const send = (accessToken: string | null) =>
+        apiFetch(apiUrl('agent', path), {
+          method: regenerating ? 'POST' : 'GET',
+          headers: {
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            Accept: 'text/event-stream'
+          },
+          signal: controller.signal,
+          timeoutMs: 60_000
+        })
       let resp = await send(token)
       if (controller.signal.aborted) return
       assertSessionCurrent(sessionVersion)
       if (resp.status === 401) {
+        void resp.body?.cancel().catch(() => {})
         await refreshForRequest(sessionVersion, token)
         if (controller.signal.aborted) return
         assertSessionCurrent(sessionVersion)
@@ -62,6 +68,10 @@ export function createChatStream(
         assertSessionCurrent(sessionVersion)
       }
 
+      if (resp.status >= 500) {
+        void resp.body?.cancel().catch(() => {})
+        throw new ConnectionError('service')
+      }
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ detail: resp.statusText }))
         if (controller.signal.aborted) return
@@ -81,7 +91,9 @@ export function createChatStream(
       const handleEvent = (event: string, data: string) => {
         switch (event) {
           case 'session_id':
-            try { callbacks.onSessionId(Number(data)) } catch {}
+            try {
+              callbacks.onSessionId(Number(data))
+            } catch {}
             break
           case 'chunk':
             callbacks.onChunk(data)
@@ -90,7 +102,9 @@ export function createChatStream(
             callbacks.onThinking(data)
             break
           case 'tool_call':
-            try { callbacks.onToolCall(JSON.parse(data).name) } catch {}
+            try {
+              callbacks.onToolCall(JSON.parse(data).name)
+            } catch {}
             break
           case 'tool_result':
             try {
@@ -143,7 +157,8 @@ export function createChatStream(
       }
     } catch (e) {
       const err = e as { name?: string; message?: string } | null
-      if (!controller.signal.aborted && err?.name !== 'AbortError') callbacks.onError(err?.message || '连接中断')
+      if (!controller.signal.aborted && err?.name !== 'AbortError')
+        callbacks.onError(errorMessage(e, '连接中断，请重试'))
     } finally {
       unsubscribe()
     }

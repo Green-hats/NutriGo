@@ -1,26 +1,41 @@
 import { useAuthStore } from '../stores/auth'
 import { assertSessionCurrent, refreshForRequest } from './authSession'
 import { apiUrl } from './config'
+import { ConnectionError } from '../lib/connection'
 import { apiFetch } from './http'
 import type {
-  IdentifyResult, IntakeResult, SessionInfo, SessionDetail, Paginated,
+  IdentifyResult,
+  IntakeResult,
+  SessionInfo,
+  SessionDetail,
+  Paginated
 } from '../types'
 
 function authHeaders(): Record<string, string> {
   const token = useAuthStore.getState().token
-  return token ? { 'Authorization': `Bearer ${token}` } : {}
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 // 401 后自动用 refresh_token 换新令牌并重试一次；失败则清除本地登录态
-async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  retried = false
+): Promise<T> {
   const { token, sessionVersion } = useAuthStore.getState()
   const resp = await apiFetch(apiUrl('agent', path), {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers as Record<string, string>) },
+    timeoutMs: 60_000,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+      ...(init.headers as Record<string, string>)
+    }
   })
   assertSessionCurrent(sessionVersion)
 
   if (resp.status === 401) {
+    void resp.body?.cancel().catch(() => {})
     if (!retried) {
       await refreshForRequest(sessionVersion, token)
       assertSessionCurrent(sessionVersion)
@@ -30,6 +45,10 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
     throw new Error('登录已过期，请重新登录')
   }
 
+  if (resp.status >= 500) {
+    void resp.body?.cancel().catch(() => {})
+    throw new ConnectionError('service')
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }))
     throw new Error(err.detail || err.message || `HTTP ${resp.status}`)
@@ -76,5 +95,5 @@ export const agentApi = {
     patch<{ message: string }>(`/sessions/${id}`, { name }),
 
   regenerateSession: (id: number) =>
-    post<{ message: string }>(`/sessions/${id}/regenerate`, {}),
+    post<{ message: string }>(`/sessions/${id}/regenerate`, {})
 }

@@ -129,3 +129,24 @@ cargo check --locked --manifest-path src-tauri/Cargo.toml
 - 本地通过前端 82 项测试、类型检查、lint 和生产 App 构建；依赖审计为 0 个漏洞。
 - 使用本地模拟数据验证登录、对话、相册选图→识别→调整份量→保存、趋势切换、档案保存及会话删除确认；检查 320px / 390px 手机布局与缩短可视高度时的输入框位置。仓库截图使用模拟数据。
 - 浏览器预览验证不替代 Android / iOS 真机验收；当前 API 域名仍按部署配置提供。
+
+## 离线界面体验 APK
+
+没有云端地址时，可以单独构建只读的体验包：
+
+```bash
+cd frontend
+CARGO_PROFILE_DEV_STRIP=debuginfo npm run android:preview -- --ci
+```
+
+沿用上文 Java / Android SDK / NDK 环境。APK 位于 `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`；Android ARM64 调试签名，可直接安装。CI 同时验证正常 App 构建与体验包构建，并在运行页面的 Artifacts 提供 `NutriGo-preview-arm64.apk`，保留 14 天，下载需登录 GitHub。本机构建包与 CI 包的调试签名可能不同，更新时应使用同一来源的包。
+
+安装后点击「离线界面体验（免登录）」。可浏览真实页面布局、示例饮食数据和趋势，查看示例历史会话，填写档案、测试键盘和相册选图。照片仅在本机预览。示例模式不产生登录令牌、不访问云端、不保存修改，也不生成 AI 回复。入口只出现在 `--mode preview` 且 `VITE_ENABLE_PREVIEW=true` 的独立构建中，正常生产构建不能进入此模式。
+
+联网版的异常提示：
+
+- 系统报告断网时，显示持续的中文提示；恢复网络后提醒手动重试，不自动重发写操作。
+- 服务器不可达、超时、服务临时故障分别提示，不误报为没有记录。
+- 普通请求连接及响应体等待最长 20 秒，AI 请求和流式回复空闲等待最长 60 秒；连续收到回复会重置计时。
+- 刷新令牌遇断网、超时、503 或限流会保留登录态，凭证确实失效才要求重新登录。
+- 保存失败保留当前表单；不会显示保存成功。网络中断时服务器可能已经收到请求，应重新查看记录后再决定是否提交。本版本不提供离线缓存、离线 AI 或自动同步。

@@ -18,7 +18,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:preview": "tsc -b && vite build --mode preview",
+    "android:preview": "tauri android build --debug --target aarch64 --apk --config src-tauri/tauri.preview.conf.json"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

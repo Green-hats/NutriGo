@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Chat from './Chat'
@@ -33,6 +33,8 @@ vi.mock('react-markdown', () => ({
 }))
 
 vi.mock('remark-gfm', () => ({ default: () => null }))
+
+afterEach(() => vi.restoreAllMocks())
 
 beforeEach(() => {
   useChatStore.getState().clearMessages()
@@ -112,4 +114,45 @@ describe('Chat 页面', () => {
     )
     expect(screen.getByTitle('重新生成')).toBeInTheDocument()
   })
+})
+
+it('断网发送保留草稿，恢复后手动重试原消息', async () => {
+  const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+  const user = userEvent.setup()
+  render(<Chat />)
+  await user.type(
+    screen.getByRole('textbox', { name: '消息内容' }),
+    '今天吃什么'
+  )
+  await user.click(screen.getByRole('button', { name: '发送' }))
+  expect(mocks.createChatStream).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert')).toHaveTextContent('当前没有网络')
+  expect(screen.getByRole('textbox', { name: '消息内容' })).toHaveValue(
+    '今天吃什么'
+  )
+  online.mockReturnValue(true)
+  await user.click(screen.getByRole('button', { name: '重试' }))
+  expect(mocks.createChatStream.mock.calls[0][3]).toBe('今天吃什么')
+  expect(
+    useChatStore.getState().messages.filter((m) => m.role === 'user')
+  ).toHaveLength(1)
+})
+
+it('已有会话的新消息未被服务器确认时，恢复草稿并重发，不生成上一条回复', async () => {
+  useChatStore.getState().setSessionId(8)
+  useChatStore.getState().setMessages([
+    { role: 'user', content: '旧问题' },
+    { role: 'assistant', content: '旧回复' }
+  ])
+  const user = userEvent.setup()
+  render(<Chat />)
+  await sendMessage(user, '新问题')
+  act(() => mocks.captured.cb.onError('连接超时'))
+  expect(screen.getByRole('textbox', { name: '消息内容' })).toHaveValue(
+    '新问题'
+  )
+  expect(useChatStore.getState().messages).toHaveLength(2)
+  await user.click(screen.getByRole('button', { name: '重试' }))
+  expect(mocks.createChatStream.mock.calls[1][3]).toBe('新问题')
+  expect(mocks.createChatStream.mock.calls[1][4]).not.toBe('regenerate')
 })

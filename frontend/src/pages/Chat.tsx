@@ -1,3 +1,5 @@
+import { isPreviewBuild } from '../lib/preview'
+import { ConnectionError, isOffline } from '../lib/connection'
 import { useState, useRef, useEffect } from 'react'
 import {
   Avatar,
@@ -73,6 +75,8 @@ export default function Chat() {
   const [showHistory, setShowHistory] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const streamRef = useRef<ChatStreamHandle | null>(null)
+  const failedMessageRef = useRef<string | null>(null)
+  const acceptedRef = useRef(false)
   const {
     messages,
     addMessage,
@@ -104,6 +108,8 @@ export default function Chat() {
   const newChat = () => {
     if (!isStreaming) {
       clearMessages()
+      failedMessageRef.current = null
+      acceptedRef.current = false
       setError('')
     }
   }
@@ -111,6 +117,14 @@ export default function Chat() {
   const send = (text: string) => {
     const msg = text.trim()
     if (!msg || isStreaming) return
+    failedMessageRef.current = msg
+    acceptedRef.current = false
+    if (isOffline() && !isPreviewBuild()) {
+      setError(new ConnectionError('offline').message)
+      setInput(msg)
+      return
+    }
+    const previousMessages = messages
     setInput('')
     setError('')
     addMessage({ role: 'user', content: msg })
@@ -121,7 +135,10 @@ export default function Chat() {
       sessionId,
       token,
       {
-        onSessionId: (id) => setSessionId(id),
+        onSessionId: (id) => {
+          acceptedRef.current = true
+          setSessionId(id)
+        },
         onChunk: (t) => appendToLast(t),
         onThinking: (t) => appendThinkingToLast(t),
         onToolCall: (name) =>
@@ -132,6 +149,10 @@ export default function Chat() {
           streamRef.current = null
         },
         onError: (err) => {
+          if (!acceptedRef.current) {
+            setMessages(previousMessages)
+            setInput((draft) => draft || msg)
+          }
           setError(err)
           setStreaming(false)
           streamRef.current = null
@@ -143,8 +164,13 @@ export default function Chat() {
   }
 
   const retry = () => {
-    // 重试最后一条失败的消息：回滚到最后一个 user，重新生成（后端会回滚并重跑）
-    if (!sessionId || isStreaming) return
+    if (isStreaming) return
+    if (!acceptedRef.current && failedMessageRef.current) {
+      send(failedMessageRef.current)
+      return
+    }
+    // 后端确认接收后，回滚并重新生成，避免重复添加同一条用户消息。
+    if (!sessionId) return
     setError('')
     truncateToLastUser()
     addMessage({ role: 'assistant', content: '' })
@@ -184,6 +210,8 @@ export default function Chat() {
 
   const regenerate = () => {
     if (!sessionId || isStreaming) return
+    acceptedRef.current = true
+    failedMessageRef.current = null
     setError('')
     // 前端先回滚到最后一条 user（与后端 rollback 保持一致），再补一个空 assistant 让流式填充
     truncateToLastUser()
@@ -220,6 +248,9 @@ export default function Chat() {
     setMessages(msgs)
     setSessionId(id)
     setShowHistory(false)
+    setError('')
+    failedMessageRef.current = null
+    acceptedRef.current = false
   }
 
   return (
@@ -590,7 +621,7 @@ export default function Chat() {
             >
               <Typography variant="body2">{error}</Typography>
               <Stack direction="row" spacing={1}>
-                {sessionId && (
+                {(sessionId || failedMessageRef.current) && (
                   <Button size="small" onClick={retry} color="error">
                     重试
                   </Button>

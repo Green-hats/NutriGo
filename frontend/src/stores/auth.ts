@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { isPreviewBuild } from '../lib/preview'
 import { useChatStore } from './chat'
 import type { User, UserProfile } from '../types'
 
@@ -39,7 +40,7 @@ export const useAuthStore = create<AuthState>()(
       isLoggedIn: () => !!get().token,
     }),
     {
-      name: `nutrigo-auth:${import.meta.env.VITE_API_BASE_URL || 'development'}`,
+      name: `nutrigo-auth:${isPreviewBuild() ? 'preview' : import.meta.env.VITE_API_BASE_URL || 'development'}`,
       partialize: ({ token, refreshToken, user }) => ({ token, refreshToken, user }),
     }
   )

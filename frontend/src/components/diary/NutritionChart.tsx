@@ -1,3 +1,5 @@
+import { ConnectionNotice } from '../ui/ConnectionNotice'
+import { errorMessage } from '../../lib/connection'
 import { useState, useEffect, useCallback } from 'react'
 import {
   BarChart,
@@ -62,7 +64,7 @@ export default function NutritionChart({ onClose }: { onClose: () => void }) {
             .reverse()
         )
       })
-      .catch(() => setError('趋势数据加载失败'))
+      .catch((err) => setError(errorMessage(err, '趋势数据加载失败')))
       .finally(() => setLoading(false))
   }, [])
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function NutritionChart({ onClose }: { onClose: () => void }) {
       aria-labelledby="nutrition-chart-title"
       slotProps={{ paper: { className: 'app-overlay' } }}
     >
+      <ConnectionNotice />
       <DialogTitle id="nutrition-chart-title" component="div">
         <Stack
           direction="row"

@@ -3,6 +3,7 @@ import { Box, Paper, Stack, Typography } from '@mui/material'
 import SpaRounded from '@mui/icons-material/SpaRounded'
 import CameraAltRounded from '@mui/icons-material/CameraAltRounded'
 import AutoAwesomeRounded from '@mui/icons-material/AutoAwesomeRounded'
+import { ConnectionNotice } from '../ui/ConnectionNotice'
 import { Brand } from '../ui/Brand'
 
 export default function AuthLayout({
@@ -27,6 +28,7 @@ export default function AuthLayout({
           EAT WELL. LIVE WELL.
         </Typography>
       </Stack>
+      <ConnectionNotice />
       <Paper
         sx={{
           position: 'relative',

@@ -1,9 +1,14 @@
 import { useAuthStore } from '../stores/auth'
 import { apiUrl } from './config'
+import { ConnectionError } from '../lib/connection'
 import { apiFetch } from './http'
 
 // 仅同一登录会话共享刷新请求，切换账号后不复用旧请求。
-let refreshInFlight: { sessionVersion: number; refreshToken: string; promise: Promise<boolean> } | null = null
+let refreshInFlight: {
+  sessionVersion: number
+  refreshToken: string
+  promise: Promise<boolean>
+} | null = null
 
 export function assertSessionCurrent(sessionVersion: number): void {
   if (useAuthStore.getState().sessionVersion !== sessionVersion) {
@@ -13,13 +18,23 @@ export function assertSessionCurrent(sessionVersion: number): void {
 
 /**
  * 用 refresh_token 换取新令牌对并写入 store。
- * 成功返回 true；无 refresh_token 或刷新失败返回 false（调用方应登出）。
+ * 成功返回 true；凭证无效返回 false。断网或服务临时故障会抛出错误，保留登录态。
  */
-export async function tryRefresh(sessionVersion = useAuthStore.getState().sessionVersion): Promise<boolean> {
+export async function tryRefresh(
+  sessionVersion = useAuthStore.getState().sessionVersion
+): Promise<boolean> {
   const { refreshToken, token } = useAuthStore.getState()
-  if (!refreshToken || !token || useAuthStore.getState().sessionVersion !== sessionVersion) return false
+  if (
+    !refreshToken ||
+    !token ||
+    useAuthStore.getState().sessionVersion !== sessionVersion
+  )
+    return false
 
-  if (refreshInFlight?.sessionVersion === sessionVersion && refreshInFlight.refreshToken === refreshToken) {
+  if (
+    refreshInFlight?.sessionVersion === sessionVersion &&
+    refreshInFlight.refreshToken === refreshToken
+  ) {
     return refreshInFlight.promise
   }
   const promise = (async () => {
@@ -27,15 +42,27 @@ export async function tryRefresh(sessionVersion = useAuthStore.getState().sessio
       const resp = await apiFetch(apiUrl('go', '/auth/refresh'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        body: JSON.stringify({ refresh_token: refreshToken })
       })
-      if (!resp.ok) return false
+      if (resp.status >= 500 || resp.status === 429) {
+        void resp.body?.cancel().catch(() => {})
+        throw new ConnectionError('service')
+      }
+      if (!resp.ok) {
+        void resp.body?.cancel().catch(() => {})
+        return false
+      }
       const data = await resp.json()
       const current = useAuthStore.getState()
-      if (current.sessionVersion !== sessionVersion || current.refreshToken !== refreshToken) return false
+      if (
+        current.sessionVersion !== sessionVersion ||
+        current.refreshToken !== refreshToken
+      )
+        return false
       useAuthStore.getState().setTokens(data.token, data.refresh_token)
       return true
-    } catch {
+    } catch (error) {
+      if (error instanceof ConnectionError) throw error
       return false
     }
   })()
@@ -49,7 +76,10 @@ export async function tryRefresh(sessionVersion = useAuthStore.getState().sessio
 }
 
 /** 旧请求的 401 不能刷新或登出新账号；已完成轮换则直接使用新令牌重试。 */
-export async function refreshForRequest(sessionVersion: number, rejectedToken: string | null): Promise<void> {
+export async function refreshForRequest(
+  sessionVersion: number,
+  rejectedToken: string | null
+): Promise<void> {
   assertSessionCurrent(sessionVersion)
   if (useAuthStore.getState().token !== rejectedToken) return
   const refreshed = await tryRefresh(sessionVersion)
@@ -70,10 +100,10 @@ export async function logoutRemote(): Promise<void> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ refresh_token: refreshToken }),
-      signal: controller.signal,
+      signal: controller.signal
     })
   } catch {
     // 忽略网络错误，本地登出照常进行

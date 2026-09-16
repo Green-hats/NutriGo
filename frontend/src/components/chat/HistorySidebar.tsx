@@ -1,3 +1,5 @@
+import { ConnectionNotice } from '../ui/ConnectionNotice'
+import { errorMessage } from '../../lib/connection'
 import { useState, useEffect, useCallback } from 'react'
 import {
   Box,
@@ -52,7 +54,7 @@ export default function HistorySidebar({
     agentApi
       .getSessions()
       .then((res) => setSessions(res.items.filter((x) => x.name)))
-      .catch(() => setError('历史会话加载失败'))
+      .catch((err) => setError(errorMessage(err, '历史会话加载失败')))
       .finally(() => setLoading(false))
   }, [])
   useEffect(load, [load])
@@ -131,6 +133,7 @@ export default function HistorySidebar({
           }
         }}
       >
+        <ConnectionNotice />
         <Stack
           direction="row"
           sx={{ alignItems: 'center', justifyContent: 'space-between', p: 2.5 }}

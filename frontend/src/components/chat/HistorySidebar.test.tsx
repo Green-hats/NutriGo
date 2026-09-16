@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ConnectionError } from '../../lib/connection'
 import HistorySidebar from './HistorySidebar'
 
 const getSessionsMock = vi.fn()
@@ -123,10 +124,10 @@ describe('HistorySidebar 确认弹窗和重试', () => {
   })
 
   it('会话列表加载失败可以重新加载', async () => {
-    getSessionsMock.mockRejectedValueOnce(new Error('offline'))
+    getSessionsMock.mockRejectedValueOnce(new ConnectionError('offline'))
     const user = userEvent.setup()
     render(<HistorySidebar onSelect={() => {}} onClose={() => {}} />)
-    await screen.findByText('历史会话加载失败')
+    await screen.findByText(/当前没有网络/)
     await user.click(screen.getByRole('button', { name: '重试' }))
     expect(await screen.findByText('会话一')).toBeInTheDocument()
   })

@@ -1,3 +1,6 @@
+import { isPreviewBuild } from '../lib/preview'
+import { ConnectionNotice } from '../components/ui/ConnectionNotice'
+import { errorMessage } from '../lib/connection'
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
 import {
   Box,
@@ -66,7 +69,7 @@ export default function Diary() {
     goApi
       .getDietLogs(fmt(date))
       .then(setRecords)
-      .catch(() => setError('加载失败'))
+      .catch((err) => setError(errorMessage(err, '饮食记录加载失败')))
       .finally(() => setLoading(false))
   }, [date])
   useEffect(loadRecords, [loadRecords])
@@ -264,7 +267,7 @@ export default function Diary() {
         >
           <Typography variant="h3">这一日的餐桌</Typography>
           <Typography variant="caption" color="text.secondary">
-            {loading ? '加载中' : `${records.length} 条记录`}
+            {loading ? '加载中' : error ? '未能加载' : `${records.length} 条记录`}
           </Typography>
         </Stack>
         {loading && (
@@ -461,6 +464,10 @@ function FoodFlow({
     e.target.value = ''
     if (!file) return
     setPreview(URL.createObjectURL(file))
+    if (isPreviewBuild()) {
+      toast('照片仅在本机预览。离线体验不会上传或识别照片。', 'success')
+      return
+    }
     setStep('identifying')
     try {
       const img = await goApi.uploadImage(await prepareFoodImage(file))
@@ -498,9 +505,9 @@ function FoodFlow({
         const r = await agentApi.calculateIntake(foodName, g)
         if (version !== estimateVersion.current) return
         setEstimated(r)
-      } catch {
+      } catch (err) {
         if (version === estimateVersion.current)
-          toast('计算失败，请调整份量后重试')
+          toast('计算失败：' + errorMessage(err, '请调整份量后重试'))
       } finally {
         if (version === estimateVersion.current) setEstimating(false)
       }
@@ -565,6 +572,7 @@ function FoodFlow({
           </IconButton>
         </Stack>
       </DialogTitle>
+      <ConnectionNotice />
       <Stepper
         activeStep={stepIdx}
         alternativeLabel
@@ -590,16 +598,30 @@ function FoodFlow({
                 placeItems: 'center'
               }}
             >
-              <Box
-                sx={{
-                  border: '2px solid #A5B79C',
-                  borderRadius: '50%',
-                  p: 4,
-                  color: 'primary.main'
-                }}
-              >
-                <CameraAltRounded sx={{ fontSize: 58 }} />
-              </Box>
+              {isPreviewBuild() && preview ? (
+                <Box
+                  component="img"
+                  src={preview}
+                  alt="本机照片预览（未上传）"
+                  sx={{
+                    width: '100%',
+                    maxHeight: 260,
+                    objectFit: 'contain',
+                    borderRadius: 4
+                  }}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    border: '2px solid #A5B79C',
+                    borderRadius: '50%',
+                    p: 4,
+                    color: 'primary.main'
+                  }}
+                >
+                  <CameraAltRounded sx={{ fontSize: 58 }} />
+                </Box>
+              )}
             </Box>
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h3">拍一张你的食物照片</Typography>

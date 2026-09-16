@@ -1,11 +1,13 @@
 import { Suspense } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Box, CircularProgress } from '@mui/material'
+import { ConnectionNotice } from '../ui/ConnectionNotice'
 import BottomNav from './BottomNav'
 
 export default function AppLayout() {
   return (
     <Box className="app-shell">
+      <ConnectionNotice />
       <Box component="main" className="app-content">
         <Suspense
           fallback={

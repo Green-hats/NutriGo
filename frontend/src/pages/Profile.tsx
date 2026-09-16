@@ -1,3 +1,4 @@
+import { errorMessage } from '../lib/connection'
 import { useState, useEffect } from 'react'
 import {
   Avatar,
@@ -24,6 +25,7 @@ import { LoadingButton } from '../components/ui/LoadingButton'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
 import { PageHeader } from '../components/layout/PageHeader'
+import { isPreviewBuild, previewUser, usePreviewStore } from '../lib/preview'
 import { toast } from '../lib/toast'
 import type { UserProfile } from '../types'
 
@@ -38,7 +40,9 @@ const DISEASE_OPTIONS = [
 ]
 
 export default function Profile() {
-  const { user, setProfile, logout } = useAuthStore()
+  const { user: signedInUser, setProfile, logout } = useAuthStore()
+  const preview = usePreviewStore((s) => s.active)
+  const user = isPreviewBuild() && preview ? previewUser : signedInUser
   const navigate = useNavigate()
   const [form, setForm] = useState<UserProfile>({
     height_cm: 0,
@@ -61,7 +65,7 @@ export default function Profile() {
     goApi
       .getProfile()
       .then(setForm)
-      .catch(() => setError('加载失败'))
+      .catch((err) => setError(errorMessage(err, '档案加载失败')))
       .finally(() => setLoading(false))
   }
   useEffect(loadProfile, [user])
@@ -81,6 +85,11 @@ export default function Profile() {
   }
 
   const handleLogout = () => {
+    if (isPreviewBuild()) {
+      usePreviewStore.getState().exit()
+      navigate('/login')
+      return
+    }
     void logoutRemote() // 先捕获当前令牌，远端吊销不阻塞本地退出。
     logout()
     navigate('/login')

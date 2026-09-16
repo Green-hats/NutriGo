@@ -91,7 +91,7 @@ API 层自动注入：
 - `go.ts` / `agent.ts` 自动从 authStore 取 token 加 `Authorization` 头
 - `go.ts` 自动从 authStore 取 userId 拼到 profile 路径
 - **401 自动刷新**：请求遇 401 时，`authSession.ts` 用 `refresh_token` 换新令牌并重试一次；
-  并发 401 共享同一个刷新请求；刷新失败自动清登录态跳登录页
+  并发 401 共享同一个刷新请求；凭证无效才清登录态，断网或服务临时故障保留登录态
 - `Chat.tsx` 自动从 authStore 取 token 传给 SSE（`user_id` 由后端从 JWT 解出，不再传 URL 参数）
 - 登出会先调用后端 `/api/auth/logout` 吊销令牌，再清理本地状态
 
@@ -178,4 +178,4 @@ API 层自动注入：
 cd frontend && npx vitest run
 ```
 
-82 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑。
+98 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑。
