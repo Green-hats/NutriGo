@@ -59,6 +59,9 @@ services:
       AI_ENABLED: ${AI_ENABLED:-true}
       RAG_ENABLED: ${RAG_ENABLED:-true}
       FOOD_RECOGNITION_ENABLED: ${FOOD_RECOGNITION_ENABLED:-true}
+      FOOD_MODEL_PATH: ${FOOD_MODEL_PATH:-OFA-Sys/chinese-clip-vit-base-patch16}
+      FOOD_MODEL_INT8: ${FOOD_MODEL_INT8:-false}
+      FOOD_MODEL_PRELOAD: ${FOOD_MODEL_PRELOAD:-true}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
       GO_BACKEND_URL: http://backend:3333
       DATABASE_PATH: /app/agent/data/agent.db

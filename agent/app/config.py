@@ -56,6 +56,10 @@ class Config:
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "true").lower() == "true"
     RAG_ENABLED: bool = os.getenv("RAG_ENABLED", "true").lower() == "true"
     FOOD_RECOGNITION_ENABLED: bool = os.getenv("FOOD_RECOGNITION_ENABLED", "true").lower() == "true"
+    # 云端可指向持久化卷中的模型目录，从本地加载，无需启动时访问模型仓库。
+    FOOD_MODEL_PATH: str = os.getenv("FOOD_MODEL_PATH", "OFA-Sys/chinese-clip-vit-base-patch16")
+    FOOD_MODEL_INT8: bool = os.getenv("FOOD_MODEL_INT8", "false").lower() == "true"
+    FOOD_MODEL_PRELOAD: bool = os.getenv("FOOD_MODEL_PRELOAD", "false").lower() == "true"
     LLM_REASONING_EFFORT: str = os.getenv("LLM_REASONING_EFFORT", "")
 
     # --- Go 后端地址 ---

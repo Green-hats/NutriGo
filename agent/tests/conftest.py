@@ -45,6 +45,7 @@ async def agent_app(monkeypatch):
     import app
 
     multimodal = types.ModuleType("recognition.multimodal")
+    multimodal.warmup = Mock()
     multimodal.identify = Mock(return_value=[{"name": "米饭", "confidence": 0.9}])
     llm_client = types.ModuleType("app.llm_client")
     llm_client.run_agent_loop = AsyncMock()

@@ -40,7 +40,7 @@ from recognition.db import get_by_name, get_portion, list_names, seed_data
 # recognition 模块
 from recognition.db import init_db as init_nutrition_db
 from recognition.go_client import go_client
-from recognition.multimodal import identify
+from recognition.multimodal import identify, warmup
 from recognition.nutrition import calculate_intake
 from recognition.rag import init_rag
 
@@ -60,6 +60,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await seed_data()                  # 首次启动插入种子数据
     if settings.AI_ENABLED and settings.RAG_ENABLED:
         init_rag()                     # ChromaDB — 营养知识库
+    if settings.AI_ENABLED and settings.FOOD_RECOGNITION_ENABLED and settings.FOOD_MODEL_PRELOAD:
+        labels = await list_names(category="家常菜")
+        await asyncio.to_thread(warmup, labels)
     logger.info(f"LLM 模型: {settings.LLM_MODEL}")
     logger.info(f"Go 后端:  {settings.GO_BACKEND_URL}")
 

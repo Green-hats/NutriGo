@@ -83,6 +83,32 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d ag
 
 如果模型下载网络不可达，保留 `AI_ENABLED=false`，待缓存准备完成后再启用。API Key 仅保存在服务器，不能放进 `VITE_*` 或 APK。
 
+## 在已有服务器启用照片识别
+
+照片识别使用 Chinese-CLIP，本地 CPU 推理，不需要额外的视觉 API Key。先在持久化的 `model-data` 卷准备模型，确认可加载后再开启服务。RAG 可以继续独立关闭。
+
+可以从官方仓库下载固定版本（约 750 MB），避免拉取同仓库的重复权重：
+
+```bash
+docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml run --rm --no-deps agent python -c "from huggingface_hub import snapshot_download; snapshot_download('OFA-Sys/chinese-clip-vit-base-patch16', revision='36e679e65c2a2fead755ae21162091293ad37834', local_dir='/models/chinese-clip-vit-base-patch16', allow_patterns=['config.json', 'preprocessor_config.json', 'vocab.txt', 'pytorch_model.bin'])"
+```
+
+`pytorch_model.bin` 大小为 753177983 字节，官方 SHA-256 为 `7b7b583c210c867410bc6bdb8a55fe14eec62999e0a9ea31ff222dc501f9cfbe`。通过镜像站获取时同样应校验，不使用未经验证的替代权重。然后配置：
+
+```dotenv
+AI_ENABLED=true
+FOOD_RECOGNITION_ENABLED=true
+FOOD_MODEL_PATH=/models/chinese-clip-vit-base-patch16
+FOOD_MODEL_PRELOAD=true
+FOOD_MODEL_INT8=false
+RAG_ENABLED=false
+PRELOAD_MODELS=0
+```
+
+执行 `docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d --build --no-deps agent`。服务启动时从本地加载权重并分批预计算 510 个家常菜候选；预热成功后才接受请求，不在用户第一次拍照时下载模型。单实例串行执行模型推理以控制内存，HTTP 事件循环仍可处理其他请求。
+
+已有 App 会直接使用启用后的接口，无需重新打包。上线验证应覆盖登录、上传真实照片、返回五个候选、按克数计算、保存和查询饮食记录，以及他人图片访问被拒绝。模型分数只是当前候选集内的相对分数；用户仍需确认菜名和份量，目前不自动拆分一张照片里的多道菜。
+
 ## 数据与维护
 
 本地和 CI 可运行 `python3 deploy/cloud/tests/verify_gateway.py`，需要 PATH 中存在 Caddy，也可通过 `CADDY_BIN` 指定可执行文件。该测试使用临时端口和模拟上游，验证鉴权头、请求内容、路径重写、内部接口阻断及 SSE 首包，不需要云账号。
