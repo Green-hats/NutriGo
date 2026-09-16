@@ -1,16 +1,71 @@
 import { useState, useRef, useEffect } from 'react'
+import {
+  Avatar,
+  Box,
+  Button,
+  CircularProgress,
+  IconButton,
+  Paper,
+  Stack,
+  TextField,
+  Typography
+} from '@mui/material'
+import HistoryRounded from '@mui/icons-material/HistoryRounded'
+import AddRounded from '@mui/icons-material/AddRounded'
+import StopRounded from '@mui/icons-material/StopRounded'
+import RefreshRounded from '@mui/icons-material/RefreshRounded'
+import ArrowUpwardRounded from '@mui/icons-material/ArrowUpwardRounded'
+import ArrowOutwardRounded from '@mui/icons-material/ArrowOutwardRounded'
+import SpaRounded from '@mui/icons-material/SpaRounded'
+import CheckCircleOutlineRounded from '@mui/icons-material/CheckCircleOutlineRounded'
+import RestaurantRounded from '@mui/icons-material/RestaurantRounded'
+import AutoAwesomeRounded from '@mui/icons-material/AutoAwesomeRounded'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 import { createChatStream } from '../api/sse'
 import type { ChatStreamHandle } from '../api/sse'
-import { Loader2, History, Plus, Square, RotateCcw } from 'lucide-react'
 import { ChatErrorBoundary } from '../components/ui/ChatErrorBoundary'
+import { Brand } from '../components/ui/Brand'
 import HistorySidebar from '../components/chat/HistorySidebar'
 import type { ChatMessage } from '../types'
 
-const QUICK_CHIPS = ['分析我今天吃什么', '推荐午餐', '这个有多少热量', '帮我算BMI']
+const QUICK_CHIPS = [
+  {
+    title: '回顾今天的饮食',
+    text: '分析我今天吃什么',
+    note: '发现每一餐的小进步',
+    icon: SpaRounded
+  },
+  {
+    title: '下一餐吃什么',
+    text: '推荐午餐',
+    note: '给日常一点新灵感',
+    icon: RestaurantRounded
+  },
+  {
+    title: '了解食物热量',
+    text: '这个有多少热量',
+    note: '吃得明白，也吃得开心',
+    icon: AutoAwesomeRounded
+  },
+  {
+    title: '了解我的 BMI',
+    text: '帮我算BMI',
+    note: '从认识自己开始',
+    icon: SpaRounded
+  }
+]
+const TOOL_LABELS: Record<string, string> = {
+  lookup_food_nutrition: '查询食物营养',
+  get_user_profile: '查看健康档案',
+  get_diet_history: '回顾饮食记录',
+  get_nutrition_trend: '分析营养趋势',
+  get_nutrition_trends: '分析营养趋势',
+  search_nutrition_knowledge: '查找营养知识',
+  search_knowledge: '查找营养知识'
+}
 
 export default function Chat() {
   const [input, setInput] = useState('')
@@ -18,14 +73,40 @@ export default function Chat() {
   const [showHistory, setShowHistory] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const streamRef = useRef<ChatStreamHandle | null>(null)
-  const { messages, addMessage, appendToLast, appendThinkingToLast, updateToolResult, setMessages, setSessionId, sessionId, isStreaming, setStreaming, clearMessages, truncateToLastUser } = useChatStore()
+  const {
+    messages,
+    addMessage,
+    appendToLast,
+    appendThinkingToLast,
+    updateToolResult,
+    setMessages,
+    setSessionId,
+    sessionId,
+    isStreaming,
+    setStreaming,
+    clearMessages,
+    truncateToLastUser
+  } = useChatStore()
   const token = useAuthStore((s) => s.token)
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
-  useEffect(() => () => {
-    streamRef.current?.cancel()
-    useChatStore.getState().setStreaming(false)
-  }, [])
+  useEffect(() => {
+    if (messages.length > 0)
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+  useEffect(
+    () => () => {
+      streamRef.current?.cancel()
+      useChatStore.getState().setStreaming(false)
+    },
+    []
+  )
+
+  const newChat = () => {
+    if (!isStreaming) {
+      clearMessages()
+      setError('')
+    }
+  }
 
   const send = (text: string) => {
     const msg = text.trim()
@@ -36,15 +117,28 @@ export default function Chat() {
     addMessage({ role: 'assistant', content: '' })
     setStreaming(true)
 
-    const handle = createChatStream(sessionId, token, {
-      onSessionId: (id) => setSessionId(id),
-      onChunk: (t) => appendToLast(t),
-      onThinking: (t) => appendThinkingToLast(t),
-      onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
-      onToolResult: (name, result) => updateToolResult(name, result),
-      onDone: () => { setStreaming(false); streamRef.current = null },
-      onError: (err) => { setError(err); setStreaming(false); streamRef.current = null },
-    }, msg)
+    const handle = createChatStream(
+      sessionId,
+      token,
+      {
+        onSessionId: (id) => setSessionId(id),
+        onChunk: (t) => appendToLast(t),
+        onThinking: (t) => appendThinkingToLast(t),
+        onToolCall: (name) =>
+          addMessage({ role: 'tool', content: '', toolName: name }),
+        onToolResult: (name, result) => updateToolResult(name, result),
+        onDone: () => {
+          setStreaming(false)
+          streamRef.current = null
+        },
+        onError: (err) => {
+          setError(err)
+          setStreaming(false)
+          streamRef.current = null
+        }
+      },
+      msg
+    )
     streamRef.current = handle
   }
 
@@ -56,15 +150,29 @@ export default function Chat() {
     addMessage({ role: 'assistant', content: '' })
     setStreaming(true)
 
-    const handle = createChatStream(sessionId, token, {
-      onSessionId: (id) => setSessionId(id),
-      onChunk: (t) => appendToLast(t),
-      onThinking: (t) => appendThinkingToLast(t),
-      onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
-      onToolResult: (name, result) => updateToolResult(name, result),
-      onDone: () => { setStreaming(false); streamRef.current = null },
-      onError: (err) => { setError(err); setStreaming(false); streamRef.current = null },
-    }, undefined, 'regenerate')
+    const handle = createChatStream(
+      sessionId,
+      token,
+      {
+        onSessionId: (id) => setSessionId(id),
+        onChunk: (t) => appendToLast(t),
+        onThinking: (t) => appendThinkingToLast(t),
+        onToolCall: (name) =>
+          addMessage({ role: 'tool', content: '', toolName: name }),
+        onToolResult: (name, result) => updateToolResult(name, result),
+        onDone: () => {
+          setStreaming(false)
+          streamRef.current = null
+        },
+        onError: (err) => {
+          setError(err)
+          setStreaming(false)
+          streamRef.current = null
+        }
+      },
+      undefined,
+      'regenerate'
+    )
     streamRef.current = handle
   }
 
@@ -82,15 +190,29 @@ export default function Chat() {
     addMessage({ role: 'assistant', content: '' })
     setStreaming(true)
 
-    const handle = createChatStream(sessionId, token, {
-      onSessionId: (id) => setSessionId(id),
-      onChunk: (t) => appendToLast(t),
-      onThinking: (t) => appendThinkingToLast(t),
-      onToolCall: (name) => addMessage({ role: 'tool', content: '', toolName: name }),
-      onToolResult: (name, result) => updateToolResult(name, result),
-      onDone: () => { setStreaming(false); streamRef.current = null },
-      onError: (err) => { setError(err); setStreaming(false); streamRef.current = null },
-    }, undefined, 'regenerate')
+    const handle = createChatStream(
+      sessionId,
+      token,
+      {
+        onSessionId: (id) => setSessionId(id),
+        onChunk: (t) => appendToLast(t),
+        onThinking: (t) => appendThinkingToLast(t),
+        onToolCall: (name) =>
+          addMessage({ role: 'tool', content: '', toolName: name }),
+        onToolResult: (name, result) => updateToolResult(name, result),
+        onDone: () => {
+          setStreaming(false)
+          streamRef.current = null
+        },
+        onError: (err) => {
+          setError(err)
+          setStreaming(false)
+          streamRef.current = null
+        }
+      },
+      undefined,
+      'regenerate'
+    )
     streamRef.current = handle
   }
 
@@ -101,117 +223,474 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 relative">
-      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative shrink-0">
-        <button onClick={() => setShowHistory(true)} aria-label="历史会话" className="absolute left-4 top-1/2 -translate-y-1/2"><History size={22} /></button>
-        NutriGo AI 营养师
-        <button onClick={clearMessages} title="新建会话" className="absolute right-4 top-1/2 -translate-y-1/2"><Plus size={24} /></button>
-      </div>
-      {showHistory && <HistorySidebar onSelect={handleHistorySelect} onClose={() => setShowHistory(false)} />}
-
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 0
+      }}
+    >
+      <Stack
+        component="header"
+        direction="row"
+        sx={{
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 2.5,
+          py: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          flexShrink: 0
+        }}
+      >
+        <Box>
+          <Brand compact />
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: 'block', mt: 0.5 }}
+          >
+            你的 AI 营养师
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={0.5}>
+          <IconButton
+            onClick={() => setShowHistory(true)}
+            disabled={isStreaming}
+            aria-label="历史会话"
+          >
+            <HistoryRounded />
+          </IconButton>
+          <IconButton
+            onClick={newChat}
+            disabled={isStreaming}
+            aria-label="新建会话"
+            title="新建会话"
+            sx={{ bgcolor: '#E8F0E1', color: 'primary.main' }}
+          >
+            <AddRounded />
+          </IconButton>
+        </Stack>
+      </Stack>
+      {showHistory && (
+        <HistorySidebar
+          onSelect={handleHistorySelect}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2 }}>
         <ChatErrorBoundary>
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center mt-16">
-            <p className="text-5xl mb-4">🍎</p>
-            <p className="text-gray-400 mb-6">告诉我你吃了什么，或拍照记录~</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {QUICK_CHIPS.map((c) => (
-                <button key={c} onClick={() => send(c)} className="bg-green-50 text-green-700 rounded-full px-4 py-2 text-sm hover:bg-green-100 transition-colors">{c}</button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {messages.map((msg, i) => (
-          <div key={msg.id ?? i}>
-            {msg.role === 'user' && (
-              <div className="flex justify-end"><div className="bg-green-600 text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%] text-sm">{msg.content}</div></div>
-            )}
-            {msg.role === 'assistant' && (
-              <div className="flex justify-start">
-                <div
-                  className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3 max-w-[88%] text-sm markdown-body"
-                  aria-live={isStreaming && i === messages.length - 1 ? 'polite' : undefined}
+          {messages.length === 0 && (
+            <Box sx={{ pt: { xs: 0, sm: 4 } }}>
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  bgcolor: '#EAF0E2',
+                  px: 1.25,
+                  py: 0.5,
+                  borderRadius: 2,
+                  mb: 2
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    bgcolor: '#52844C'
+                  }}
+                />
+                <Typography
+                  variant="overline"
+                  sx={{ fontSize: 9, color: 'primary.main' }}
                 >
-                  {msg.thinking && (
-                    <details className="mb-2 text-xs">
-                      <summary className="cursor-pointer select-none text-gray-500 hover:text-gray-700">🤔 思考过程</summary>
-                      <p className="mt-1 whitespace-pre-wrap text-gray-400 border-t border-gray-200 pt-2">{msg.thinking}</p>
-                    </details>
-                  )}
-                  {msg.content ? (
-                    <ReactMarkdown key={msg.id ?? i} remarkPlugins={[remarkGfm]}>
-                      {msg.content + (isStreaming && i === messages.length - 1 ? '▍' : '')}
-                    </ReactMarkdown>
-                  ) : (
-                    isStreaming && i === messages.length - 1 && (
-                      <span className="flex items-center gap-2 text-gray-400"><Loader2 size={14} className="animate-spin" />思考中...</span>
-                    )
-                  )}
-                </div>
-                {msg.content && !isStreaming && i === messages.length - 1 && sessionId && (
-                  <button onClick={regenerate} title="重新生成"
-                    className="ml-2 self-start text-gray-400 hover:text-green-600 transition-colors shrink-0">
-                    <RotateCcw size={16} />
-                  </button>
+                  SMALL STEPS. HEALTHY DAYS.
+                </Typography>
+              </Box>
+              <Typography
+                component="h1"
+                variant="h1"
+                sx={{ fontSize: { xs: 30, sm: 38 } }}
+              >
+                吃好每一餐，
+                <br />
+                从聊聊开始。
+              </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 1, mb: 2, maxWidth: 300 }}
+              >
+                关于吃什么、怎么吃，
+                <br />
+                或是今天的小小困惑，都可以告诉我。
+              </Typography>
+              <Paper
+                sx={{
+                  bgcolor: '#EAF0E2',
+                  p: 2,
+                  mb: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  overflow: 'hidden'
+                }}
+              >
+                <Box
+                  sx={{
+                    bgcolor: '#DCE8D0',
+                    border: '6px solid #F6F8EE',
+                    outline: '1px solid #D1DFC6',
+                    width: 56,
+                    height: 56,
+                    flexShrink: 0,
+                    borderRadius: '50%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: 'primary.main',
+                    transform: 'rotate(-12deg)'
+                  }}
+                >
+                  <SpaRounded sx={{ fontSize: 31 }} />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontWeight: 700 }}>
+                    健康，不必一步到位
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 0.5 }}
+                  >
+                    认真对待每一餐，就是好的开始。
+                  </Typography>
+                </Box>
+              </Paper>
+              <Typography
+                variant="overline"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 1.5 }}
+              >
+                从这里聊起
+              </Typography>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: 1.25
+                }}
+              >
+                {QUICK_CHIPS.map(({ title, text, note, icon: Icon }) => (
+                  <Button
+                    key={text}
+                    onClick={() => send(text)}
+                    variant="outlined"
+                    sx={{
+                      alignItems: 'flex-start',
+                      flexDirection: 'column',
+                      textAlign: 'left',
+                      p: 1.5,
+                      borderRadius: 4,
+                      bgcolor: 'white',
+                      borderColor: 'divider',
+                      minWidth: 0
+                    }}
+                  >
+                    <Stack
+                      direction="row"
+                      sx={{
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        width: '100%',
+                        mb: 1
+                      }}
+                    >
+                      <Icon sx={{ fontSize: 21, color: 'primary.main' }} />
+                      <ArrowOutwardRounded
+                        sx={{ fontSize: 15, color: '#97A48E' }}
+                      />
+                    </Stack>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {title}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ fontSize: 10, mt: 0.5 }}
+                    >
+                      {note}
+                    </Typography>
+                  </Button>
+                ))}
+              </Box>
+            </Box>
+          )}
+          <Stack spacing={3}>
+            {messages.map((msg, i) => (
+              <Box key={msg.id ?? i}>
+                {msg.role === 'user' && (
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Paper
+                      sx={{
+                        px: 2,
+                        py: 1.5,
+                        bgcolor: '#E1EBD8',
+                        borderRadius: '18px 18px 5px 18px',
+                        maxWidth: '88%',
+                        overflowWrap: 'anywhere'
+                      }}
+                    >
+                      <Typography
+                        variant="body1"
+                        sx={{ whiteSpace: 'pre-wrap', fontSize: 14 }}
+                      >
+                        {msg.content}
+                      </Typography>
+                    </Paper>
+                  </Box>
                 )}
-              </div>
-            )}
-            {msg.role === 'tool' && (
-              <div className="flex justify-start">
-                <div className={`rounded-xl px-3 py-2 text-xs ${msg.toolResult ? 'bg-blue-50 border border-blue-200 text-blue-700' : 'bg-yellow-50 border border-yellow-200 text-yellow-700'}`}>
-                  {msg.toolResult ? (
-                    <details>
-                      <summary className="cursor-pointer">✅ {msg.toolName} 已完成</summary>
-                      <p className="mt-1 whitespace-pre-wrap">{msg.toolResult.slice(0, 300)}</p>
-                    </details>
-                  ) : (
-                    <span className="flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> 正在调用：{msg.toolName}</span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-
-        {error && (
-          <div className="flex justify-center">
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 max-w-[88%]">
-              <p className="mb-2">❌ {error}</p>
-              <div className="flex gap-3">
-                {sessionId && <button onClick={retry} className="text-red-500 text-xs underline">重试</button>}
-                <button onClick={() => setError('')} className="text-red-500 text-xs underline">关闭</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div ref={bottomRef} />
+                {msg.role === 'assistant' && (
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: 'flex-start' }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        bgcolor: 'primary.main',
+                        mt: 0.5
+                      }}
+                    >
+                      <SpaRounded sx={{ fontSize: 17 }} />
+                    </Avatar>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Paper
+                        className="markdown-body"
+                        sx={{
+                          px: 2,
+                          py: 1.75,
+                          borderRadius: '5px 18px 18px 18px',
+                          border: '1px solid',
+                          borderColor: 'divider'
+                        }}
+                        aria-live={
+                          isStreaming && i === messages.length - 1
+                            ? 'polite'
+                            : undefined
+                        }
+                      >
+                        {msg.thinking && (
+                          <Box
+                            component="details"
+                            sx={{
+                              fontSize: 12,
+                              color: 'text.secondary',
+                              mb: 1.5
+                            }}
+                          >
+                            <Box
+                              component="summary"
+                              sx={{ cursor: 'pointer', py: 0.5 }}
+                            >
+                              分析过程
+                            </Box>
+                            <Typography
+                              variant="body2"
+                              sx={{ whiteSpace: 'pre-wrap', mt: 1 }}
+                            >
+                              {msg.thinking}
+                            </Typography>
+                          </Box>
+                        )}
+                        {msg.content ? (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content +
+                              (isStreaming && i === messages.length - 1
+                                ? '▍'
+                                : '')}
+                          </ReactMarkdown>
+                        ) : (
+                          isStreaming &&
+                          i === messages.length - 1 && (
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              sx={{ alignItems: 'center' }}
+                            >
+                              <CircularProgress size={14} />
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                正在认真想一想...
+                              </Typography>
+                            </Stack>
+                          )
+                        )}
+                      </Paper>
+                      {msg.content &&
+                        !isStreaming &&
+                        i === messages.length - 1 &&
+                        sessionId && (
+                          <Button
+                            onClick={regenerate}
+                            title="重新生成"
+                            aria-label="重新生成"
+                            size="small"
+                            startIcon={<RefreshRounded />}
+                            sx={{
+                              mt: 0.5,
+                              minHeight: 40,
+                              fontSize: 11,
+                              color: 'text.secondary'
+                            }}
+                          >
+                            重新生成
+                          </Button>
+                        )}
+                    </Box>
+                  </Stack>
+                )}
+                {msg.role === 'tool' && (
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{
+                      alignItems: 'center',
+                      ml: 4.5,
+                      color: 'text.secondary',
+                      py: 0.5
+                    }}
+                  >
+                    {msg.toolResult ? (
+                      <CheckCircleOutlineRounded
+                        sx={{ fontSize: 16, color: 'primary.main' }}
+                      />
+                    ) : (
+                      <CircularProgress size={14} />
+                    )}
+                    <Typography variant="caption">
+                      {TOOL_LABELS[msg.toolName || ''] || '整理营养信息'}
+                      {msg.toolResult ? ' · 已完成' : '中...'}
+                    </Typography>
+                  </Stack>
+                )}
+              </Box>
+            ))}
+          </Stack>
+          {error && (
+            <Paper
+              sx={{ p: 2, mt: 2, bgcolor: '#FFF0EB', color: 'error.main' }}
+              role="alert"
+            >
+              <Typography variant="body2">{error}</Typography>
+              <Stack direction="row" spacing={1}>
+                {sessionId && (
+                  <Button size="small" onClick={retry} color="error">
+                    重试
+                  </Button>
+                )}
+                <Button size="small" onClick={() => setError('')} color="error">
+                  关闭
+                </Button>
+              </Stack>
+            </Paper>
+          )}
+          <div ref={bottomRef} />
         </ChatErrorBoundary>
-      </div>
-
-      <div className="border-t px-4 py-3 bg-white shrink-0">
-        <div className="flex gap-2">
-          <input
-            className="flex-1 min-w-0 border border-gray-200 rounded-full px-4 py-2.5 text-base outline-none focus:border-green-500"
+      </Box>
+      <Box
+        sx={{
+          px: 2,
+          pt: 1.5,
+          pb: 1,
+          flexShrink: 0,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          bgcolor: '#F7F8F3'
+        }}
+      >
+        <Paper
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: 1,
+            pl: 1.5,
+            pr: 1,
+            py: 0.75,
+            border: '1px solid #DDE5D6',
+            borderRadius: 4
+          }}
+        >
+          <TextField
+            multiline
+            maxRows={4}
             placeholder="输入消息..."
-            maxLength={2000}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(input) }}
+            onKeyDown={(e) => {
+              if (
+                e.key === 'Enter' &&
+                !e.shiftKey &&
+                !e.nativeEvent.isComposing
+              ) {
+                e.preventDefault()
+                send(input)
+              }
+            }}
+            slotProps={{
+              htmlInput: { maxLength: 2000, 'aria-label': '消息内容' }
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                background: 'transparent',
+                p: 0,
+                minHeight: 44,
+                borderRadius: 0
+              },
+              '& .MuiOutlinedInput-notchedOutline': { border: 0 },
+              '& textarea': { py: '10px', px: 0, lineHeight: 1.5 }
+            }}
           />
           {isStreaming ? (
-            <button onClick={stop} title="停止生成"
-              className="bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-red-600 transition-colors">
-              <Square size={16} className="fill-current" />
-            </button>
+            <IconButton
+              onClick={stop}
+              title="停止生成"
+              aria-label="停止生成"
+              sx={{ bgcolor: '#F4E4DD', color: 'error.main', borderRadius: 3 }}
+            >
+              <StopRounded />
+            </IconButton>
           ) : (
-            <button onClick={() => send(input)} disabled={isStreaming} aria-label="发送"
-              className="bg-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-green-700 transition-colors disabled:opacity-50">➤</button>
+            <IconButton
+              onClick={() => send(input)}
+              disabled={!input.trim()}
+              aria-label="发送"
+              sx={{
+                bgcolor: 'primary.main',
+                color: 'white',
+                borderRadius: 3,
+                '&:hover': { bgcolor: 'primary.dark' },
+                '&.Mui-disabled': { bgcolor: '#E5EBDE', color: '#889A7D' }
+              }}
+            >
+              <ArrowUpwardRounded />
+            </IconButton>
           )}
-        </div>
-      </div>
-    </div>
+        </Paper>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ textAlign: 'center', display: 'block', fontSize: 10, mt: 0.75 }}
+        >
+          AI 建议仅供日常饮食参考
+        </Typography>
+      </Box>
+    </Box>
   )
 }

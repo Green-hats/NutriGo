@@ -11,7 +11,7 @@ type AnyCb = any
 const mocks = vi.hoisted(() => ({
   createChatStream: vi.fn(),
   cancel: vi.fn(),
-  captured: { cb: undefined as AnyCb },
+  captured: { cb: undefined as AnyCb }
 }))
 
 vi.mock('../api/sse', () => ({
@@ -19,15 +19,17 @@ vi.mock('../api/sse', () => ({
     mocks.createChatStream(...args)
     mocks.captured.cb = args[2]
     return { cancel: mocks.cancel }
-  },
+  }
 }))
 
 vi.mock('../components/chat/HistorySidebar', () => ({
-  default: () => <div data-testid="history-sidebar" />,
+  default: () => <div data-testid="history-sidebar" />
 }))
 
 vi.mock('react-markdown', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  )
 }))
 
 vi.mock('remark-gfm', () => ({ default: () => null }))
@@ -41,7 +43,10 @@ beforeEach(() => {
   mocks.captured.cb = undefined
 })
 
-async function sendMessage(user: ReturnType<typeof userEvent.setup>, text: string) {
+async function sendMessage(
+  user: ReturnType<typeof userEvent.setup>,
+  text: string
+) {
   await user.type(screen.getByPlaceholderText('输入消息...'), text)
   await user.click(screen.getByRole('button', { name: '发送' }))
   await waitFor(() => expect(mocks.createChatStream).toHaveBeenCalled())
@@ -79,12 +84,15 @@ describe('Chat 页面', () => {
     act(() => {
       mocks.captured.cb.onToolCall('lookup_food_nutrition')
     })
-    expect(screen.getByText(/正在调用：lookup_food_nutrition/)).toBeInTheDocument()
+    expect(screen.getByText(/查询食物营养中.../)).toBeInTheDocument()
 
     act(() => {
-      mocks.captured.cb.onToolResult('lookup_food_nutrition', '米饭 每100g 热量 116 kcal')
+      mocks.captured.cb.onToolResult(
+        'lookup_food_nutrition',
+        '米饭 每100g 热量 116 kcal'
+      )
     })
-    expect(screen.getByText(/lookup_food_nutrition 已完成/)).toBeInTheDocument()
+    expect(screen.getByText(/查询食物营养 · 已完成/)).toBeInTheDocument()
   })
 
   it('流结束后停止加载状态并显示重新生成按钮', async () => {
@@ -99,7 +107,9 @@ describe('Chat 页面', () => {
       mocks.captured.cb.onDone()
     })
 
-    await waitFor(() => expect(screen.queryByTitle('停止生成')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByTitle('停止生成')).not.toBeInTheDocument()
+    )
     expect(screen.getByTitle('重新生成')).toBeInTheDocument()
   })
 })

@@ -1,6 +1,6 @@
 # NutriGo 手机 App
 
-NutriGo 使用 **Tauri 2 + React 19** 构建 Android 和 iOS 安装包。React 页面随安装包分发，手机通过 HTTPS 访问云端 Go / Python 服务；AI 模型、LLM 密钥和数据库保留在服务器。浏览器与 Vite 仅用于开发预览，不需要部署前端站点。
+NutriGo 使用 **Tauri 2 + React 19 + MUI 9** 构建 Android 和 iOS 安装包。React 页面随安装包分发，手机通过 HTTPS 访问云端 Go / Python 服务；AI 模型、LLM 密钥和数据库保留在服务器。浏览器与 Vite 仅用于开发预览，不需要部署前端站点。
 
 ```mermaid
 flowchart LR
@@ -77,7 +77,9 @@ npm run ios:build
 
 `build:app` 在缺少地址或使用 HTTP 时会失败。CI 的 `https://api.example.com` 只是编译验证占位符，不能用于真实登录。
 
-Android 发布需要配置自己的 keystore；iOS 真机／分发需要 Apple 开发团队和签名，在本机设置 `APPLE_DEVELOPMENT_TEAM` 或 Xcode Signing。当前标识符为 `com.greenhats.nutrigo`，上线前可在 Tauri 配置与原生项目中统一修改。Android 最低版本为 8.0（API 26），iOS 最低版本为 15.0。
+Android 发布需要配置自己的 keystore；iOS 真机／分发需要 Apple 开发团队和签名，在本机设置 `APPLE_DEVELOPMENT_TEAM` 或 Xcode Signing。当前标识符为 `com.greenhats.nutrigo`，上线前可在 Tauri 配置与原生项目中统一修改。Android 最低版本为 8.0（API 26），iOS 最低版本为 17.0（已同步到 Tauri、Xcode 和 CocoaPods 配置）。Android 设备还需使用 Chromium 117 或更新的 Android System WebView；系统版本满足要求并不保证 WebView 版本满足要求。
+
+界面使用 MUI 9 + Emotion 和本地系统字体，不需要在线字体服务。构建目标为 Safari 17 / Chrome 117，依据 [MUI 浏览器支持范围](https://mui.com/material-ui/getting-started/supported-platforms/)。
 
 ## 移动端实现
 
@@ -120,3 +122,10 @@ cargo check --locked --manifest-path src-tauri/Cargo.toml
 - iOS 完整打包受本机未安装 iOS 26.5 平台影响，未生成 IPA。双端真机验收和发布签名尚未完成。
 
 本地测试 APK 使用 `https://api.example.com` 占位地址，只用于打包检查。连接真实服务前请填写自己的 API 地址并重新打包。
+
+## MUI 界面更新（2026-09-16）
+
+- MUI 9 + Emotion 替换 Tailwind / Lucide，统一登录、对话、日记、档案、趋势、会话抽屉和通知样式。
+- 本地通过前端 82 项测试、类型检查、lint 和生产 App 构建；依赖审计为 0 个漏洞。
+- 使用本地模拟数据验证登录、对话、相册选图→识别→调整份量→保存、趋势切换、档案保存及会话删除确认；检查 320px / 390px 手机布局与缩短可视高度时的输入框位置。仓库截图使用模拟数据。
+- 浏览器预览验证不替代 Android / iOS 真机验收；当前 API 域名仍按部署配置提供。

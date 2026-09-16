@@ -19,7 +19,7 @@ flowchart LR
 
 | 层 | 技术 |
 |----|------|
-| **前端** | React 19 / TypeScript (strict) / Vite / TailwindCSS / Zustand / React Router |
+| **前端** | React 19 / TypeScript (strict) / Vite / MUI 9 + Emotion / Zustand / React Router |
 | **Go 后端**（数据服务） | Gin / GORM / golang-jwt / SQLite |
 | **Python 后端**（AI 服务） | FastAPI / litellm / ChromaDB / Chinese-CLIP / Pillow / httpx |
 

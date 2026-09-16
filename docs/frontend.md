@@ -4,7 +4,13 @@
 
 Tauri 2 手机 App 的 React 界面，提供拍照识别、AI 对话、饮食日记和健康档案。Android / iOS 工程位于 `frontend/src-tauri`，运行方式见 [手机 App 文档](MOBILE.md)。**5173** 仅为开发预览端口。
 
-技术栈：Tauri 2 + Rust + React 19 + TypeScript + Vite + TailwindCSS + Zustand
+技术栈：Tauri 2 + Rust + React 19 + TypeScript + Vite + MUI 9 + Emotion + Zustand
+
+## 界面规范
+
+采用森林绿主色、暖白背景、统一的圆角和间距；样式通过 `theme.ts` 与 MUI `sx` 管理。三个底部导航保留对话、日记和档案结构，拍照识别与趋势使用全屏 Dialog，会话历史使用 Drawer。日记只展示真实记录合计；趋势分别显示热量与克数，不混用单位。图表和主页面按需加载。
+
+输入框保持 16px 字号、图标操作至少 44px 触控范围，弹窗使用 MUI 焦点管理；支持安全区、可视窗口高度调整和减少动画偏好。最低要求为 iOS 17 / Chromium WebView 117。
 
 ## 启动
 
@@ -21,7 +27,8 @@ cd NutriGo && ./start.sh
 frontend/src/
 ├── main.tsx                    # React 入口
 ├── App.tsx                     # 路由 + Toast
-├── index.css                   # Tailwind + Markdown 样式
+├── theme.ts                    # MUI 主题、配色、圆角、触控尺寸
+├── index.css                   # 安全区、键盘适配与 Markdown 样式
 ├── types/index.ts              # TypeScript 类型定义
 ├── stores/
 │   ├── auth.ts                 # Zustand: token, refreshToken, user 持久化；profile 仅内存
@@ -36,7 +43,7 @@ frontend/src/
 ├── components/
 │   ├── ui/
 │   │   ├── LoadingButton.tsx   # 按钮 + spinner
-│   │   ├── Toast.tsx           # 顶部滑入通知（error/success）
+│   │   ├── Toast.tsx           # MUI Alert 通知（error/success）
 │   │   ├── ErrorBlock.tsx      # 错误 + 重试
 │   │   ├── Skeleton.tsx        # 灰色占位块
 │   │   └── ChatErrorBoundary.tsx # 崩溃边界
@@ -126,9 +133,9 @@ API 层自动注入：
 
 | 事件 | 处理 |
 |------|------|
-| `thinking` | 折叠面板「🤔 思考过程」流式展示思维链 |
-| `chunk` | 流式输出中渲染纯文本（快），结束后自动切换 ReactMarkdown |
-| `tool_call` / `tool_result` | 工具卡片：`<details>` 折叠展示调用与返回值 |
+| `thinking` | 折叠面板「分析过程」展示模型返回的推理摘要 |
+| `chunk` | ReactMarkdown 渲染，流式输出时追加光标 |
+| `tool_call` / `tool_result` | 自然语言状态提示，展示处理中或完成状态 |
 | `done` / `error` | 收尾 / 错误提示 |
 
 - 思维链仅在模型返回 `reasoning_content` 时出现，无思维链时面板自动隐藏
@@ -139,7 +146,7 @@ API 层自动注入：
 | 场景 | 方案 | 组件 |
 |------|------|------|
 | API 等待 | 按钮旋转 + 禁用 | `LoadingButton` |
-| API 错误 | 顶部滑入通知，3 秒消失 | `Toast` |
+| API 错误 | 顶部提示，3.5 秒消失 | `Toast` |
 | 网络错误 | 图标 + 消息 + 重试按钮 | `ErrorBlock` |
 | 数据加载 | 灰色占位块 | `Skeleton` |
 | 数据为空 | 图标 + 引导文案 + 行动按钮 | 页面内嵌 |
@@ -152,13 +159,13 @@ API 层自动注入：
 | react + react-dom | 框架 |
 | react-router-dom | 路由 |
 | zustand | 状态管理 |
-| lucide-react | 图标（20+ 种） |
+| @mui/material + @emotion/react + @emotion/styled | 组件、主题与样式 |
+| @mui/icons-material | Material Rounded 图标 |
 | react-markdown | Markdown 渲染 |
 | recharts | 营养趋势图表 |
 
 | 开发依赖 | 用途 |
 |----------|------|
-| tailwindcss + @tailwindcss/vite | CSS 框架 |
 | typescript | 类型检查 |
 | vite | 构建工具 |
 | vitest + jsdom | 单元测试 |
@@ -171,4 +178,4 @@ API 层自动注入：
 cd frontend && npx vitest run
 ```
 
-38 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑。
+82 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑。

@@ -1,18 +1,57 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
+import {
+  Box,
+  Button,
+  CardActionArea,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  LinearProgress,
+  Paper,
+  Stack,
+  Step,
+  StepLabel,
+  Stepper,
+  TextField,
+  Typography
+} from '@mui/material'
+import CameraAltRounded from '@mui/icons-material/CameraAltRounded'
+import PhotoLibraryRounded from '@mui/icons-material/PhotoLibraryRounded'
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
+import ChevronLeftRounded from '@mui/icons-material/ChevronLeftRounded'
+import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
+import BarChartRounded from '@mui/icons-material/BarChartRounded'
+import RestaurantRounded from '@mui/icons-material/RestaurantRounded'
+import AddRounded from '@mui/icons-material/AddRounded'
+import RemoveRounded from '@mui/icons-material/RemoveRounded'
+import CloseRounded from '@mui/icons-material/CloseRounded'
+import SpaRounded from '@mui/icons-material/SpaRounded'
 import { goApi } from '../api/go'
 import { agentApi } from '../api/agent'
-import { Plus, Camera, Trash2, ChevronLeft, ChevronRight, Loader2, Check, BarChart3 } from 'lucide-react'
 import { toast } from '../lib/toast'
 import { prepareFoodImage } from '../lib/foodImage'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
-import NutritionChart from '../components/diary/NutritionChart'
+import { PageHeader } from '../components/layout/PageHeader'
 import type { DietRecord, IdentifyResult, IntakeResult } from '../types'
 
+const NutritionChart = lazy(() => import('../components/diary/NutritionChart'))
 function fmt(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
-function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d)
+  r.setDate(r.getDate() + n)
+  return r
+}
+const mealNames: Record<string, string> = {
+  breakfast: '早餐',
+  lunch: '午餐',
+  dinner: '晚餐',
+  snack: '加餐'
+}
 
 export default function Diary() {
   const [date, setDate] = useState(new Date())
@@ -21,74 +60,382 @@ export default function Diary() {
   const [error, setError] = useState('')
   const [showFlow, setShowFlow] = useState(false)
   const [showChart, setShowChart] = useState(false)
-
   const loadRecords = useCallback(() => {
     setLoading(true)
     setError('')
-    goApi.getDietLogs(fmt(date)).then(setRecords).catch(() => setError('加载失败')).finally(() => setLoading(false))
+    goApi
+      .getDietLogs(fmt(date))
+      .then(setRecords)
+      .catch(() => setError('加载失败'))
+      .finally(() => setLoading(false))
   }, [date])
   useEffect(loadRecords, [loadRecords])
-
   const del = async (id: number) => {
-    try { await goApi.deleteDietLog(id); loadRecords() } catch (err) { toast(err instanceof Error ? err.message : '删除失败') }
+    try {
+      await goApi.deleteDietLog(id)
+      loadRecords()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '删除失败')
+    }
   }
-
-  const totalCal = records.reduce((s, r) => s + (r.calories || 0), 0)
-
+  const total = records.reduce(
+    (s, r) => ({
+      calories: s.calories + (r.calories || 0),
+      protein: s.protein + (r.protein_g || 0),
+      carbs: s.carbs + (r.carbs_g || 0),
+      fat: s.fat + (r.fat_g || 0)
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  )
+  const today = fmt(date) === fmt(new Date())
   return (
-    <div className="min-h-full bg-gray-50 relative pb-24">
-      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative">
-        饮食日记
-        <button onClick={() => setShowChart(true)} aria-label="查看营养趋势" className="absolute right-4 top-1/2 -translate-y-1/2"><BarChart3 size={22} /></button>
-      </div>
-      {showChart && <NutritionChart onClose={() => setShowChart(false)} />}
-      <div className="bg-white px-4 py-3 flex items-center justify-between border-b">
-        <button onClick={() => setDate(addDays(date, -1))} aria-label="前一天"><ChevronLeft /></button>
-        <span className="font-medium">{fmt(date)}</span>
-        <button onClick={() => setDate(addDays(date, 1))} aria-label="后一天"><ChevronRight /></button>
-      </div>
-
-      <div className="bg-white mx-4 mt-3 rounded-2xl p-4 shadow-sm">
-        <div className="text-xs text-gray-400 mb-1">今日摄入</div>
-        <div className="text-3xl font-bold text-green-600">{loading ? '...' : totalCal.toFixed(0)} <span className="text-base font-normal text-gray-400">kcal</span></div>
-      </div>
-
-      <div className="p-4 space-y-3 pb-20">
-        {loading && [1,2].map(i => <Skeleton key={i} className="h-20" />)}
-        {!loading && error && <ErrorBlock message={error} onRetry={loadRecords} />}
-        {!loading && !error && records.length === 0 && (
-          <div className="flex flex-col items-center mt-10 text-gray-400">
-            <p className="text-4xl mb-3">🍽️</p>
-            <p className="mb-4">今天还没有记录</p>
-            <button onClick={() => setShowFlow(true)} className="bg-green-600 text-white rounded-full px-6 py-2 text-sm">📷 拍照记录</button>
-          </div>
+    <Box sx={{ pb: 4 }}>
+      <PageHeader
+        eyebrow="YOUR DAILY NOURISHMENT"
+        title="饮食日记"
+        subtitle="好好吃饭，也是好好爱自己。"
+        action={
+          <IconButton
+            aria-label="查看营养趋势"
+            onClick={() => setShowChart(true)}
+            sx={{
+              bgcolor: 'white',
+              border: '1px solid',
+              borderColor: 'divider'
+            }}
+          >
+            <BarChartRounded />
+          </IconButton>
+        }
+      />
+      <Stack spacing={2.5} sx={{ px: 3 }}>
+        <Stack
+          direction="row"
+          sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+        >
+          <IconButton
+            onClick={() => setDate(addDays(date, -1))}
+            aria-label="前一天"
+          >
+            <ChevronLeftRounded />
+          </IconButton>
+          <Stack sx={{ alignItems: 'center' }}>
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              {today
+                ? '今天'
+                : date.toLocaleDateString('zh-CN', { weekday: 'long' })}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {fmt(date)}
+            </Typography>
+          </Stack>
+          <IconButton
+            onClick={() => setDate(addDays(date, 1))}
+            aria-label="后一天"
+          >
+            <ChevronRightRounded />
+          </IconButton>
+        </Stack>
+        <Paper
+          sx={{
+            bgcolor: 'primary.main',
+            color: 'white',
+            p: 3,
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: '26px 26px 26px 8px'
+          }}
+        >
+          <SpaRounded
+            aria-hidden
+            sx={{
+              position: 'absolute',
+              right: -25,
+              top: 10,
+              fontSize: 170,
+              color: '#B8CEAB',
+              opacity: 0.13,
+              transform: 'rotate(-18deg)'
+            }}
+          />
+          <Typography variant="body2" sx={{ color: '#D2E3CD' }}>
+            {today ? '今日摄入' : '当日摄入'}
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: 'baseline', mt: 0.5 }}
+          >
+            <Typography
+              sx={{
+                fontSize: 48,
+                fontWeight: 650,
+                lineHeight: 1.3,
+                letterSpacing: '-2px',
+                fontVariantNumeric: 'tabular-nums'
+              }}
+            >
+              {loading ? '—' : error ? '—' : total.calories.toFixed(0)}
+            </Typography>
+            <Typography sx={{ color: '#CBDFC5', fontSize: 14 }}>
+              kcal
+            </Typography>
+          </Stack>
+          <Typography
+            variant="caption"
+            sx={{ color: '#C1D7BA', display: 'block', mt: 1 }}
+          >
+            {loading
+              ? '正在整理你的饮食记录'
+              : error
+                ? '暂时无法获取摄入数据'
+                : records.length
+                  ? `来自 ${records.length} 条饮食记录`
+                  : '从记录第一餐开始积累'}
+          </Typography>
+        </Paper>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: 1
+          }}
+        >
+          {[
+            {
+              label: '蛋白质',
+              value: total.protein,
+              color: '#215743',
+              bg: '#EAF1E7'
+            },
+            {
+              label: '碳水',
+              value: total.carbs,
+              color: '#9B592E',
+              bg: '#FAEEE0'
+            },
+            { label: '脂肪', value: total.fat, color: '#68608F', bg: '#EFEDF5' }
+          ].map((item) => (
+            <Paper
+              key={item.label}
+              sx={{ p: 1.5, bgcolor: item.bg, borderRadius: 3 }}
+            >
+              <Typography variant="caption" sx={{ color: item.color }}>
+                {item.label}
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 21,
+                  fontWeight: 750,
+                  mt: 0.5,
+                  color: item.color
+                }}
+              >
+                {loading || error ? '—' : item.value.toFixed(0)}{' '}
+                <Typography component="span" variant="caption">
+                  g
+                </Typography>
+              </Typography>
+            </Paper>
+          ))}
+        </Box>
+        <Button
+          aria-label="添加记录"
+          variant="contained"
+          onClick={() => setShowFlow(true)}
+          startIcon={<CameraAltRounded />}
+          endIcon={<AddRounded />}
+          sx={{
+            minHeight: 52,
+            bgcolor: '#E5EEDE',
+            color: 'primary.dark',
+            '&:hover': { bgcolor: '#DCE8D4' }
+          }}
+        >
+          记录这一餐
+        </Button>
+        <Stack
+          direction="row"
+          sx={{
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            pt: 0.5
+          }}
+        >
+          <Typography variant="h3">这一日的餐桌</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {loading ? '加载中' : `${records.length} 条记录`}
+          </Typography>
+        </Stack>
+        {loading && (
+          <Stack spacing={1.5}>
+            <Skeleton />
+            <Skeleton />
+          </Stack>
         )}
-        {!loading && !error && records.map((r) => (
-          <div key={r.id} className="bg-white rounded-2xl p-4 shadow-sm flex justify-between items-center">
-            <div>
-              <div className="font-medium">{r.food_name}</div>
-              <div className="text-xs text-gray-400 mt-1">{r.portion} · {r.calories?.toFixed(0)}kcal · 蛋白质{r.protein_g?.toFixed(0)}g</div>
-            </div>
-            <button onClick={() => del(r.id)} aria-label="删除记录" className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button>
-          </div>
-        ))}
-      </div>
-
-      <button onClick={() => setShowFlow(true)} aria-label="添加记录" className="diary-add fixed right-6 bg-green-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-green-700 transition-colors z-40"><Plus size={28} /></button>
-
-      {showFlow && <FoodFlow date={fmt(date)} onDone={() => { loadRecords(); setShowFlow(false) }} onClose={() => setShowFlow(false)} />}
-    </div>
+        {!loading && error && (
+          <ErrorBlock message={error} onRetry={loadRecords} />
+        )}
+        {!loading && !error && records.length === 0 && (
+          <Paper
+            sx={{ p: 3, textAlign: 'center', border: '1px dashed #D5DFCF' }}
+          >
+            <Box
+              sx={{
+                width: 60,
+                height: 60,
+                borderRadius: '50%',
+                bgcolor: '#F0F4EA',
+                color: 'primary.main',
+                display: 'grid',
+                placeItems: 'center',
+                mx: 'auto',
+                mb: 1.5
+              }}
+            >
+              <RestaurantRounded sx={{ fontSize: 28 }} />
+            </Box>
+            <Typography sx={{ fontWeight: 650 }}>今天还没有记录</Typography>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 0.5, mb: 1 }}
+            >
+              拍下这一餐，让每一次用心都被看见。
+            </Typography>
+            <Button
+              onClick={() => setShowFlow(true)}
+              startIcon={<CameraAltRounded />}
+            >
+              拍照记录
+            </Button>
+          </Paper>
+        )}
+        {!loading && !error && (
+          <Stack spacing={1.5}>
+            {records.map((r) => (
+              <Paper
+                component="article"
+                aria-label={`${r.food_name}记录`}
+                key={r.id}
+                sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}
+              >
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  sx={{ alignItems: 'center' }}
+                >
+                  <Box
+                    sx={{
+                      bgcolor: '#F3EEDF',
+                      color: '#A87544',
+                      width: 46,
+                      height: 52,
+                      borderRadius: 3,
+                      display: 'grid',
+                      placeItems: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <RestaurantRounded />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {mealNames[r.meal_type] || '饮食记录'} · {r.portion}
+                    </Typography>
+                    <Typography
+                      sx={{ fontWeight: 700, overflowWrap: 'anywhere' }}
+                    >
+                      {r.food_name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      蛋白质 {r.protein_g?.toFixed(0)}g · 脂肪{' '}
+                      {r.fat_g?.toFixed(0)}g
+                    </Typography>
+                  </Box>
+                  <Stack sx={{ alignItems: 'flex-end' }}>
+                    <Typography sx={{ fontSize: 19, fontWeight: 750 }}>
+                      {r.calories?.toFixed(0)}
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ ml: 0.5 }}
+                      >
+                        kcal
+                      </Typography>
+                    </Typography>
+                    <IconButton
+                      onClick={() => del(r.id)}
+                      aria-label="删除记录"
+                      size="small"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      <DeleteOutlineRounded fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+        )}
+      </Stack>
+      {showChart && (
+        <Suspense
+          fallback={
+            <Dialog open onClose={() => setShowChart(false)}>
+              <DialogContent>
+                <CircularProgress aria-label="正在加载营养趋势" />
+              </DialogContent>
+            </Dialog>
+          }
+        >
+          <NutritionChart onClose={() => setShowChart(false)} />
+        </Suspense>
+      )}
+      {showFlow && (
+        <FoodFlow
+          date={fmt(date)}
+          onDone={() => {
+            loadRecords()
+            setShowFlow(false)
+          }}
+          onClose={() => setShowFlow(false)}
+        />
+      )}
+    </Box>
   )
 }
 
-// ====== 拍照识别流程 ======
-const STEPS = ['📷', '🔍', '📋', '⚖️', '✅']
 const STEP_LABELS = ['拍照', '识别', '选择', '份量', '保存']
 
-function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void; onClose: () => void }) {
-  const [step, setStep] = useState<'camera' | 'identifying' | 'candidates' | 'portion' | 'saving'>('camera')
-  const stepIdx = ['camera', 'identifying', 'candidates', 'portion', 'saving'].indexOf(step)
+function FoodFlow({
+  date,
+  onDone,
+  onClose
+}: {
+  date: string
+  onDone: () => void
+  onClose: () => void
+}) {
+  const [step, setStep] = useState<
+    'camera' | 'identifying' | 'candidates' | 'portion' | 'saving'
+  >('camera')
+  const stepIdx = [
+    'camera',
+    'identifying',
+    'candidates',
+    'portion',
+    'saving'
+  ].indexOf(step)
   const [imageId, setImageId] = useState(0)
+  const [preview, setPreview] = useState('')
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview)
+    },
+    [preview]
+  )
   const [candidates, setCandidates] = useState<IdentifyResult[]>([])
   const [selected, setSelected] = useState<IdentifyResult | null>(null)
   const [grams, setGrams] = useState(300)
@@ -96,22 +443,24 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   const [estimating, setEstimating] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
-  const closeRef = useRef<HTMLButtonElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
   const estimateVersion = useRef(0)
 
-  useEffect(() => () => {
-    clearTimeout(debounceRef.current)
-    estimateVersion.current += 1
-  }, [])
-
-  // 打开时把焦点移入面板，便于键盘/读屏操作
-  useEffect(() => { closeRef.current?.focus() }, [])
+  useEffect(
+    () => () => {
+      clearTimeout(debounceRef.current)
+      estimateVersion.current += 1
+    },
+    []
+  )
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    setPreview(URL.createObjectURL(file))
     setStep('identifying')
     try {
       const img = await goApi.uploadImage(await prepareFoodImage(file))
@@ -150,23 +499,36 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
         if (version !== estimateVersion.current) return
         setEstimated(r)
       } catch {
-        if (version === estimateVersion.current) toast('计算失败，请调整份量后重试')
+        if (version === estimateVersion.current)
+          toast('计算失败，请调整份量后重试')
       } finally {
         if (version === estimateVersion.current) setEstimating(false)
       }
     }, 500)
   }
 
-  const canSave = !estimating && selected !== null && estimated !== null
-    && estimated.food_name === selected.name && estimated.grams === grams && grams > 0
+  const canSave =
+    !estimating &&
+    selected !== null &&
+    estimated !== null &&
+    estimated.food_name === selected.name &&
+    estimated.grams === grams &&
+    grams > 0
 
   const save = async () => {
     if (!canSave || !selected || !estimated) return
     setStep('saving')
     try {
       await goApi.createDietLog({
-        date, meal_type: 'snack', food_name: selected.name, portion: `${grams}g`,
-        calories: estimated.calories, protein_g: estimated.protein_g, fat_g: estimated.fat_g, carbs_g: estimated.carbs_g, image_id: imageId,
+        date,
+        meal_type: 'snack',
+        food_name: selected.name,
+        portion: `${grams}g`,
+        calories: estimated.calories,
+        protein_g: estimated.protein_g,
+        fat_g: estimated.fat_g,
+        carbs_g: estimated.carbs_g,
+        image_id: imageId
       })
       onDone()
     } catch (err) {
@@ -176,103 +538,349 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   }
 
   return (
-    <div className="app-overlay fixed inset-0 bg-white z-50 flex flex-col">
-      <div className="bg-green-600 text-white py-4 px-6 flex justify-between items-center">
-        <span className="font-semibold">{STEP_LABELS[stepIdx]}</span>
-        <button ref={closeRef} onClick={onClose} aria-label="关闭" className="text-white">✕</button>
-      </div>
-      {/* 步骤条 */}
-      <div className="flex items-center justify-center gap-2 px-6 py-3 bg-green-50">
-        {STEPS.map((s, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-colors ${i <= stepIdx ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-              {i < stepIdx ? <Check size={14} /> : s}
-            </div>
-            {i < 4 && <div className={`w-6 h-0.5 ${i < stepIdx ? 'bg-green-600' : 'bg-gray-200'}`} />}
-          </div>
+    <Dialog
+      fullScreen
+      open
+      onClose={step === 'saving' ? undefined : onClose}
+      aria-labelledby="food-flow-title"
+      slotProps={{ paper: { className: 'app-overlay' } }}
+    >
+      <DialogTitle id="food-flow-title" component="div" sx={{ px: 3, pt: 2.5 }}>
+        <Stack
+          direction="row"
+          sx={{ justifyContent: 'space-between', alignItems: 'center' }}
+        >
+          <Box>
+            <Typography variant="overline" color="primary">
+              ONE MEAL AT A TIME
+            </Typography>
+            <Typography variant="h2">记录这一餐</Typography>
+          </Box>
+          <IconButton
+            onClick={onClose}
+            disabled={step === 'saving'}
+            aria-label="关闭"
+          >
+            <CloseRounded />
+          </IconButton>
+        </Stack>
+      </DialogTitle>
+      <Stepper
+        activeStep={stepIdx}
+        alternativeLabel
+        sx={{ px: 1, pb: 3, '& .MuiStepLabel-label': { fontSize: 11 } }}
+      >
+        {STEP_LABELS.map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
         ))}
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-6">
+      </Stepper>
+      <DialogContent sx={{ px: 3, pb: 4 }}>
         {step === 'camera' && (
-          <div className="flex flex-col items-center gap-6 mt-16">
-            <Camera size={64} className="text-green-600" />
-            <p className="text-gray-500">拍一张你的食物照片</p>
-            <button onClick={() => cameraRef.current?.click()} className="bg-green-600 text-white rounded-xl px-8 py-3 font-medium">拍照</button>
-            <button onClick={() => fileRef.current?.click()} className="border border-green-200 text-green-700 rounded-xl px-8 py-3 font-medium">从相册选择</button>
-            <input ref={fileRef} aria-label="选择食物照片" type="file" accept="image/*" className="hidden" onChange={handleFile} />
-            <input ref={cameraRef} aria-label="拍摄食物照片" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
-          </div>
+          <Stack spacing={2.5} sx={{ alignItems: 'center', pt: 2 }}>
+            <Box
+              sx={{
+                width: '100%',
+                aspectRatio: '1.3',
+                bgcolor: '#EAF0E4',
+                border: '1px dashed #A8B99E',
+                borderRadius: 5,
+                display: 'grid',
+                placeItems: 'center'
+              }}
+            >
+              <Box
+                sx={{
+                  border: '2px solid #A5B79C',
+                  borderRadius: '50%',
+                  p: 4,
+                  color: 'primary.main'
+                }}
+              >
+                <CameraAltRounded sx={{ fontSize: 58 }} />
+              </Box>
+            </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="h3">拍一张你的食物照片</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                光线充足、食物清晰，更容易识别。
+                <br />
+                你可以在下一步确认食物和份量。
+              </Typography>
+            </Box>
+            <Button
+              fullWidth
+              variant="contained"
+              size="large"
+              startIcon={<CameraAltRounded />}
+              onClick={() => cameraRef.current?.click()}
+            >
+              拍照
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<PhotoLibraryRounded />}
+              onClick={() => fileRef.current?.click()}
+            >
+              从相册选择
+            </Button>
+            <input
+              ref={fileRef}
+              aria-label="选择食物照片"
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleFile}
+            />
+            <input
+              ref={cameraRef}
+              aria-label="拍摄食物照片"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={handleFile}
+            />
+          </Stack>
         )}
-
-        {step === 'identifying' && (
-          <div className="flex flex-col items-center gap-4 mt-20">
-            <Loader2 size={48} className="animate-spin text-green-600" />
-            <p className="text-gray-500">AI 正在识别你的食物...</p>
-            <p className="text-xs text-gray-300">510 道家常菜中匹配，约需 20 秒</p>
-          </div>
+        {(step === 'identifying' || step === 'saving') && (
+          <Stack spacing={3} sx={{ alignItems: 'center', pt: 4 }}>
+            {preview && (
+              <Box
+                component="img"
+                src={preview}
+                alt="本次记录的食物照片"
+                sx={{
+                  width: '100%',
+                  maxHeight: 260,
+                  objectFit: 'cover',
+                  borderRadius: 4
+                }}
+              />
+            )}
+            <CircularProgress size={34} />
+            <Typography variant="h3">
+              {step === 'saving' ? '正在保存...' : 'AI 正在识别你的食物...'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {step === 'saving'
+                ? `${selected?.name} · ${grams}g`
+                : '正在寻找匹配的食物，请稍等片刻。'}
+            </Typography>
+          </Stack>
         )}
-
         {step === 'candidates' && (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-400 mb-2">识别结果，请选择一个：</p>
+          <Stack spacing={2}>
+            {preview && (
+              <Box
+                component="img"
+                src={preview}
+                alt="本次记录的食物照片"
+                sx={{
+                  width: '100%',
+                  height: 170,
+                  objectFit: 'cover',
+                  borderRadius: 4
+                }}
+              />
+            )}
+            <Box>
+              <Typography variant="h3">这餐吃了什么？</Typography>
+              <Typography variant="body2" color="text.secondary">
+                识别结果，请选择一个：
+              </Typography>
+            </Box>
             {candidates.map((c) => (
-              <button key={c.name} onClick={() => selectCandidate(c)}
-                className="w-full bg-white border border-gray-200 rounded-2xl p-4 text-left hover:border-green-500 transition-colors">
-                <div className="flex justify-between items-center"><span className="font-medium">{c.name}</span><span className="text-sm text-green-600">{(c.confidence * 100).toFixed(1)}%</span></div>
-                <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full" style={{ width: `${c.confidence * 100}%` }} /></div>
-                <div className="text-xs text-gray-400 mt-1">每100g: {c.nutrition_per_100g.calories}kcal · 默认{c.default_portion.grams}g/{c.default_portion.unit}</div>
-              </button>
+              <Paper
+                key={c.name}
+                sx={{
+                  overflow: 'hidden',
+                  border: '1px solid',
+                  borderColor: 'divider'
+                }}
+              >
+                <CardActionArea
+                  onClick={() => selectCandidate(c)}
+                  sx={{ p: 2.5 }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={2}
+                    sx={{
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 700 }}>{c.name}</Typography>
+                    <Typography variant="caption" color="primary">
+                      {(c.confidence * 100).toFixed(1)}% 匹配
+                    </Typography>
+                  </Stack>
+                  <LinearProgress
+                    variant="determinate"
+                    value={Math.min(100, Math.max(0, c.confidence * 100))}
+                    sx={{
+                      my: 1.5,
+                      height: 4,
+                      borderRadius: 2,
+                      bgcolor: '#E9F0E4'
+                    }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    每100g: {c.nutrition_per_100g.calories}kcal · 默认
+                    {c.default_portion.grams}g/{c.default_portion.unit}
+                  </Typography>
+                </CardActionArea>
+              </Paper>
             ))}
-            <button onClick={() => setStep('camera')} className="w-full text-gray-400 text-sm py-2">↩ 重新拍照</button>
-          </div>
+            <Button onClick={() => setStep('camera')}>重新拍照</Button>
+          </Stack>
         )}
-
         {step === 'portion' && selected && (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold">{selected.name}</div>
-              <div className="text-sm text-gray-400 mt-1">每100g: {selected.nutrition_per_100g.calories}kcal · P{selected.nutrition_per_100g.protein_g}g</div>
-            </div>
-            <div className="bg-gray-50 rounded-2xl p-6">
-              <label className="text-sm text-gray-400">吃了多少克？</label>
-              <div className="flex items-center gap-4 mt-2">
-                <button onClick={() => { setGrams(Math.max(10, grams - 50)); updateEstimate(selected.name, Math.max(10, grams - 50)) }} aria-label="减少 50 克" className="bg-white border rounded-xl w-10 h-10 flex items-center justify-center text-lg">−</button>
-                <input type="number" aria-label="食物克数" min="1" className="flex-1 text-center text-3xl font-bold bg-transparent outline-none"
-                  value={grams} onChange={(e) => { const g = parseInt(e.target.value) || 0; setGrams(g); updateEstimate(selected.name, g) }} />
-                <button onClick={() => { const g = grams + 50; setGrams(g); updateEstimate(selected.name, g) }} aria-label="增加 50 克" className="bg-white border rounded-xl w-10 h-10 flex items-center justify-center text-lg">+</button>
-              </div>
-              <div className="text-center text-gray-400 text-sm mt-1">克</div>
-            </div>
-            {estimating && <Skeleton className="h-24" />}
+          <Stack spacing={3}>
+            <Paper
+              sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}
+            >
+              {preview && (
+                <Box
+                  component="img"
+                  src={preview}
+                  alt="本次记录的食物照片"
+                  sx={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 3,
+                    objectFit: 'cover'
+                  }}
+                />
+              )}
+              <Box>
+                <Typography variant="h3">{selected.name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  每100g: {selected.nutrition_per_100g.calories}kcal
+                </Typography>
+              </Box>
+            </Paper>
+            <Box>
+              <Typography variant="h3" sx={{ mb: 1 }}>
+                吃了多少克？
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                按实际食用份量调整，营养数据会同步更新。
+              </Typography>
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{ alignItems: 'center' }}
+              >
+                <IconButton
+                  aria-label="减少 50 克"
+                  onClick={() => {
+                    const g = Math.max(10, grams - 50)
+                    setGrams(g)
+                    updateEstimate(selected.name, g)
+                  }}
+                  sx={{
+                    bgcolor: 'white',
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}
+                >
+                  <RemoveRounded />
+                </IconButton>
+                <TextField
+                  type="number"
+                  value={grams}
+                  onChange={(e) => {
+                    const g = parseInt(e.target.value) || 0
+                    setGrams(g)
+                    updateEstimate(selected.name, g)
+                  }}
+                  slotProps={{
+                    htmlInput: {
+                      'aria-label': '食物克数',
+                      min: 1,
+                      inputMode: 'numeric',
+                      style: {
+                        textAlign: 'center',
+                        fontSize: 30,
+                        fontWeight: 700
+                      }
+                    }
+                  }}
+                />
+                <IconButton
+                  aria-label="增加 50 克"
+                  onClick={() => {
+                    const g = grams + 50
+                    setGrams(g)
+                    updateEstimate(selected.name, g)
+                  }}
+                  sx={{
+                    bgcolor: 'white',
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}
+                >
+                  <AddRounded />
+                </IconButton>
+              </Stack>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ textAlign: 'center', display: 'block', mt: 1 }}
+              >
+                克 / g
+              </Typography>
+            </Box>
+            {estimating && <Skeleton height={150} />}
             {!estimating && estimated && (
-              <div className="bg-green-50 rounded-2xl p-4">
-                <div className="text-sm text-gray-500 mb-2">预计摄入</div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>热量 <span className="font-bold text-green-600">{estimated.calories.toFixed(0)}</span> kcal</div>
-                  <div>蛋白质 <span className="font-bold">{estimated.protein_g.toFixed(0)}</span> g</div>
-                  <div>脂肪 <span className="font-bold">{estimated.fat_g.toFixed(0)}</span> g</div>
-                  <div>碳水 <span className="font-bold">{estimated.carbs_g.toFixed(0)}</span> g</div>
-                </div>
-              </div>
+              <Paper sx={{ p: 2.5, bgcolor: '#EAF1E5' }}>
+                <Typography variant="body2" color="primary" sx={{ mb: 1.5 }}>
+                  预计摄入
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 2
+                  }}
+                >
+                  {[
+                    { label: '热量', value: estimated.calories, unit: 'kcal' },
+                    { label: '蛋白质', value: estimated.protein_g, unit: 'g' },
+                    { label: '脂肪', value: estimated.fat_g, unit: 'g' },
+                    { label: '碳水', value: estimated.carbs_g, unit: 'g' }
+                  ].map((item) => (
+                    <Box key={item.label}>
+                      <Typography variant="caption" color="text.secondary">
+                        {item.label}
+                      </Typography>
+                      <Typography sx={{ fontSize: 25, fontWeight: 750 }}>
+                        <span>{item.value.toFixed(0)}</span>{' '}
+                        <Typography component="span" variant="caption">
+                          {item.unit}
+                        </Typography>
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Paper>
             )}
-            <button onClick={save} disabled={!canSave} className="w-full bg-green-600 text-white rounded-xl py-3 font-medium disabled:opacity-50">确认记录</button>
-          </div>
+            <Button
+              onClick={save}
+              disabled={!canSave}
+              variant="contained"
+              fullWidth
+              size="large"
+            >
+              确认记录
+            </Button>
+          </Stack>
         )}
-
-        {step === 'saving' && (
-          <div className="flex flex-col items-center gap-6 mt-20">
-            <Loader2 size={48} className="animate-spin text-green-600" />
-            <p className="text-gray-500">正在保存...</p>
-            {selected && (
-              <div className="bg-gray-50 rounded-2xl p-4 w-full">
-                <p className="font-medium">{selected.name} {grams}g</p>
-                {estimated && <p className="text-sm text-gray-400 mt-1">{estimated.calories?.toFixed(0)}kcal</p>}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

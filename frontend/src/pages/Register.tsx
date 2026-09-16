@@ -1,7 +1,10 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link as RouterLink } from 'react-router-dom'
+import { Link, Stack, TextField } from '@mui/material'
+import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
 import { goApi } from '../api/go'
 import { LoadingButton } from '../components/ui/LoadingButton'
+import AuthLayout from '../components/layout/AuthLayout'
 import { toast } from '../lib/toast'
 
 export default function Register() {
@@ -9,9 +12,9 @@ export default function Register() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     setLoading(true)
     try {
       await goApi.register(username, password)
@@ -23,19 +26,63 @@ export default function Register() {
       setLoading(false)
     }
   }
-
   return (
-    <div className="auth-screen flex flex-col justify-center px-6">
-      <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold text-green-600">NutriGo</h1>
-        <p className="text-gray-500 mt-2">创建你的账号</p>
-      </div>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <input className="border border-gray-200 rounded-xl px-4 py-3 text-base outline-none focus:border-green-500" placeholder="用户名 (3-32字符)" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={3} maxLength={32} />
-        <input className="border border-gray-200 rounded-xl px-4 py-3 text-base outline-none focus:border-green-500" type="password" placeholder="密码 (6-128字符)" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
-        <LoadingButton loading={loading} type="submit" className="bg-green-600 text-white">注册</LoadingButton>
-      </form>
-      <p className="text-center text-sm text-gray-400 mt-6">已有账号？<Link to="/login" className="text-green-600">登录</Link></p>
-    </div>
+    <AuthLayout
+      title="开启健康新日常"
+      subtitle="创建账号，记录属于你的第一餐。"
+      footer={
+        <>
+          已有账号？{' '}
+          <Link
+            component={RouterLink}
+            to="/login"
+            underline="hover"
+            sx={{ fontWeight: 700 }}
+          >
+            去登录
+          </Link>
+        </>
+      }
+    >
+      <Stack component="form" onSubmit={handleSubmit} spacing={2.5}>
+        <TextField
+          label="用户名"
+          placeholder="用户名 (3-32字符)"
+          helperText="3–32 个字符"
+          autoComplete="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+          slotProps={{
+            htmlInput: {
+              minLength: 3,
+              maxLength: 32,
+              autoCapitalize: 'none',
+              spellCheck: false
+            }
+          }}
+        />
+        <TextField
+          label="密码"
+          placeholder="密码 (6-128字符)"
+          helperText="6–128 个字符"
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          slotProps={{ htmlInput: { minLength: 6, maxLength: 128 } }}
+        />
+        <LoadingButton
+          loading={loading}
+          type="submit"
+          fullWidth
+          endIcon={<ArrowForwardRounded />}
+          sx={{ minHeight: 52 }}
+        >
+          注册
+        </LoadingButton>
+      </Stack>
+    </AuthLayout>
   )
 }

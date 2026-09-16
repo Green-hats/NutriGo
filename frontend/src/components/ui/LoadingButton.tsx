@@ -1,19 +1,13 @@
-import { Loader2 } from 'lucide-react'
-import type { ButtonHTMLAttributes } from 'react'
+import { Button, type ButtonProps } from '@mui/material'
 
-interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
-  loading?: boolean
-}
-
-export function LoadingButton({ loading, children, disabled, className = '', ...rest }: Props) {
+export function LoadingButton({
+  loading = false,
+  children,
+  ...props
+}: ButtonProps) {
   return (
-    <button
-      disabled={disabled || loading}
-      className={`flex items-center justify-center gap-2 rounded-xl py-3 font-medium transition-colors disabled:opacity-50 ${className}`}
-      {...rest}
-    >
-      {loading && <Loader2 size={18} className="animate-spin" />}
+    <Button variant="contained" loading={loading} {...props}>
       {children}
-    </button>
+    </Button>
   )
 }

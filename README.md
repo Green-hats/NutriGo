@@ -34,9 +34,11 @@
 
 <img src="docs/screenshots/demo.gif" alt="Demo" width="420" />
 
+MUI 9 mobile interface — screenshots use synthetic data for UI verification.
+
 | Login | AI Chat | Food Diary | Nutrition Trend | Health Profile |
 | :---: | :---: | :---: | :---: | :---: |
-| <img src="docs/screenshots/login.png" alt="Login" width="150" /> | <img src="docs/screenshots/chat.png" alt="AI Chat with tool cards" width="150" /> | <img src="docs/screenshots/diary.png" alt="Food Diary" width="150" /> | <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="150" /> | <img src="docs/screenshots/profile.png" alt="Health profile" width="150" /> |
+| <img src="docs/screenshots/login.png" alt="Login" width="150" /> | <img src="docs/screenshots/chat.png" alt="AI Chat" width="150" /> | <img src="docs/screenshots/diary.png" alt="Food Diary" width="150" /> | <img src="docs/screenshots/chart.png" alt="Nutrition trend chart" width="150" /> | <img src="docs/screenshots/profile.png" alt="Health profile" width="150" /> |
 
 </div>
 
@@ -158,7 +160,7 @@ make test
 
 | Layer | Tech |
 |-------|------|
-| Mobile app | Tauri 2 · Rust · React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
+| Mobile app | Tauri 2 · Rust · React 19 · TypeScript (strict) · MUI 9 + Emotion · Zustand · Vite · vitest |
 | Agent | Python 3.13 · FastAPI · litellm · Chinese-CLIP · ChromaDB · SSE |
 | Backend | Go 1.26 · Gin · GORM · SQLite · JWT · bcrypt |
 | Quality | Go test · pytest · ruff · mypy · oxlint · vitest · GitHub Actions CI |

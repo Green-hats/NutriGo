@@ -2,7 +2,7 @@ name: nutrigo
 options:
   bundleIdPrefix: com.greenhats.nutrigo
   deploymentTarget:
-    iOS: 15.0
+    iOS: 17.0
 fileGroups: [../../src]
 configs:
   debug: debug

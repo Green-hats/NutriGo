@@ -21,9 +21,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
+    "@mui/icons-material": "9.4.0",
+    "@mui/material": "9.4.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-http": "^2.6.1",
-    "lucide-react": "^1.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
@@ -33,7 +36,6 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
@@ -42,12 +44,11 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "jsdom": "^30.0.1",
     "oxlint": "^1.75.0",
-    "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

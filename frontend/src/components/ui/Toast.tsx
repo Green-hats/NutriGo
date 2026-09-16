@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { AlertCircle, CheckCircle, X } from 'lucide-react'
+import { Alert, Box, Fade, Stack } from '@mui/material'
 import { setToastHandler } from '../../lib/toast'
 
 interface ToastData {
@@ -11,33 +11,50 @@ interface ToastData {
 export default function Toast() {
   const [toasts, setToasts] = useState<ToastData[]>([])
   const idRef = useRef(0)
-
-  // 模块级回调只在挂载后绑定，避免渲染期副作用（StrictMode 双渲染安全）
   useEffect(() => {
+    const timers = new Set<ReturnType<typeof setTimeout>>()
     setToastHandler((message, type) => {
-      const newId = ++idRef.current
-      setToasts((prev) => [...prev, { id: newId, message, type }])
-      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== newId)), 3500)
+      const id = ++idRef.current
+      setToasts((prev) => [...prev.slice(-2), { id, message, type }])
+      const timer = setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id))
+        timers.delete(timer)
+      }, 3500)
+      timers.add(timer)
     })
-    return () => setToastHandler(null)
+    return () => {
+      setToastHandler(null)
+      timers.forEach(clearTimeout)
+    }
   }, [])
-
-  const dismiss = (tid: number) => setToasts((prev) => prev.filter((t) => t.id !== tid))
-
   return (
-    <div className="app-toasts fixed left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 w-[90%] max-w-sm">
-      {toasts.map((t) => (
-        <div
-          key={t.id}
-          className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm shadow-lg animate-in slide-in-from-top-2 ${
-            t.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : 'bg-green-50 text-green-800 border border-green-200'
-          }`}
-        >
-          {t.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
-          <span className="flex-1">{t.message}</span>
-          <button onClick={() => dismiss(t.id)}><X size={16} /></button>
-        </div>
-      ))}
-    </div>
+    <Box
+      className="app-toasts"
+      sx={{
+        position: 'fixed',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'calc(100% - 32px)',
+        maxWidth: 420,
+        zIndex: 1600,
+        pointerEvents: 'none'
+      }}
+    >
+      <Stack spacing={1}>
+        {toasts.map((t) => (
+          <Fade in key={t.id}>
+            <Alert
+              severity={t.type}
+              onClose={() =>
+                setToasts((prev) => prev.filter((item) => item.id !== t.id))
+              }
+              sx={{ pointerEvents: 'auto', boxShadow: '0 8px 32px #183F3020' }}
+            >
+              {t.message}
+            </Alert>
+          </Fade>
+        ))}
+      </Stack>
+    </Box>
   )
 }

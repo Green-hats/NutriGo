@@ -1,3 +1,4 @@
-export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`bg-gray-200 rounded-xl animate-pulse ${className}`} />
+import { Skeleton as MuiSkeleton, type SkeletonProps } from '@mui/material'
+export function Skeleton(props: SkeletonProps) {
+  return <MuiSkeleton height={90} {...props} />
 }

@@ -1,29 +1,52 @@
-import { NavLink } from 'react-router-dom'
-import { MessageCircle, UtensilsCrossed, User } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { BottomNavigation, BottomNavigationAction, Paper } from '@mui/material'
+import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded'
+import RestaurantRounded from '@mui/icons-material/RestaurantRounded'
+import PersonOutlineRounded from '@mui/icons-material/PersonOutlineRounded'
 
 const tabs = [
-  { to: '/chat', icon: MessageCircle, label: '对话' },
-  { to: '/diary', icon: UtensilsCrossed, label: '日记' },
-  { to: '/profile', icon: User, label: '我的' },
+  { to: '/chat', icon: ChatBubbleOutlineRounded, label: '对话' },
+  { to: '/diary', icon: RestaurantRounded, label: '日记' },
+  { to: '/profile', icon: PersonOutlineRounded, label: '我的' }
 ]
 
 export default function BottomNav() {
+  const { pathname } = useLocation()
   return (
-    <nav aria-label="主导航" className="app-tabbar bg-white border-t border-gray-100 px-6 flex justify-around">
-      {tabs.map(({ to, icon: Icon, label }) => (
-        <NavLink
-          key={to}
-          to={to}
-          className={({ isActive }) =>
-            `min-h-12 min-w-16 flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              isActive ? 'text-green-600' : 'text-gray-400'
-            }`
-          }
-        >
-          <Icon size={22} />
-          <span>{label}</span>
-        </NavLink>
-      ))}
-    </nav>
+    <Paper
+      className="app-tabbar"
+      square
+      sx={{ borderTop: '1px solid', borderColor: 'divider', px: 2 }}
+    >
+      <BottomNavigation
+        component="nav"
+        aria-label="主导航"
+        value={pathname}
+        showLabels
+        sx={{ height: 62, bgcolor: 'transparent', gap: 1 }}
+      >
+        {tabs.map(({ to, icon: Icon, label }) => (
+          <BottomNavigationAction
+            key={to}
+            component={NavLink}
+            to={to}
+            value={to}
+            label={label}
+            icon={<Icon />}
+            sx={{
+              minWidth: 0,
+              maxWidth: 150,
+              borderRadius: 3,
+              color: 'text.secondary',
+              gap: 0.5,
+              py: 1,
+              '&.Mui-selected': { bgcolor: '#EDF3E9', color: 'primary.main' },
+              '& .MuiBottomNavigationAction-label, & .MuiBottomNavigationAction-label.Mui-selected':
+                { fontSize: 11, fontWeight: 650 }
+            }}
+          />
+        ))}
+      </BottomNavigation>
+    </Paper>
   )
 }

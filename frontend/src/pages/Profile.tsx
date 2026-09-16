@@ -1,12 +1,29 @@
 import { useState, useEffect } from 'react'
+import {
+  Avatar,
+  Box,
+  Button,
+  Chip,
+  IconButton,
+  Paper,
+  Stack,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography
+} from '@mui/material'
+import LogoutRounded from '@mui/icons-material/LogoutRounded'
+import AddRounded from '@mui/icons-material/AddRounded'
+import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded'
+import FavoriteBorderRounded from '@mui/icons-material/FavoriteBorderRounded'
 import { useAuthStore } from '../stores/auth'
 import { goApi } from '../api/go'
 import { logoutRemote } from '../api/authSession'
 import { useNavigate } from 'react-router-dom'
-import { LogOut } from 'lucide-react'
 import { LoadingButton } from '../components/ui/LoadingButton'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
+import { PageHeader } from '../components/layout/PageHeader'
 import { toast } from '../lib/toast'
 import type { UserProfile } from '../types'
 
@@ -17,13 +34,22 @@ const DISEASE_OPTIONS = [
   { value: 'gout', label: '痛风' },
   { value: 'heart_disease', label: '心脏病' },
   { value: 'kidney_disease', label: '肾病' },
-  { value: 'digestive_disease', label: '消化系统疾病' },
+  { value: 'digestive_disease', label: '消化系统疾病' }
 ]
 
 export default function Profile() {
   const { user, setProfile, logout } = useAuthStore()
   const navigate = useNavigate()
-  const [form, setForm] = useState<UserProfile>({ height_cm: 0, weight_kg: 0, age: 0, gender: '', goal: '', allergies: [], dietary_habits: [], chronic_diseases: [] })
+  const [form, setForm] = useState<UserProfile>({
+    height_cm: 0,
+    weight_kg: 0,
+    age: 0,
+    gender: '',
+    goal: '',
+    allergies: [],
+    dietary_habits: [],
+    chronic_diseases: []
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -32,7 +58,11 @@ export default function Profile() {
     if (!user) return
     setLoading(true)
     setError('')
-    goApi.getProfile().then(setForm).catch(() => setError('加载失败')).finally(() => setLoading(false))
+    goApi
+      .getProfile()
+      .then(setForm)
+      .catch(() => setError('加载失败'))
+      .finally(() => setLoading(false))
   }
   useEffect(loadProfile, [user])
 
@@ -56,82 +86,298 @@ export default function Profile() {
     navigate('/login')
   }
 
-  if (loading) return (
-    <div className="min-h-full bg-gray-50">
-      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold">健康档案</div>
-      <div className="p-6 space-y-4">
-        <Skeleton className="h-32" />
-        <Skeleton className="h-16" />
-        <Skeleton className="h-24" />
-        <Skeleton className="h-12" />
-      </div>
-    </div>
-  )
-
   return (
-    <div className="min-h-full bg-gray-50">
-      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold">健康档案</div>
-      {error ? <ErrorBlock message={error} onRetry={loadProfile} /> : (
-        <div className="p-6 space-y-4">
-          <Card title="基本信息">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="身高(cm)" value={form.height_cm} onChange={(v) => setForm({ ...form, height_cm: v })} />
-              <Field label="体重(kg)" value={form.weight_kg} onChange={(v) => setForm({ ...form, weight_kg: v })} />
-              <Field label="年龄" value={form.age} onChange={(v) => setForm({ ...form, age: v })} />
-              <Select label="性别" value={form.gender} options={['male', 'female', 'other']} onChange={(v) => setForm({ ...form, gender: v })} />
-            </div>
-          </Card>
-          <Card title="目标">
-            <Select label="健康目标" value={form.goal} options={['lose_weight', 'maintain', 'gain_muscle']} labels={['减重', '维持体重', '增肌']} onChange={(v) => setForm({ ...form, goal: v })} />
-          </Card>
-          <Card title="过敏原"><TagInput value={form.allergies} onChange={(v) => setForm({ ...form, allergies: v })} placeholder="添加过敏原" /></Card>
-          <Card title="饮食习惯"><TagInput value={form.dietary_habits} onChange={(v) => setForm({ ...form, dietary_habits: v })} placeholder="如: 素食、不吃猪肉" /></Card>
-          <Card title="基础病（可多选）">
-            <div className="flex flex-wrap gap-2">
-              {DISEASE_OPTIONS.map((opt) => {
-                const selected = form.chronic_diseases.includes(opt.value)
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => setForm({
-                      ...form,
-                      chronic_diseases: selected
-                        ? form.chronic_diseases.filter((x) => x !== opt.value)
-                        : [...form.chronic_diseases, opt.value],
-                    })}
-                    className={`rounded-full px-3 py-1.5 text-sm border transition-colors ${
-                      selected
-                        ? 'bg-green-600 text-white border-green-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                )
-              })}
-            </div>
-          </Card>
-          <LoadingButton loading={saving} onClick={handleSave} className="w-full bg-green-600 text-white">保存</LoadingButton>
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-gray-400 py-3"><LogOut size={18} />退出登录</button>
-        </div>
-      )}
-    </div>
+    <Box sx={{ pb: 4 }}>
+      <PageHeader
+        eyebrow="A HEALTHIER YOU"
+        title="健康档案"
+        subtitle="更了解你，才能给出更贴心的建议。"
+      />
+      <Stack spacing={2.5} sx={{ px: 3 }}>
+        <Paper sx={{ p: 2.5, bgcolor: '#E9F0E2' }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <Avatar
+              sx={{
+                width: 56,
+                height: 56,
+                bgcolor: 'primary.main',
+                fontWeight: 700,
+                fontSize: 24
+              }}
+            >
+              {user?.username.slice(0, 1).toUpperCase()}
+            </Avatar>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h3" sx={{ overflowWrap: 'anywhere' }}>
+                {user?.username}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                把照顾自己，变成每天的小习惯。
+              </Typography>
+            </Box>
+          </Stack>
+        </Paper>
+        {loading ? (
+          <>
+            <Skeleton height={180} />
+            <Skeleton height={120} />
+            <Skeleton />
+          </>
+        ) : error ? (
+          <ErrorBlock message={error} onRetry={loadProfile} />
+        ) : (
+          <>
+            <Section
+              title="基本信息"
+              description="用于更准确地了解你的身体情况。"
+            >
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 2.5
+                }}
+              >
+                <Field
+                  label="身高(cm)"
+                  value={form.height_cm}
+                  onChange={(v) => setForm({ ...form, height_cm: v })}
+                />
+                <Field
+                  label="体重(kg)"
+                  value={form.weight_kg}
+                  onChange={(v) => setForm({ ...form, weight_kg: v })}
+                />
+                <Field
+                  label="年龄"
+                  value={form.age}
+                  onChange={(v) => setForm({ ...form, age: v })}
+                />
+                <TextField
+                  label="性别"
+                  select
+                  value={form.gender}
+                  onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                  slotProps={{
+                    select: { native: true },
+                    inputLabel: { shrink: true }
+                  }}
+                >
+                  <option value="">请选择</option>
+                  <option value="male">男</option>
+                  <option value="female">女</option>
+                  <option value="other">其他</option>
+                </TextField>
+              </Box>
+            </Section>
+            <Section
+              title="我的健康目标"
+              description="朝着适合自己的方向，慢慢来。"
+            >
+              <ToggleButtonGroup
+                exclusive
+                fullWidth
+                value={form.goal}
+                onChange={(_e, value: string | null) => {
+                  if (value) setForm({ ...form, goal: value })
+                }}
+                aria-label="健康目标"
+                sx={{
+                  '& .MuiToggleButton-root': {
+                    px: 1,
+                    py: 1.5,
+                    fontSize: 13,
+                    '&.Mui-selected': {
+                      color: 'primary.main',
+                      bgcolor: '#E8F0E3',
+                      borderColor: '#AFC5A4'
+                    }
+                  }
+                }}
+              >
+                <ToggleButton value="lose_weight">减重</ToggleButton>
+                <ToggleButton value="maintain">维持体重</ToggleButton>
+                <ToggleButton value="gain_muscle">增肌</ToggleButton>
+              </ToggleButtonGroup>
+            </Section>
+            <Section title="过敏原" description="记下需要避开的食物。">
+              <TagInput
+                value={form.allergies}
+                onChange={(v) => setForm({ ...form, allergies: v })}
+                placeholder="添加过敏原"
+              />
+            </Section>
+            <Section
+              title="饮食习惯"
+              description="每一种饮食偏好，都值得被尊重。"
+            >
+              <TagInput
+                value={form.dietary_habits}
+                onChange={(v) => setForm({ ...form, dietary_habits: v })}
+                placeholder="如: 素食、不吃猪肉"
+              />
+            </Section>
+            <Section
+              title="健康情况"
+              description="基础病（可多选），帮助我们考虑你的饮食需求。"
+            >
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {DISEASE_OPTIONS.map((o) => {
+                  const active = form.chronic_diseases.includes(o.value)
+                  return (
+                    <Chip
+                      key={o.value}
+                      label={o.label}
+                      component="button"
+                      type="button"
+                      aria-pressed={active}
+                      icon={
+                        active ? (
+                          <CheckCircleRounded />
+                        ) : (
+                          <FavoriteBorderRounded />
+                        )
+                      }
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          chronic_diseases: active
+                            ? form.chronic_diseases.filter((x) => x !== o.value)
+                            : [...form.chronic_diseases, o.value]
+                        })
+                      }
+                      variant={active ? 'filled' : 'outlined'}
+                      color={active ? 'primary' : 'default'}
+                      sx={{ height: 42, borderRadius: 3, px: 0.5 }}
+                    />
+                  )
+                })}
+              </Box>
+            </Section>
+            <LoadingButton
+              loading={saving}
+              onClick={handleSave}
+              fullWidth
+              sx={{ minHeight: 52 }}
+            >
+              保存档案
+            </LoadingButton>
+          </>
+        )}
+        <Button
+          onClick={handleLogout}
+          startIcon={<LogoutRounded />}
+          sx={{ color: 'text.secondary' }}
+        >
+          退出登录
+        </Button>
+      </Stack>
+    </Box>
   )
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="bg-white rounded-2xl p-4 shadow-sm"><div className="text-sm text-gray-400 mb-2">{title}</div>{children}</div>
+function Section({
+  title,
+  description,
+  children
+}: {
+  title: string
+  description: string
+  children: React.ReactNode
+}) {
+  return (
+    <Paper
+      component="section"
+      sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}
+    >
+      <Typography variant="h3">{title}</Typography>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ mt: 0.5, mb: 2.5 }}
+      >
+        {description}
+      </Typography>
+      {children}
+    </Paper>
+  )
 }
-function Field({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return <div><label className="text-xs text-gray-400">{label}</label><input type="number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500" value={value || ''} onChange={(e) => onChange(parseFloat(e.target.value) || 0)} /></div>
+function Field({
+  label,
+  value,
+  onChange
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+}) {
+  return (
+    <TextField
+      label={label}
+      type="number"
+      value={value || ''}
+      onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+      slotProps={{
+        htmlInput: { min: 0, inputMode: 'decimal' },
+        inputLabel: { shrink: true }
+      }}
+    />
+  )
 }
-function Select({ label, value, options, labels, onChange }: { label: string; value: string; options: string[]; labels?: string[]; onChange: (v: string) => void }) {
-  return <div><label className="text-xs text-gray-400">{label}</label><select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 bg-white" value={value} onChange={(e) => onChange(e.target.value)}><option value="">请选择</option>{options.map((o, i) => <option key={o} value={o}>{labels?.[i] || o}</option>)}</select></div>
-}
-function TagInput({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder: string }) {
+function TagInput({
+  value,
+  onChange,
+  placeholder
+}: {
+  value: string[]
+  onChange: (v: string[]) => void
+  placeholder: string
+}) {
   const [input, setInput] = useState('')
-  return <div>
-    <div className="flex flex-wrap gap-2 mb-2">{value.map((t) => <span key={t} className="bg-gray-100 rounded-full px-3 py-1 text-xs flex items-center gap-1">{t}<button onClick={() => onChange(value.filter((x) => x !== t))} className="text-gray-400">×</button></span>)}</div>
-    <div className="flex gap-2"><input className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-green-500" placeholder={placeholder} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (() => { const t = input.trim(); if (t && !value.includes(t)) { onChange([...value, t]); setInput('') } })()} /><button onClick={() => { const t = input.trim(); if (t && !value.includes(t)) { onChange([...value, t]); setInput('') } }} className="bg-gray-100 rounded-lg px-3 py-1.5 text-sm">添加</button></div>
-  </div>
+  const add = () => {
+    const t = input.trim()
+    if (t && !value.includes(t)) {
+      onChange([...value, t])
+      setInput('')
+    }
+  }
+  return (
+    <Stack spacing={1.5}>
+      {value.length > 0 && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {value.map((t) => (
+            <Chip
+              key={t}
+              label={t}
+              onDelete={() => onChange(value.filter((x) => x !== t))}
+              sx={{ bgcolor: '#EEF3E9', maxWidth: '100%' }}
+            />
+          ))}
+        </Box>
+      )}
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <TextField
+          size="small"
+          placeholder={placeholder}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          slotProps={{ htmlInput: { 'aria-label': placeholder } }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              add()
+            }
+          }}
+        />
+        <IconButton
+          aria-label={placeholder}
+          onClick={add}
+          disabled={!input.trim()}
+          sx={{ bgcolor: '#EAF1E4', color: 'primary.main' }}
+        >
+          <AddRounded />
+        </IconButton>
+      </Stack>
+    </Stack>
+  )
 }

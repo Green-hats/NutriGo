@@ -1,73 +1,154 @@
-@import "tailwindcss";
-
-@layer base {
-  :root {
-    --color-primary: #16a34a;
-    --color-primary-light: #22c55e;
-  }
-  body {
-    @apply bg-gray-50 text-gray-900 antialiased;
-    margin: 0;
-    overscroll-behavior: none;
-    -webkit-tap-highlight-color: transparent;
-    overflow: hidden;
-  }
-  button, a { touch-action: manipulation; }
-  input, textarea, select { font-size: 16px; }
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
-
-@layer components {
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+body {
+  background: #e9eee7;
+}
+* {
+  box-sizing: border-box;
+}
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+.app-shell {
+  height: var(--app-height, 100dvh);
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  background: #f7f8f3;
+}
+.app-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.app-tabbar {
+  flex-shrink: 0;
+  padding-top: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+}
+:root[data-keyboard-open='true'] .app-tabbar {
+  display: none;
+}
+.auth-screen {
+  height: var(--app-height, 100dvh);
+  max-width: 480px;
+  margin: 0 auto;
+  overflow-y: auto;
+  background: #f7f8f3;
+  padding-top: max(28px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+}
+.app-overlay {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.app-toasts {
+  top: calc(16px + env(safe-area-inset-top, 0px));
+}
+.markdown-body {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.85;
+}
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 16px 0 8px;
+  line-height: 1.6;
+}
+.markdown-body p {
+  margin: 0 0 10px;
+}
+.markdown-body ul,
+.markdown-body ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+.markdown-body li {
+  margin: 4px 0;
+}
+.markdown-body strong {
+  font-weight: 700;
+}
+.markdown-body code {
+  background: #eaf0e7;
+  border-radius: 5px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+.markdown-body pre {
+  background: #203d31;
+  color: #e2eeda;
+  border-radius: 12px;
+  padding: 14px;
+  overflow-x: auto;
+}
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+}
+.markdown-body table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 10px 0;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid #dae4d8;
+  padding: 8px 10px;
+  min-width: 75px;
+  text-align: left;
+}
+.markdown-body th {
+  background: #eff4ea;
+}
+.markdown-body blockquote {
+  border-left: 3px solid #95b58b;
+  padding-left: 12px;
+  margin: 12px 0;
+  color: #69786f;
+}
+.markdown-body a {
+  color: #215743;
+  text-decoration: underline;
+}
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid #e6ebe3;
+  margin: 16px 0;
+}
+@media (min-width: 641px) {
   .app-shell {
-    height: var(--app-height, 100dvh);
-    max-width: 640px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
-    background: white;
-    overflow: hidden;
+    box-shadow: 0 0 70px #214c3510;
   }
-  .app-content { flex: 1; min-height: 0; overflow-y: auto; }
-  .app-tabbar {
-    flex-shrink: 0;
-    padding-top: 6px;
-    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
-  }
-  :root[data-keyboard-open="true"] .app-tabbar { display: none; }
-  .auth-screen {
-    height: var(--app-height, 100dvh);
-    max-width: 480px;
-    margin: 0 auto;
-    overflow-y: auto;
-    padding-top: max(24px, env(safe-area-inset-top, 0px));
-    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
-  }
-  .app-overlay {
-    height: var(--app-height, 100dvh);
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  .diary-add { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-  .app-toasts { top: calc(16px + env(safe-area-inset-top, 0px)); }
-  .markdown-body h1 { @apply text-lg font-bold mt-4 mb-2; }
-  .markdown-body h2 { @apply text-base font-bold mt-3 mb-1.5; }
-  .markdown-body h3 { @apply text-sm font-bold mt-2 mb-1; }
-  .markdown-body p  { @apply mb-2 leading-relaxed; }
-  .markdown-body ul { @apply mb-2 pl-5; }
-  .markdown-body ol { @apply mb-2 pl-5 list-decimal; }
-  .markdown-body li { @apply mb-0.5 list-disc; }
-  .markdown-body ol > li { @apply list-decimal; }
-  .markdown-body strong { @apply font-semibold; }
-  .markdown-body em { @apply italic; }
-  .markdown-body code { @apply bg-gray-200 rounded px-1 py-0.5 text-xs; }
-  .markdown-body pre { @apply bg-gray-800 text-green-400 rounded-lg p-3 mb-2 overflow-x-auto text-xs; }
-  .markdown-body pre code { @apply bg-transparent p-0; }
-  .markdown-body table { @apply w-full mb-2 border-collapse text-xs; }
-  .markdown-body th { @apply border border-gray-300 bg-gray-100 px-2 py-1 text-left font-semibold whitespace-nowrap; }
-  .markdown-body td { @apply border border-gray-300 px-2 py-1; }
-  .markdown-body blockquote { @apply border-l-4 border-green-400 pl-3 my-2 text-gray-600 italic; }
-  .markdown-body hr { @apply my-4 border-gray-200; }
-  .markdown-body a { @apply text-green-600 underline; }
 }

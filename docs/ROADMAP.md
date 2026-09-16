@@ -78,7 +78,7 @@
 
 | 层 | 技术 |
 |----|------|
-| 前端 | React 19 / TypeScript / Vite / TailwindCSS / Zustand / recharts |
+| 前端 | React 19 / TypeScript / Vite / MUI 9 + Emotion / Zustand / recharts |
 | Go 后端 | Gin / GORM / golang-jwt / SQLite |
 | Python Agent | FastAPI / litellm / Chinese-CLIP / ChromaDB / BGE |
 
