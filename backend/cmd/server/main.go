@@ -46,9 +46,8 @@ func main() {
 	}
 
 	// 启动后台任务
-	service.StartImageCleanup(config.DB)   // 每 1 小时删除 7 天前的图片
-	service.StartDietAggregator(config.DB) // 每 24 小时聚合 7 天前的饮食记录
-	service.StartTokenCleanup(config.DB)   // 每 6 小时清理过期令牌
+	service.StartImageCleanup(config.DB) // 只清理超过保留期且未关联饮食记录的图片
+	service.StartTokenCleanup(config.DB) // 每 6 小时清理过期令牌
 
 	// 认证接口限流（令牌桶，防密码爆破）
 	authLimiter := middleware.NewIPRateLimiter(config.AuthRateLimitRPS(), config.AuthRateLimitBurst())
@@ -110,6 +109,7 @@ func main() {
 		// 饮食记录
 		protected.POST("/diet/logs", dietHandler.Create)
 		protected.GET("/diet/logs", dietHandler.List)
+		protected.PUT("/diet/logs/:id", dietHandler.Update)
 		protected.DELETE("/diet/logs/:id", dietHandler.Delete)
 		// 每日汇总
 		protected.GET("/diet/summaries", summaryHandler.List)

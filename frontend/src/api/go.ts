@@ -146,6 +146,12 @@ export const goApi = {
   getDietLogs: (date: string) =>
     request<DietRecord[]>(`/diet/logs?date=${date}`),
 
+  updateDietLog: (id: number, data: DietLogInput) =>
+    request<DietRecord>(`/diet/logs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }),
+
   deleteDietLog: (id: number) =>
     request<{ message: string }>(`/diet/logs/${id}`, { method: 'DELETE' }),
 

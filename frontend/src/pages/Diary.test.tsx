@@ -21,12 +21,14 @@ const getDietLogsMock = vi.fn()
 const deleteDietLogMock = vi.fn()
 const uploadImageMock = vi.fn()
 const createDietLogMock = vi.fn()
+const updateDietLogMock = vi.fn()
 vi.mock('../api/go', () => ({
   goApi: {
     getDietLogs: (...args: unknown[]) => getDietLogsMock(...args),
     deleteDietLog: (...args: unknown[]) => deleteDietLogMock(...args),
     uploadImage: (...args: unknown[]) => uploadImageMock(...args),
-    createDietLog: (...args: unknown[]) => createDietLogMock(...args)
+    createDietLog: (...args: unknown[]) => createDietLogMock(...args),
+    updateDietLog: (...args: unknown[]) => updateDietLogMock(...args)
   }
 }))
 
@@ -83,6 +85,7 @@ beforeEach(() => {
   deleteDietLogMock.mockReset()
   uploadImageMock.mockReset()
   createDietLogMock.mockReset()
+  updateDietLogMock.mockReset()
   identifyFoodMock.mockReset()
   calculateIntakeMock.mockReset()
   toastMock.mockClear()
@@ -120,8 +123,13 @@ describe('Diary 日记页', () => {
       expect(screen.getByText('宫保鸡丁')).toBeInTheDocument()
     )
     const recordCard = screen.getByRole('article', { name: '宫保鸡丁记录' })
-    await user.click(within(recordCard).getByRole('button'))
+    await user.click(within(recordCard).getByRole('button', { name: '删除记录' }))
 
+    expect(deleteDietLogMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: '取消' }))
+    expect(deleteDietLogMock).not.toHaveBeenCalled()
+    await user.click(await within(recordCard).findByRole('button', { name: '删除记录' }))
+    await user.click(screen.getByRole('button', { name: '确认删除' }))
     await waitFor(() => expect(deleteDietLogMock).toHaveBeenCalledWith(1))
     // 删除后触发重新加载
     await waitFor(() => expect(getDietLogsMock).toHaveBeenCalledTimes(2))
@@ -325,6 +333,7 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
     )
 
     // 5. 确认保存
+    await user.selectOptions(screen.getByLabelText('餐次'), 'lunch')
     await user.click(screen.getByRole('button', { name: /确认记录/ }))
     await waitFor(() => expect(createDietLogMock).toHaveBeenCalled(), {
       timeout: 2000
@@ -334,6 +343,7 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
     expect(saved.food_name).toBe('宫保鸡丁')
     expect(saved.calories).toBe(348)
     expect(saved.image_id).toBe(99)
+    expect(saved.meal_type).toBe('lunch')
     // 流程关闭，回到日记页
     await waitFor(() =>
       expect(screen.queryByText(/拍一张你的食物照片/)).not.toBeInTheDocument()
@@ -369,4 +379,68 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
       expect(screen.getByText(/拍一张你的食物照片/)).toBeInTheDocument()
     )
   })
+})
+
+it('手动录入无需拍照，保存选定餐次和全部营养数值', async () => {
+  getDietLogsMock.mockResolvedValue([])
+  createDietLogMock.mockResolvedValue(record)
+  const user = userEvent.setup()
+  render(<Diary />)
+  await user.click(screen.getByRole('button', { name: '手动记录' }))
+  await user.selectOptions(screen.getByLabelText('餐次'), 'breakfast')
+  await user.type(screen.getByLabelText(/食物名称/), '酸奶')
+  await user.type(screen.getByLabelText('食用份量'), '200g')
+  for (const [label, value] of [['热量', '150'], ['蛋白质', '8'], ['脂肪', '0'], ['碳水', '20']]) {
+    await user.type(screen.getByLabelText(new RegExp(label)), value)
+  }
+  await user.click(screen.getByRole('button', { name: '保存记录' }))
+  await waitFor(() => expect(createDietLogMock).toHaveBeenCalledWith(expect.objectContaining({
+    meal_type: 'breakfast', food_name: '酸奶', portion: '200g', calories: 150,
+    protein_g: 8, fat_g: 0, carbs_g: 20, image_id: null
+  })))
+  expect(uploadImageMock).not.toHaveBeenCalled()
+  expect(identifyFoodMock).not.toHaveBeenCalled()
+})
+
+it('编辑已有记录保留图片；保存失败保留表单，重试调用更新接口', async () => {
+  getDietLogsMock.mockResolvedValue([{ ...record, image_id: 99 }])
+  updateDietLogMock.mockRejectedValueOnce(new Error('保存失败')).mockResolvedValueOnce(record)
+  const user = userEvent.setup()
+  render(<Diary />)
+  await user.click(await screen.findByRole('button', { name: '编辑记录' }))
+  await user.selectOptions(screen.getByLabelText('餐次'), 'dinner')
+  const calories = screen.getByLabelText(/热量/)
+  await user.clear(calories)
+  await user.type(calories, '0')
+  await user.click(screen.getByRole('button', { name: '保存修改' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('保存失败')
+  expect(calories).toHaveValue(0)
+  await user.click(screen.getByRole('button', { name: '保存修改' }))
+  await waitFor(() => expect(updateDietLogMock).toHaveBeenCalledTimes(2))
+  expect(updateDietLogMock).toHaveBeenLastCalledWith(1, expect.objectContaining({ meal_type: 'dinner', calories: 0, image_id: 99 }))
+  expect(createDietLogMock).not.toHaveBeenCalled()
+})
+
+it('快速切换日期时，迟到的旧日期请求不会覆盖当前记录', async () => {
+  const old = deferred<DietRecord[]>()
+  getDietLogsMock.mockReturnValueOnce(old.promise).mockResolvedValueOnce([{ ...record, food_name: '前一天午餐' }])
+  const user = userEvent.setup()
+  render(<Diary />)
+  await user.click(screen.getByRole('button', { name: '前一天' }))
+  expect(await screen.findByText('前一天午餐')).toBeInTheDocument()
+  await act(async () => old.resolve([record]))
+  expect(screen.queryByText('宫保鸡丁')).not.toBeInTheDocument()
+  expect(screen.getByText('前一天午餐')).toBeInTheDocument()
+})
+
+it('识别候选都不匹配时可转为手动记录', async () => {
+  getDietLogsMock.mockResolvedValue([])
+  uploadImageMock.mockResolvedValue({ id: 99 })
+  identifyFoodMock.mockResolvedValue([candidate])
+  render(<Diary />)
+  fireEvent.click(screen.getByRole('button', { name: '添加记录' }))
+  fireEvent.change(screen.getByLabelText('选择食物照片'), { target: { files: [new File(['x'], 'meal.jpg', { type: 'image/jpeg' })] } })
+  fireEvent.click(await screen.findByRole('button', { name: '都不是，手动记录' }))
+  expect(screen.getByLabelText(/食物名称/)).toBeInTheDocument()
+  expect(createDietLogMock).not.toHaveBeenCalled()
 })

@@ -23,7 +23,6 @@ backend/
 │   ├── config/
 │   │   ├── db.go               # SQLite 连接
 │   │   ├── jwt.go              # JWT 签发/刷新令牌生成/哈希
-│   │   ├── retention.go        # 聚合保留期常量
 │   │   └── rate_limit.go       # 认证接口限流配置
 │   ├── handler/
 │   │   ├── auth.go             # 注册/登录/刷新令牌/登出
@@ -45,13 +44,12 @@ backend/
 │   │   └── token.go            # RefreshToken + BlacklistedToken
 │   └── service/
 │       ├── cleanup.go          # 图片定时清理（每 1h）
-│       ├── aggregator.go       # 饮食记录定时聚合（每 24h）
 │       └── token_cleanup.go    # 过期令牌清理（每 6h）
 ├── uploads/                    # 图片存储目录（.gitignore）
 └── API.md                      # API 文档
 ```
 
-## 路由（22 条）
+## 路由
 
 ### 公共路由（无需认证）
 
@@ -75,6 +73,7 @@ backend/
 | DELETE | `/api/images/:id` | 删除图片 |
 | POST | `/api/diet/logs` | 创建饮食记录 |
 | GET | `/api/diet/logs?date=` | 按日期查询 |
+| PUT | `/api/diet/logs/:id` | 编辑自己的记录（完整替换） |
 | DELETE | `/api/diet/logs/:id` | 删除记录 |
 | GET | `/api/diet/summaries?start=&end=` | 每日汇总 |
 
@@ -94,9 +93,9 @@ backend/
 |----|------|---------|
 | `users` | 用户账号（bcrypt 密码） | 永久 |
 | `user_profiles` | 健康档案（1:1） | 永久 |
-| `food_images` | 食物图片记录 | 7 天后清理 |
-| `food_diaries` | 每日饮食明细 | 7 天后聚合删除 |
-| `daily_summaries` | 每日营养汇总 | 永久 |
+| `food_images` | 食物图片记录 | 有日记引用则保留；未关联照片默认 7 天后清理 |
+| `food_diaries` | 每日饮食明细 | 保留，直到用户主动删除 |
+| `daily_summaries` | 旧版本已聚合的历史基数 | 保留，不再新增 |
 | `refresh_tokens` | 刷新令牌（SHA-256 哈希 + 家族 ID） | 14 天/轮换后清除 |
 | `blacklisted_tokens` | 登出吊销的访问令牌（jti） | 到期清除 |
 
@@ -104,9 +103,10 @@ backend/
 
 | 任务 | 频率 | 功能 |
 |------|------|------|
-| ImageCleanup | 每 1h | 删除 7 天前图片（磁盘+数据库） |
-| DietAggregator | 每 24h | 聚合 7 天前记录 → daily_summaries + 删除原记录 |
+| ImageCleanup | 每 1h | 仅清理超期且没有日记引用的图片，支持 `UNATTACHED_IMAGE_RETENTION_DAYS`（默认 7，0 关闭） |
 | TokenCleanup | 每 6h | 清理过期黑名单与过期/已吊销刷新令牌 |
+
+每日汇总实时读取所有日期的明细，并叠加旧版本已删明细对应的历史汇总基数。补记、编辑与删除会立即反映到趋势；不会再为了汇总删除明细。旧版本已经删除的明细不能凭汇总重建。自动备份与隔离恢复见 [云端部署文档](../deploy/cloud/README.md#自动备份与恢复验证)。
 
 ## 安全
 
@@ -125,7 +125,7 @@ backend/
 cd backend && go test ./...
 ```
 
-83 个用例，覆盖：JWT 签发/过期/黑名单、auth（注册/登录/刷新/登出）、diet、image、middleware（JWT/内部鉴权/限流/指标）、service（聚合/清理/令牌清理）、限流配置。
+覆盖：JWT 签发/过期/黑名单、auth（注册/登录/刷新/登出）、diet、image、middleware（JWT/内部鉴权/限流/指标）、service（保留历史照片/清理未关联照片/令牌清理）、限流配置。
 
 ### 集成测试（需 Go 服务运行）
 

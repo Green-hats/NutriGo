@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily NutriGo backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=300
+Unit=nutrigo-backup.service
+
+[Install]
+WantedBy=timers.target

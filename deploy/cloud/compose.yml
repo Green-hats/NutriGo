@@ -33,6 +33,7 @@ services:
       APP_ENV: production
       JWT_SECRET: ${JWT_SECRET:?请设置强随机 JWT_SECRET}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请设置强随机 INTERNAL_TOKEN}
+      UNATTACHED_IMAGE_RETENTION_DAYS: ${UNATTACHED_IMAGE_RETENTION_DAYS:-7}
     volumes:
       - backend-data:/data
     healthcheck:
@@ -79,6 +80,19 @@ services:
       timeout: 5s
       start_period: 120s
       retries: 5
+
+  backup:
+    image: python:3.13-slim
+    profiles: [maintenance]
+    network_mode: none
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - backend-data:/source/backend
+      - agent-data:/source/agent
+      - ./backup:/scripts:ro
+      - ../../backups:/backups
+    command: [python, /scripts/backup.py, create, --backend, /source/backend, --agent, /source/agent, --destination, /backups, --keep, "${BACKUP_KEEP:-14}"]
 
 volumes:
   caddy-data:

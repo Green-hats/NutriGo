@@ -54,6 +54,8 @@ frontend/src/
 │   ├── chat/
 │   │   └── HistorySidebar.tsx  # 会话历史列表
 │   └── diary/
+│       ├── DietRecordEditor.tsx # 手动录入与编辑，共用校验和保存流程
+│       ├── MealTypeField.tsx    # 早餐/午餐/晚餐/加餐选择
 │       └── NutritionChart.tsx  # recharts 柱状图（7/14/30天）
 ├── pages/
 │   ├── Login.tsx               # 登录（LoadingButton）
@@ -74,7 +76,7 @@ frontend/src/
 | `/login` | 登录 | 无 | 用户名密码登录 |
 | `/register` | 注册 | 无 | 注册新账号 |
 | `/chat` | AI 对话 | JWT | SSE 流式对话 + 工具调用 + 历史会话 |
-| `/diary` | 饮食日记 | JWT | 日期选择 + 拍照识别 + 营养趋势图 |
+| `/diary` | 饮食日记 | JWT | 日期选择 + 拍照/手动记录 + 编辑/删除确认 + 营养趋势图 |
 | `/profile` | 健康档案 | JWT | 身高/体重/目标/过敏原/基础病表单 |
 
 ## 状态管理
@@ -123,6 +125,12 @@ API 层自动注入：
 - 营养估算 Loading 骨架屏
 - 保存中旋转动画 + 摘要卡片
 - 失败 Toast 提示 + 可重新拍照
+
+## 饮食记录编辑
+
+手动记录填写日期、餐次、食物、份量和实际食用总量对应的热量及三大营养素，不依赖 AI。拍照记录也可选择餐次；默认值按当前时间建议，不再固定为加餐。候选都不准确时可转手动记录。
+
+每条记录可编辑；失败时保留表单，保存中阻止重复提交。删除需要二次确认。保存或删除完成后重新查询当前日期；快速切换日期时忽略过期响应，避免显示错日数据。汇总与趋势由后端实时计算。
 
 ## SSE 流式对话
 
@@ -178,4 +186,4 @@ API 层自动注入：
 cd frontend && npx vitest run
 ```
 
-106 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑、Android 安全区换算与键盘／旋转状态。
+116 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑、Android 安全区换算与键盘／旋转状态。

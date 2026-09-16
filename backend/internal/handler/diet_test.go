@@ -218,3 +218,126 @@ func TestDietListInternalMissingParams(t *testing.T) {
 		}
 	}
 }
+
+func dietRequest(t *testing.T, h *DietHandler, method, id, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("userID", uint(1))
+	c.Params = []gin.Param{{Key: "id", Value: id}}
+	c.Request = httptest.NewRequest(method, "/api/diet/logs", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	if method == http.MethodPut {
+		h.Update(c)
+	} else {
+		h.Create(c)
+	}
+	return w
+}
+
+func TestDietRejectsInvalidCreateAndUpdate(t *testing.T) {
+	cases := []string{
+		`{"date":"2026-02-30","meal_type":"lunch","food_name":"米饭"}`,
+		`{"date":"2026-8-1","meal_type":"lunch","food_name":"米饭"}`,
+		`{"date":"2026-08-01","meal_type":"invalid","food_name":"米饭"}`,
+		`{"date":"2026-08-01","food_name":"米饭"}`,
+		`{"date":"2026-08-01","meal_type":"lunch","food_name":"  "}`,
+		`{"date":"2026-08-01","meal_type":"lunch","food_name":"米饭","calories":-1}`,
+		`{"date":"2026-08-01","meal_type":"lunch","food_name":"米饭","protein_g":-1}`,
+		`{"date":"2026-08-01","meal_type":"lunch","food_name":"米饭","fat_g":-1}`,
+		`{"date":"2026-08-01","meal_type":"lunch","food_name":"米饭","carbs_g":-1}`,
+		`{"date":"2026-08-01","meal_type":"lunch","food_name":"米饭","calories":1e100}`,
+		`{"date":"2026-08-01","meal_type":"lunch","food_name":"米饭","image_id":0}`,
+	}
+	for _, method := range []string{http.MethodPost, http.MethodPut} {
+		for _, body := range cases {
+			db := setupTestDB(t)
+			r := model.FoodDiary{UserID: 1, Date: "2026-08-01", FoodName: "original", Calories: 1}
+			db.Create(&r)
+			w := dietRequest(t, &DietHandler{DB: db}, method, fmt.Sprint(r.ID), body)
+			if w.Code != 400 {
+				t.Fatalf("%s %s: got %d %s", method, body, w.Code, w.Body.String())
+			}
+			var rows []model.FoodDiary
+			db.Find(&rows)
+			if len(rows) != 1 || rows[0].FoodName != "original" {
+				t.Fatal("无效请求修改了记录")
+			}
+		}
+	}
+}
+
+func TestDietImageOwnershipAndEditZeroValues(t *testing.T) {
+	db := setupTestDB(t)
+	h := &DietHandler{DB: db}
+	own := model.FoodImage{UserID: 1, Filename: "own", Path: "own"}
+	other := model.FoodImage{UserID: 2, Filename: "other", Path: "other"}
+	db.Create(&own)
+	db.Create(&other)
+	valid := `{"date":"2026-08-01","meal_type":"lunch","food_name":"米饭","calories":120,"image_id":%d}`
+	w := dietRequest(t, h, http.MethodPost, "", fmt.Sprintf(valid, own.ID))
+	if w.Code != 201 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var record model.FoodDiary
+	json.Unmarshal(w.Body.Bytes(), &record)
+	for _, method := range []string{http.MethodPost, http.MethodPut} {
+		for _, id := range []uint{other.ID, 99999} {
+			w = dietRequest(t, h, method, fmt.Sprint(record.ID), fmt.Sprintf(valid, id))
+			if w.Code != 400 {
+				t.Fatal(method, "应拒绝他人或不存在图片", w.Code)
+			}
+		}
+	}
+	w = dietRequest(t, h, http.MethodPut, fmt.Sprint(record.ID), `{"date":"2026-07-01","meal_type":"breakfast","food_name":"  白开水  ","portion":"1杯","calories":0,"protein_g":0,"fat_g":0,"carbs_g":0,"image_id":null}`)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	record = model.FoodDiary{}
+	db.First(&record, 1)
+	if record.Calories != 0 || record.ImageID != nil || record.Date != "2026-07-01" || record.FoodName != "白开水" || record.MealType != "breakfast" {
+		t.Fatalf("编辑未保存零值/日期/餐次: %+v", record)
+	}
+	var count int64
+	db.Model(&model.FoodDiary{}).Count(&count)
+	if count != 1 {
+		t.Fatal("编辑不应创建重复记录")
+	}
+}
+
+func TestDietUpdateOwnershipAndMissing(t *testing.T) {
+	db := setupTestDB(t)
+	r := model.FoodDiary{UserID: 2, Date: "2026-08-01", FoodName: "other"}
+	db.Create(&r)
+	h := &DietHandler{DB: db}
+	body := `{"date":"2026-08-01","meal_type":"lunch","food_name":"new"}`
+	for id, want := range map[string]int{fmt.Sprint(r.ID): 403, "99999": 404, "0": 400, "bad": 400} {
+		if w := dietRequest(t, h, http.MethodPut, id, body); w.Code != want {
+			t.Fatal(id, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestDietDatabaseFailureIsNotEmptySuccess(t *testing.T) {
+	db := setupTestDB(t)
+	db.Migrator().DropTable(&model.FoodDiary{})
+	h := &DietHandler{DB: db}
+	for _, internal := range []bool{false, true} {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userID", uint(1))
+		c.Request = httptest.NewRequest("GET", "/api/diet/logs?user_id=1&date=2026-08-01", nil)
+		if internal {
+			h.ListInternal(c)
+		} else {
+			h.List(c)
+		}
+		if w.Code != 500 {
+			t.Fatal("查询错误应返回500", w.Code)
+		}
+	}
+	w := dietRequest(t, h, http.MethodPut, "1", `{"date":"2026-08-01","meal_type":"lunch","food_name":"rice"}`)
+	if w.Code != 500 {
+		t.Fatal("数据库失败不应伪装为404", w.Code)
+	}
+}

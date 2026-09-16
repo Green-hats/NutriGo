@@ -43,7 +43,7 @@ export interface DietRecord {
   fat_g: number
   carbs_g: number
   notes?: string
-  image_id?: number
+  image_id?: number | null
   created_at: string
 }
 
@@ -137,7 +137,7 @@ export interface DietLogInput {
   fat_g?: number
   carbs_g?: number
   notes?: string
-  image_id?: number
+  image_id?: number | null
 }
 
 export interface IdentifyRequest {

@@ -60,3 +60,7 @@ agent/nutrition_rag.tar.gz
 
 # Installable local APK deliverables (distributed as CI artifacts)
 frontend/artifacts/
+
+# Private deployment backups and isolated restore data
+backups/
+restore-check/

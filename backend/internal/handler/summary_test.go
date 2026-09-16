@@ -222,3 +222,76 @@ func TestListPaginationClamps(t *testing.T) {
 		t.Errorf("offset = %v, 期望非法值回退 0", body["offset"])
 	}
 }
+
+func TestSummariesKeepOldDetailsAndCombineLegacyBackfill(t *testing.T) {
+	db := setupTestDB(t)
+	h := &SummaryHandler{DB: db}
+	old := "2020-01-01"
+	db.Create(&model.DailySummary{UserID: 1, Date: old, TotalCalories: 100, MealCount: 1})
+	record := model.FoodDiary{UserID: 1, Date: old, FoodName: "补记", Calories: 50}
+	db.Create(&record)
+	db.Create(&model.FoodDiary{UserID: 1, Date: "2020-01-02", FoodName: "第二天", Calories: 25})
+	db.Create(&model.FoodDiary{UserID: 2, Date: old, FoodName: "他人", Calories: 999})
+	check := func(expected float64, source string) {
+		for _, internal := range []bool{true, false} {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Set("userID", uint(1))
+			c.Request = httptest.NewRequest("GET", "/api/diet/summaries?user_id=1&start="+old+"&end="+old, nil)
+			var items []dietSummary
+			if internal {
+				h.ListInternal(c)
+				json.Unmarshal(w.Body.Bytes(), &items)
+			} else {
+				h.List(c)
+				var body struct {
+					Items []dietSummary `json:"items"`
+				}
+				json.Unmarshal(w.Body.Bytes(), &body)
+				items = body.Items
+			}
+			if w.Code != 200 || len(items) != 1 || items[0].TotalCalories != expected || items[0].Source != source {
+				t.Fatalf("汇总错误: %d %s", w.Code, w.Body.String())
+			}
+		}
+	}
+	check(150, "mixed")
+	db.Model(&record).Update("calories", 75)
+	check(175, "mixed")
+	db.Delete(&record)
+	check(100, "aggregated")
+	var count int64
+	db.Model(&model.FoodDiary{}).Where("user_id = ?", 1).Count(&count)
+	if count != 1 {
+		t.Fatal("查询不能清理历史明细")
+	}
+}
+
+func TestSummaryBoundsAndErrors(t *testing.T) {
+	for _, internal := range []bool{true, false} {
+		for _, broken := range []bool{true, false} {
+			db := setupTestDB(t)
+			h := &SummaryHandler{DB: db}
+			query := "user_id=1&start=2026-08-01&end=2026-08-02"
+			want := 500
+			if broken {
+				db.Migrator().DropTable(&model.FoodDiary{})
+			} else {
+				query = "user_id=1&start=2026-08-02&end=2026-08-01"
+				want = 400
+			}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Set("userID", uint(1))
+			c.Request = httptest.NewRequest("GET", "/api/diet/summaries?"+query, nil)
+			if internal {
+				h.ListInternal(c)
+			} else {
+				h.List(c)
+			}
+			if w.Code != want {
+				t.Fatal(w.Code, w.Body.String())
+			}
+		}
+	}
+}

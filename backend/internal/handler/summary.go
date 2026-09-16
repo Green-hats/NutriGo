@@ -1,147 +1,82 @@
-// 每日汇总查询处理器
 package handler
 
 import (
 	"net/http"
-	"nutri.go/backend/internal/httperr"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-
-	"nutri.go/backend/internal/config"
+	"nutri.go/backend/internal/httperr"
 	"nutri.go/backend/internal/model"
 )
 
-// SummaryHandler 处理每日营养汇总查询
-type SummaryHandler struct {
-	DB *gorm.DB
+type SummaryHandler struct{ DB *gorm.DB }
+
+type dietSummary struct {
+	model.DailySummary
+	Source string `json:"source"`
 }
 
-// List GET /api/diet/summaries?start=2026-01-01&end=2026-08-01&limit=&offset=
-// 返回分页信封 { items, total, limit, offset }
+// daily_summaries 只保留旧版本已删除明细的历史汇总，不再写入新快照。
+// 将这些历史基数与长期保留的明细相加，补记/修改/删除后立即反映最新总量。
+const summarySQL = `SELECT user_id, date,
+ SUM(total_calories) AS total_calories, SUM(total_protein_g) AS total_protein_g,
+ SUM(total_fat_g) AS total_fat_g, SUM(total_carbs_g) AS total_carbs_g,
+ SUM(meal_count) AS meal_count,
+ CASE WHEN MIN(origin) = MAX(origin) THEN MIN(origin) ELSE 'mixed' END AS source
+ FROM (
+ SELECT user_id, date, calories AS total_calories, protein_g AS total_protein_g,
+ fat_g AS total_fat_g, carbs_g AS total_carbs_g, 1 AS meal_count, 'live' AS origin
+ FROM food_diaries WHERE user_id = ? AND date >= ? AND date <= ?
+ UNION ALL
+ SELECT user_id, date, total_calories, total_protein_g, total_fat_g, total_carbs_g, meal_count, 'aggregated' AS origin
+ FROM daily_summaries WHERE user_id = ? AND date >= ? AND date <= ?
+ ) GROUP BY user_id, date`
+
+func (h *SummaryHandler) query(userID uint64, start, end string) *gorm.DB {
+	return h.DB.Table("(?) AS totals", h.DB.Raw(summarySQL, userID, start, end, userID, start, end))
+}
+func summaryDates(c *gin.Context) (string, string, bool) {
+	start, end := c.Query("start"), c.Query("end")
+	if !validDate(start) || !validDate(end) || start > end {
+		httperr.Response(c, http.StatusBadRequest, "start/end 应为有效日期（YYYY-MM-DD），且开始日期不能晚于结束日期")
+		return "", "", false
+	}
+	return start, end, true
+}
 func (h *SummaryHandler) List(c *gin.Context) {
-	userID := c.GetUint("userID")
-	start := c.Query("start")
-	end := c.Query("end")
-	if start == "" || end == "" {
-		httperr.Response(c, http.StatusBadRequest, "请提供 start 和 end 参数，格式 YYYY-MM-DD")
+	start, end, ok := summaryDates(c)
+	if !ok {
 		return
 	}
-	if !validDate(start) || !validDate(end) {
-		httperr.Response(c, http.StatusBadRequest, "start/end 参数格式应为 YYYY-MM-DD")
-		return
-	}
+	userID := uint64(c.GetUint("userID"))
 	limit, offset := parsePagination(c, 30, 100)
-
 	var total int64
-	if err := h.DB.Model(&model.DailySummary{}).
-		Where("user_id = ? AND date >= ? AND date <= ?", userID, start, end).
-		Count(&total).Error; err != nil {
+	if err := h.query(userID, start, end).Count(&total).Error; err != nil {
 		httperr.Response(c, http.StatusInternalServerError, "查询汇总失败")
 		return
 	}
-
-	var summaries []model.DailySummary
-	if err := h.DB.Where("user_id = ? AND date >= ? AND date <= ?", userID, start, end).
-		Order("date DESC").
-		Limit(limit).Offset(offset).
-		Find(&summaries).Error; err != nil {
+	items := make([]dietSummary, 0)
+	if err := h.query(userID, start, end).Order("date DESC").Limit(limit).Offset(offset).Scan(&items).Error; err != nil {
 		httperr.Response(c, http.StatusInternalServerError, "查询汇总失败")
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"items":  summaries,
-		"total":  total,
-		"limit":  limit,
-		"offset": offset,
-	})
+	c.JSON(http.StatusOK, gin.H{"items": items, "total": total, "limit": limit, "offset": offset})
 }
-
-// ListInternal GET /api/internal/diet/summaries?user_id=&start=&end=（内部路由）
-// 合并两段数据保证任意日期都有汇总：
-//   - 近 aggregationRetentionDays 天：从 food_diaries 原始表实时 SUM 聚合
-//   - 更早日期：查 daily_summaries 聚合表（后台任务已生成）
 func (h *SummaryHandler) ListInternal(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Query("user_id"), 10, 64)
-	if err != nil {
-		httperr.Response(c, http.StatusBadRequest, "请提供 user_id 参数")
+	if err != nil || userID == 0 {
+		httperr.Response(c, http.StatusBadRequest, "请提供有效的 user_id 参数")
 		return
 	}
-	start := c.Query("start")
-	end := c.Query("end")
-	if start == "" || end == "" {
-		httperr.Response(c, http.StatusBadRequest, "请提供 start 和 end 参数，格式 YYYY-MM-DD")
+	start, end, ok := summaryDates(c)
+	if !ok {
 		return
 	}
-	if !validDate(start) || !validDate(end) {
-		httperr.Response(c, http.StatusBadRequest, "start/end 参数格式应为 YYYY-MM-DD")
+	items := make([]dietSummary, 0)
+	if err := h.query(userID, start, end).Order("date ASC").Scan(&items).Error; err != nil {
+		httperr.Response(c, http.StatusInternalServerError, "查询汇总失败")
 		return
 	}
-
-	// 以 date -> summary 的 map 合并两段数据
-	merged := make(map[string]map[string]any)
-
-	// 1. 近 N 天：实时聚合 food_diaries
-	cutoff := time.Now().AddDate(0, 0, -config.AggregationRetentionDays).Format("2006-01-02")
-	var recent []struct {
-		Date      string  `gorm:"column:date"`
-		TotalCal  float64 `gorm:"column:total_cal"`
-		TotalPro  float64 `gorm:"column:total_pro"`
-		TotalFat  float64 `gorm:"column:total_fat"`
-		TotalCarb float64 `gorm:"column:total_carb"`
-		MealCount int     `gorm:"column:meal_count"`
-	}
-	h.DB.Model(&model.FoodDiary{}).
-		Select("date, SUM(calories) AS total_cal, SUM(protein_g) AS total_pro, "+
-			"SUM(fat_g) AS total_fat, SUM(carbs_g) AS total_carb, COUNT(*) AS meal_count").
-		Where("user_id = ? AND date >= ? AND date <= ?", userID, cutoff, end).
-		Group("date").
-		Find(&recent)
-	for _, r := range recent {
-		merged[r.Date] = map[string]any{
-			"date":            r.Date,
-			"total_calories":  r.TotalCal,
-			"total_protein_g": r.TotalPro,
-			"total_fat_g":     r.TotalFat,
-			"total_carbs_g":   r.TotalCarb,
-			"meal_count":      r.MealCount,
-			"source":          "live",
-		}
-	}
-
-	// 2. 更早日期：查聚合表（用 map 避免与实时部分重复的天）
-	var summaries []model.DailySummary
-	h.DB.Where("user_id = ? AND date >= ? AND date <= ?", userID, start, end).
-		Find(&summaries)
-	for _, s := range summaries {
-		if _, exists := merged[s.Date]; exists {
-			continue
-		}
-		merged[s.Date] = map[string]any{
-			"date":            s.Date,
-			"total_calories":  s.TotalCalories,
-			"total_protein_g": s.TotalProteinG,
-			"total_fat_g":     s.TotalFatG,
-			"total_carbs_g":   s.TotalCarbsG,
-			"meal_count":      s.MealCount,
-			"source":          "aggregated",
-		}
-	}
-
-	// 3. 排序输出（date ASC）
-	result := make([]map[string]any, 0, len(merged))
-	for _, v := range merged {
-		result = append(result, v)
-	}
-	// 简单插入排序（数据量小）
-	for i := 1; i < len(result); i++ {
-		for j := i; j > 0 && result[j-1]["date"].(string) > result[j]["date"].(string); j-- {
-			result[j-1], result[j] = result[j], result[j-1]
-		}
-	}
-
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, items)
 }

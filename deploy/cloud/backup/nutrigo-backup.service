@@ -1,0 +1,11 @@
+[Unit]
+Description=NutriGo verified database and image backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/nutrigo
+UMask=0077
+ExecStart=/usr/bin/docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml run --rm --no-deps backup
+TimeoutStartSec=1800

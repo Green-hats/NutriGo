@@ -345,10 +345,11 @@ check("空列表", body, [])
 # ---------- 10. 每日汇总 ----------
 print("\n📌 10. 每日汇总")
 
-# 10a. 查汇总（还没有聚合的数据，返回空分页信封）
+# 10a. 查询实时汇总，不必等待后台聚合
 status, body = request("GET", "/api/diet/summaries?start=2026-01-01&end=2026-12-31", headers=auth)
 check("查汇总 → 200", status, 200)
-check("汇总初始为空", len(body.get("items", [])), 0)
+check("新记录立即进入汇总", len(body.get("items", [])), 1)
+check("汇总热量 600", body.get("items", [{}])[0].get("total_calories"), 600)
 check("分页信封含 total", "total" in body, True)
 
 # 10b. 缺少参数
@@ -358,6 +359,21 @@ check("缺少 start/end → 400", status, 400)
 # 10c. 无 token
 status, body = request("GET", "/api/diet/summaries?start=2026-01-01&end=2026-12-31")
 check("无 token → 401", status, 401)
+
+# ---------- 11. 编辑与保存校验 ----------
+updated = {"date": today, "meal_type": "breakfast", "food_name": "白开水", "portion": "1杯", "calories": 0,
+           "protein_g": 0, "fat_g": 0, "carbs_g": 0, "image_id": None}
+status, body = request("PUT", f"/api/diet/logs/{other_record_id}", body=updated, headers=auth)
+check("编辑记录 → 200", status, 200)
+check("编辑保存零值", body.get("calories"), 0)
+check("编辑保存餐次", body.get("meal_type"), "breakfast")
+status, body = request("PUT", f"/api/diet/logs/{other_record_id}", body=updated, headers=other_auth)
+check("不能编辑他人记录", status, 403)
+for field, value in [("date", "2026-02-30"), ("meal_type", "invalid"), ("calories", -1), ("image_id", 999999)]:
+    status, _ = request("POST", "/api/diet/logs", body={**updated, field: value}, headers=auth)
+    check(f"拒绝无效 {field}", status, 400)
+status, body = request("GET", f"/api/diet/summaries?start={today}&end={today}", headers=auth)
+check("编辑后汇总立即更新", body.get("items", [{}])[0].get("total_calories"), 0)
 
 # ============================================================
 total = passed + failed

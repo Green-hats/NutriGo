@@ -31,75 +31,11 @@ func daysAgo(n int) time.Time {
 }
 
 // ============================================================
-// 饮食聚合任务
-// ============================================================
-
-func TestDietAggregationMovesOldRecords(t *testing.T) {
-	db := setupServiceDB(t, &model.FoodDiary{}, &model.DailySummary{})
-
-	// 保留期内（今天）与保留期外（10 天前）各一条
-	db.Create(&model.FoodDiary{UserID: 1, Date: time.Now().Format("2006-01-02"), FoodName: "A", Calories: 100})
-	db.Create(&model.FoodDiary{UserID: 1, Date: daysAgo(10).Format("2006-01-02"), FoodName: "B", Calories: 200})
-	db.Create(&model.FoodDiary{UserID: 1, Date: daysAgo(10).Format("2006-01-02"), FoodName: "C", Calories: 300})
-
-	runDietAggregation(db)
-
-	// 聚合表：旧日期被汇总（200+300=500，2 餐）
-	var summaries []model.DailySummary
-	if err := db.Find(&summaries).Error; err != nil {
-		t.Fatalf("查询汇总失败: %v", err)
-	}
-	if len(summaries) != 1 {
-		t.Fatalf("汇总条数 = %d, 期望 1", len(summaries))
-	}
-	if summaries[0].TotalCalories != 500 {
-		t.Errorf("TotalCalories = %v, 期望 500", summaries[0].TotalCalories)
-	}
-	if summaries[0].MealCount != 2 {
-		t.Errorf("MealCount = %v, 期望 2", summaries[0].MealCount)
-	}
-
-	// 明细表：旧记录被删除，新记录保留
-	var remaining []model.FoodDiary
-	db.Find(&remaining)
-	if len(remaining) != 1 {
-		t.Fatalf("剩余明细条数 = %d, 期望 1（保留今天）", len(remaining))
-	}
-	if remaining[0].FoodName != "A" {
-		t.Errorf("保留的应为今天的记录, got %s", remaining[0].FoodName)
-	}
-}
-
-func TestDietAggregationIdempotent(t *testing.T) {
-	db := setupServiceDB(t, &model.FoodDiary{}, &model.DailySummary{})
-	db.Create(&model.FoodDiary{UserID: 1, Date: daysAgo(10).Format("2006-01-02"), FoodName: "B", Calories: 200})
-
-	runDietAggregation(db)
-	runDietAggregation(db) // 二次执行不应重复插入
-
-	var count int64
-	db.Model(&model.DailySummary{}).Count(&count)
-	if count != 1 {
-		t.Fatalf("汇总条数 = %d, 期望 1（幂等）", count)
-	}
-}
-
-func TestDietAggregationNoDataNoError(t *testing.T) {
-	db := setupServiceDB(t, &model.FoodDiary{}, &model.DailySummary{})
-	runDietAggregation(db) // 空库不应报错
-	var count int64
-	db.Model(&model.DailySummary{}).Count(&count)
-	if count != 0 {
-		t.Fatalf("空库不应产生汇总, got %d", count)
-	}
-}
-
-// ============================================================
 // 图片清理任务
 // ============================================================
 
 func TestImageCleanupRemovesExpired(t *testing.T) {
-	db := setupServiceDB(t, &model.FoodImage{})
+	db := setupServiceDB(t, &model.FoodImage{}, &model.FoodDiary{})
 	dir := t.TempDir()
 
 	// 过期图片：磁盘文件存在
@@ -128,7 +64,7 @@ func TestImageCleanupRemovesExpired(t *testing.T) {
 }
 
 func TestImageCleanupSkipsMissingFile(t *testing.T) {
-	db := setupServiceDB(t, &model.FoodImage{})
+	db := setupServiceDB(t, &model.FoodImage{}, &model.FoodDiary{})
 	// 过期但文件已丢失：清理应跳过删除，仍删 DB 记录
 	db.Create(&model.FoodImage{UserID: 1, Filename: "gone.png", Path: filepath.Join(t.TempDir(), "gone.png"), CreatedAt: daysAgo(10)})
 
@@ -141,7 +77,7 @@ func TestImageCleanupSkipsMissingFile(t *testing.T) {
 }
 
 func TestImageCleanupNoDataNoError(t *testing.T) {
-	db := setupServiceDB(t, &model.FoodImage{})
+	db := setupServiceDB(t, &model.FoodImage{}, &model.FoodDiary{})
 	runImageCleanup(db) // 空库不应报错
 }
 
@@ -178,4 +114,53 @@ func TestTokenCleanupRemovesExpiredAndRevoked(t *testing.T) {
 func TestTokenCleanupNoDataNoError(t *testing.T) {
 	db := setupServiceDB(t, &model.BlacklistedToken{}, &model.RefreshToken{})
 	runTokenCleanup(db)
+}
+
+func TestImageCleanupPreservesLinkedHistory(t *testing.T) {
+	db := setupServiceDB(t, &model.FoodImage{}, &model.FoodDiary{})
+	p := filepath.Join(t.TempDir(), "saved.jpg")
+	if err := os.WriteFile(p, []byte("photo"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	img := model.FoodImage{UserID: 1, Filename: "saved.jpg", Path: p, CreatedAt: daysAgo(90)}
+	db.Create(&img)
+	record := model.FoodDiary{UserID: 1, Date: daysAgo(90).Format("2006-01-02"), FoodName: "历史午餐", ImageID: &img.ID}
+	db.Create(&record)
+	runImageCleanup(db)
+	if err := db.First(&record, record.ID).Error; err != nil {
+		t.Fatal("历史明细不能被清理", err)
+	}
+	if err := db.First(&img, img.ID).Error; err != nil {
+		t.Fatal("已关联图片不能被清理", err)
+	}
+	if _, err := os.Stat(p); err != nil {
+		t.Fatal("已关联图片文件不能被清理", err)
+	}
+}
+
+func TestImageCleanupDisabledOrInvalidRetention(t *testing.T) {
+	for _, value := range []string{"0", "invalid", "-1"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("UNATTACHED_IMAGE_RETENTION_DAYS", value)
+			db := setupServiceDB(t, &model.FoodImage{}, &model.FoodDiary{})
+			img := model.FoodImage{UserID: 1, Filename: "old.jpg", Path: "/missing", CreatedAt: daysAgo(90)}
+			db.Create(&img)
+			runImageCleanup(db)
+			if err := db.First(&img, img.ID).Error; err != nil {
+				t.Fatal("禁用或错误配置不能触发删除", err)
+			}
+		})
+	}
+}
+
+func TestImageCleanupQueryFailurePreservesFiles(t *testing.T) {
+	db := setupServiceDB(t, &model.FoodImage{})
+	p := filepath.Join(t.TempDir(), "old.jpg")
+	os.WriteFile(p, []byte("photo"), 0600)
+	img := model.FoodImage{UserID: 1, Filename: "old.jpg", Path: p, CreatedAt: daysAgo(90)}
+	db.Create(&img)
+	runImageCleanup(db)
+	if _, err := os.Stat(p); err != nil {
+		t.Fatal(err)
+	}
 }

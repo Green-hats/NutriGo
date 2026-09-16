@@ -124,3 +124,40 @@ PRELOAD_MODELS=0
 升级使用同一个 compose 项目执行 `up -d --build`。正常停止用 `down`，不要加 `-v`，否则会删除数据卷。备份时停止写入后复制数据库与图片卷，或使用 SQLite 在线备份接口；不要仅复制正在写入的 `.db` 文件而遗漏 WAL。
 
 已有部署的数据不会自动迁入这些新卷，切换前应备份并恢复数据。SQLite、进程内限流和会话锁目前按单实例运行；水平扩容需要另行迁移数据库及共享状态。部署后应分别验证 Go 与 Agent 的健康接口、真实登录、受保护请求及公网 HTTPS，而不能仅凭容器启动判断服务可用。
+
+## 自动备份与恢复验证
+
+饮食明细不再按 7 天删除。被日记引用的照片持续保留；未关联照片默认 7 天后清理，可用 `UNATTACHED_IMAGE_RETENTION_DAYS=0` 关闭清理。每日汇总实时计算保留的明细，并保留旧版本历史汇总基数；已经被旧版本删除的明细需要旧备份才能恢复。
+
+维护服务使用 SQLite 在线备份接口快照 Go 与 Agent 数据库，同时复制快照引用的图片。每份备份校验 SHA-256、SQLite 完整性和表行数，并实际恢复到隔离目录再次校验。验证成功后才清理旧备份，默认保留最近 14 份（`BACKUP_KEEP`）。该服务无需网络，不接触 API Key；数据库只读连接使用可写卷挂载，以兼容 SQLite 的 WAL 共享内存文件。
+
+在项目根目录执行首次备份：
+
+```bash
+docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml run --rm --no-deps backup
+```
+
+备份保存在项目的 `backups/snapshot-*`，目录权限为 700，已忽略 Git。Linux 主机安装每日北京时间 03:30 的任务（最多随机延迟 5 分钟，停机错过后补跑）：
+
+```bash
+sudo install -m 644 deploy/cloud/backup/nutrigo-backup.service /etc/systemd/system/
+sudo install -m 644 deploy/cloud/backup/nutrigo-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now nutrigo-backup.timer
+sudo systemctl start nutrigo-backup.service
+sudo systemctl list-timers nutrigo-backup.timer
+sudo journalctl -u nutrigo-backup.service --since today
+```
+
+服务默认项目路径为 `/opt/nutrigo`；其他路径须修改 `WorkingDirectory`。确认当前 Compose 项目名和现有持久卷一致，避免误备份新空卷。
+
+可使用主机 Python 3.9+ 再次验证或隔离恢复，将示例路径替换为实际备份名：
+
+```bash
+python3 deploy/cloud/backup/backup.py verify backups/snapshot-实际备份名
+python3 deploy/cloud/backup/backup.py restore backups/snapshot-实际备份名 --target restore-check/本次演练
+```
+
+恢复目标必须不存在，脚本拒绝覆盖任何现有目录。生成的 `backend/data.db`、`backend/uploads/` 和 `agent/agent.db` 可用于恢复演练。实际生产回滚前应停止写入、另行备份当前卷，再恢复选定版本；本命令不会自动覆盖生产数据。两个数据库分别取一致快照，不保证跨库同一时刻；需要这种保证时应暂停写入后备份。
+
+自动备份默认仍在同一台服务器。需另外把已验证的快照复制到独立主机或对象存储，才能覆盖整机/磁盘丢失。模型、向量库、TLS 状态和部署密钥不包含在此用户数据备份中，需按各自恢复方式管理。

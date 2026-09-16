@@ -8,6 +8,7 @@ import {
   CardActionArea,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -23,6 +24,7 @@ import {
 import CameraAltRounded from '@mui/icons-material/CameraAltRounded'
 import PhotoLibraryRounded from '@mui/icons-material/PhotoLibraryRounded'
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
+import EditRounded from '@mui/icons-material/EditRounded'
 import ChevronLeftRounded from '@mui/icons-material/ChevronLeftRounded'
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
 import BarChartRounded from '@mui/icons-material/BarChartRounded'
@@ -38,6 +40,9 @@ import { prepareFoodImage } from '../lib/foodImage'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
 import { PageHeader } from '../components/layout/PageHeader'
+import DietRecordEditor from '../components/diary/DietRecordEditor'
+import { MealTypeField } from '../components/diary/MealTypeField'
+import { defaultMealType } from '../lib/meal'
 import type { DietRecord, IdentifyResult, IntakeResult } from '../types'
 
 const NutritionChart = lazy(() => import('../components/diary/NutritionChart'))
@@ -63,22 +68,35 @@ export default function Diary() {
   const [error, setError] = useState('')
   const [showFlow, setShowFlow] = useState(false)
   const [showChart, setShowChart] = useState(false)
+  const [editor, setEditor] = useState<DietRecord | 'new' | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<DietRecord | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const loadVersion = useRef(0)
   const loadRecords = useCallback(() => {
+    const version = ++loadVersion.current
     setLoading(true)
     setError('')
     goApi
       .getDietLogs(fmt(date))
-      .then(setRecords)
-      .catch((err) => setError(errorMessage(err, '饮食记录加载失败')))
-      .finally(() => setLoading(false))
+      .then((items) => { if (version === loadVersion.current) setRecords(items) })
+      .catch((err) => { if (version === loadVersion.current) setError(errorMessage(err, '饮食记录加载失败')) })
+      .finally(() => { if (version === loadVersion.current) setLoading(false) })
   }, [date])
-  useEffect(loadRecords, [loadRecords])
-  const del = async (id: number) => {
+  useEffect(() => {
+    loadRecords()
+    return () => { loadVersion.current += 1 }
+  }, [loadRecords])
+  const del = async () => {
+    if (!pendingDelete || deleting) return
+    setDeleting(true)
     try {
-      await goApi.deleteDietLog(id)
+      await goApi.deleteDietLog(pendingDelete.id)
+      setPendingDelete(null)
       loadRecords()
     } catch (err) {
       toast(err instanceof Error ? err.message : '删除失败')
+    } finally {
+      setDeleting(false)
     }
   }
   const total = records.reduce(
@@ -257,6 +275,9 @@ export default function Diary() {
         >
           记录这一餐
         </Button>
+        <Button variant="outlined" startIcon={<EditRounded />} onClick={() => setEditor('new')}>
+          手动记录
+        </Button>
         <Stack
           direction="row"
           sx={{
@@ -368,14 +389,19 @@ export default function Diary() {
                         kcal
                       </Typography>
                     </Typography>
+                    <Stack direction="row">
+                    <IconButton aria-label="编辑记录" size="small" onClick={() => setEditor(r)}>
+                      <EditRounded fontSize="small" />
+                    </IconButton>
                     <IconButton
-                      onClick={() => del(r.id)}
+                      onClick={() => setPendingDelete(r)}
                       aria-label="删除记录"
                       size="small"
                       sx={{ color: 'text.secondary' }}
                     >
                       <DeleteOutlineRounded fontSize="small" />
                     </IconButton>
+                    </Stack>
                   </Stack>
                 </Stack>
               </Paper>
@@ -383,6 +409,16 @@ export default function Diary() {
           </Stack>
         )}
       </Stack>
+      <Dialog open={pendingDelete !== null} onClose={deleting ? undefined : () => setPendingDelete(null)} aria-labelledby="delete-diet-title">
+        <DialogTitle id="delete-diet-title">删除这条饮食记录？</DialogTitle>
+        <DialogContent>将删除「{pendingDelete?.food_name}」及其摄入数据，删除后无法恢复。</DialogContent>
+        <DialogActions>
+          <Button disabled={deleting} onClick={() => setPendingDelete(null)}>取消</Button>
+          <Button color="error" disabled={deleting} onClick={() => void del()}>{deleting ? '正在删除...' : '确认删除'}</Button>
+        </DialogActions>
+      </Dialog>
+      {editor && <DietRecordEditor date={fmt(date)} record={editor === 'new' ? undefined : editor}
+        onClose={() => setEditor(null)} onDone={() => { setEditor(null); loadRecords() }} />}
       {showChart && (
         <Suspense
           fallback={
@@ -404,6 +440,7 @@ export default function Diary() {
             setShowFlow(false)
           }}
           onClose={() => setShowFlow(false)}
+          onManual={() => { setShowFlow(false); setEditor('new') }}
         />
       )}
     </Box>
@@ -415,11 +452,13 @@ const STEP_LABELS = ['拍照', '识别', '选择', '份量', '保存']
 function FoodFlow({
   date,
   onDone,
-  onClose
+  onClose,
+  onManual
 }: {
   date: string
   onDone: () => void
   onClose: () => void
+  onManual: () => void
 }) {
   const [step, setStep] = useState<
     'camera' | 'identifying' | 'candidates' | 'portion' | 'saving'
@@ -442,6 +481,8 @@ function FoodFlow({
   const [candidates, setCandidates] = useState<IdentifyResult[]>([])
   const [selected, setSelected] = useState<IdentifyResult | null>(null)
   const [grams, setGrams] = useState(300)
+  const [mealType, setMealType] = useState(defaultMealType)
+  const savingRef = useRef(false)
   const [estimated, setEstimated] = useState<IntakeResult | null>(null)
   const [estimating, setEstimating] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -523,12 +564,13 @@ function FoodFlow({
     grams > 0
 
   const save = async () => {
-    if (!canSave || !selected || !estimated) return
+    if (!canSave || !selected || !estimated || savingRef.current) return
+    savingRef.current = true
     setStep('saving')
     try {
       await goApi.createDietLog({
         date,
-        meal_type: 'snack',
+        meal_type: mealType,
         food_name: selected.name,
         portion: `${grams}g`,
         calories: estimated.calories,
@@ -541,6 +583,8 @@ function FoodFlow({
     } catch (err) {
       toast('保存失败: ' + (err instanceof Error ? err.message : ''))
       setStep('portion')
+    } finally {
+      savingRef.current = false
     }
   }
 
@@ -758,10 +802,12 @@ function FoodFlow({
               </Paper>
             ))}
             <Button onClick={() => setStep('camera')}>重新拍照</Button>
+            <Button variant="outlined" onClick={onManual}>都不是，手动记录</Button>
           </Stack>
         )}
         {step === 'portion' && selected && (
           <Stack spacing={3}>
+            <MealTypeField value={mealType} onChange={setMealType} />
             <Paper
               sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}
             >
