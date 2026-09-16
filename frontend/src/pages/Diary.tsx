@@ -98,6 +98,12 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   const cameraRef = useRef<HTMLInputElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const estimateVersion = useRef(0)
+
+  useEffect(() => () => {
+    clearTimeout(debounceRef.current)
+    estimateVersion.current += 1
+  }, [])
 
   // 打开时把焦点移入面板，便于键盘/读屏操作
   useEffect(() => { closeRef.current?.focus() }, [])
@@ -132,20 +138,30 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   }
 
   const updateEstimate = (foodName: string, g: number) => {
-    if (g <= 0) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
+    const version = ++estimateVersion.current
+    clearTimeout(debounceRef.current)
+    setEstimated(null)
+    const valid = Number.isFinite(g) && g > 0
+    setEstimating(valid)
+    if (!valid) return
     debounceRef.current = setTimeout(async () => {
-      setEstimating(true)
       try {
         const r = await agentApi.calculateIntake(foodName, g)
+        if (version !== estimateVersion.current) return
         setEstimated(r)
-      } catch { toast('计算失败') }
-      finally { setEstimating(false) }
+      } catch {
+        if (version === estimateVersion.current) toast('计算失败，请调整份量后重试')
+      } finally {
+        if (version === estimateVersion.current) setEstimating(false)
+      }
     }, 500)
   }
 
+  const canSave = !estimating && selected !== null && estimated !== null
+    && estimated.food_name === selected.name && estimated.grams === grams && grams > 0
+
   const save = async () => {
-    if (!selected || !estimated) return
+    if (!canSave || !selected || !estimated) return
     setStep('saving')
     try {
       await goApi.createDietLog({
@@ -222,7 +238,7 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
               <label className="text-sm text-gray-400">吃了多少克？</label>
               <div className="flex items-center gap-4 mt-2">
                 <button onClick={() => { setGrams(Math.max(10, grams - 50)); updateEstimate(selected.name, Math.max(10, grams - 50)) }} aria-label="减少 50 克" className="bg-white border rounded-xl w-10 h-10 flex items-center justify-center text-lg">−</button>
-                <input type="number" className="flex-1 text-center text-3xl font-bold bg-transparent outline-none"
+                <input type="number" aria-label="食物克数" min="1" className="flex-1 text-center text-3xl font-bold bg-transparent outline-none"
                   value={grams} onChange={(e) => { const g = parseInt(e.target.value) || 0; setGrams(g); updateEstimate(selected.name, g) }} />
                 <button onClick={() => { const g = grams + 50; setGrams(g); updateEstimate(selected.name, g) }} aria-label="增加 50 克" className="bg-white border rounded-xl w-10 h-10 flex items-center justify-center text-lg">+</button>
               </div>
@@ -240,7 +256,7 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
                 </div>
               </div>
             )}
-            <button onClick={save} className="w-full bg-green-600 text-white rounded-xl py-3 font-medium">确认记录</button>
+            <button onClick={save} disabled={!canSave} className="w-full bg-green-600 text-white rounded-xl py-3 font-medium disabled:opacity-50">确认记录</button>
           </div>
         )}
 

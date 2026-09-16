@@ -1,39 +1,8 @@
 """图片识别接口归属校验：通过 ASGI 请求测试，不加载模型、不启动服务。"""
 
-import importlib
-import sys
-import types
-from unittest.mock import AsyncMock, Mock
-
 import httpx
 import pytest
 from test_auth import make_token, valid_payload
-
-
-@pytest.fixture
-def agent_app(monkeypatch):
-    # 路由测试只替换模型和 LLM 依赖，保留真实 JWT 校验、路由和缓存逻辑。
-    import app
-
-    multimodal = types.ModuleType("recognition.multimodal")
-    multimodal.identify = Mock(return_value=[{"name": "米饭", "confidence": 0.9}])
-    llm_client = types.ModuleType("app.llm_client")
-    llm_client.run_agent_loop = AsyncMock()
-    monkeypatch.setitem(sys.modules, "recognition.multimodal", multimodal)
-    monkeypatch.setitem(sys.modules, "app.llm_client", llm_client)
-    monkeypatch.setattr(app, "main", None, raising=False)
-    main = importlib.import_module("app.main")
-    monkeypatch.setattr(main, "_identify_cache", {})
-    monkeypatch.setattr(main.go_client, "get_image_meta", AsyncMock(return_value={"id": 12, "user_id": 7}))
-    monkeypatch.setattr(main.go_client, "get_image_data", AsyncMock(return_value=b"image bytes"))
-    monkeypatch.setattr(main, "list_names", AsyncMock(return_value=["米饭"]))
-    monkeypatch.setattr(main, "get_by_name", AsyncMock(return_value={"calories": 116}))
-    monkeypatch.setattr(main, "get_portion", AsyncMock(return_value={"grams": 200}))
-    try:
-        yield main
-    finally:
-        # 不让带模型替身的应用模块泄漏到其他测试。
-        sys.modules.pop("app.main", None)
 
 
 async def identify_request(main, user_id=7):

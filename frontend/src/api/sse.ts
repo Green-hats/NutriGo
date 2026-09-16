@@ -1,6 +1,6 @@
 import { apiUrl } from './config'
 import { apiFetch } from './http'
-import { tryRefresh } from './authSession'
+import { assertSessionCurrent, refreshForRequest } from './authSession'
 import { useAuthStore } from '../stores/auth'
 
 export interface SSECallbacks {
@@ -30,6 +30,10 @@ export function createChatStream(
   mode: 'chat' | 'regenerate' = 'chat'
 ): ChatStreamHandle {
   const controller = new AbortController()
+  const sessionVersion = useAuthStore.getState().sessionVersion
+  const unsubscribe = useAuthStore.subscribe((state) => {
+    if (state.sessionVersion !== sessionVersion) controller.abort()
+  })
   let streamEndedNormally = false
 
   const run = async () => {
@@ -47,13 +51,20 @@ export function createChatStream(
         signal: controller.signal,
       })
       let resp = await send(token)
-      if (resp.status === 401 && !controller.signal.aborted && await tryRefresh()) {
+      if (controller.signal.aborted) return
+      assertSessionCurrent(sessionVersion)
+      if (resp.status === 401) {
+        await refreshForRequest(sessionVersion, token)
         if (controller.signal.aborted) return
+        assertSessionCurrent(sessionVersion)
         resp = await send(useAuthStore.getState().token)
+        if (controller.signal.aborted) return
+        assertSessionCurrent(sessionVersion)
       }
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ detail: resp.statusText }))
+        if (controller.signal.aborted) return
         callbacks.onError(err.detail || `HTTP ${resp.status}`)
         return
       }
@@ -102,6 +113,7 @@ export function createChatStream(
 
       while (true) {
         const { done, value } = await reader.read()
+        if (controller.signal.aborted) return
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
@@ -132,6 +144,8 @@ export function createChatStream(
     } catch (e) {
       const err = e as { name?: string; message?: string } | null
       if (!controller.signal.aborted && err?.name !== 'AbortError') callbacks.onError(err?.message || '连接中断')
+    } finally {
+      unsubscribe()
     }
   }
 

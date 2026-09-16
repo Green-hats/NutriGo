@@ -1,5 +1,5 @@
 import { useAuthStore } from '../stores/auth'
-import { tryRefresh } from './authSession'
+import { assertSessionCurrent, refreshForRequest } from './authSession'
 import { apiUrl } from './config'
 import { apiFetch } from './http'
 import type { UserProfile, DietRecord, DailySummary, DietLogInput, Paginated } from '../types'
@@ -27,23 +27,25 @@ interface AuthResponse {
 }
 
 // 401 后自动用 refresh_token 换新令牌并重试一次；失败则清除本地登录态
-async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
-  const token = useAuthStore.getState().token
+async function request<T>(path: string, options: RequestInit = {}, retried = false, authenticated = true): Promise<T> {
+  const { token, sessionVersion } = useAuthStore.getState()
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   }
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
   }
-  if (token) {
+  if (token && authenticated) {
     headers['Authorization'] = `Bearer ${token}`
   }
 
   const resp = await apiFetch(apiUrl('go', path), { ...options, headers })
+  if (authenticated) assertSessionCurrent(sessionVersion)
 
-  if (resp.status === 401 && !retried) {
-    const refreshed = await tryRefresh()
-    if (refreshed) {
+  if (resp.status === 401 && authenticated) {
+    if (!retried) {
+      await refreshForRequest(sessionVersion, token)
+      assertSessionCurrent(sessionVersion)
       return request<T>(path, options, true)
     }
     useAuthStore.getState().logout()
@@ -54,7 +56,9 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
     const err = await resp.json().catch(() => ({ message: resp.statusText })) as ApiErrorBody
     throw new Error(err.message || err.error || err.detail || `HTTP ${resp.status}`)
   }
-  return resp.json()
+  const data = await resp.json()
+  if (authenticated) assertSessionCurrent(sessionVersion)
+  return data
 }
 
 export const goApi = {
@@ -62,13 +66,13 @@ export const goApi = {
     request<{ id: number; username: string }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
-    }),
+    }, false, false),
 
   login: (username: string, password: string) =>
     request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
-    }),
+    }, false, false),
 
   logout: () =>
     request<{ message: string }>('/auth/logout', {

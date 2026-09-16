@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import { act, render, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import { deferred } from '../test/deferred'
 import userEvent from '@testing-library/user-event'
 import Diary from './Diary'
 import { useAuthStore } from '../stores/auth'
@@ -113,6 +114,102 @@ describe('Diary 日记页', () => {
 // ============================================================
 
 describe('Diary 拍照识别流程（FoodFlow）', () => {
+  async function openPortion() {
+    getDietLogsMock.mockResolvedValue([])
+    uploadImageMock.mockResolvedValue({ id: 99 })
+    identifyFoodMock.mockResolvedValue([candidate])
+    createDietLogMock.mockResolvedValue(record)
+    render(<Diary />)
+    fireEvent.click(screen.getByRole('button', { name: '添加记录' }))
+    fireEvent.change(screen.getByLabelText('选择食物照片'), {
+      target: { files: [new File(['x'], 'meal.png', { type: 'image/png' })] },
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /宫保鸡丁/ }))
+  }
+
+  it('修改克数后立即禁止保存，等待对应份量计算完成', async () => {
+    const updated = deferred<IntakeResult>()
+    calculateIntakeMock.mockResolvedValueOnce(intake).mockReturnValueOnce(updated.promise)
+    await openPortion()
+    const save = screen.getByRole('button', { name: '确认记录' })
+    await waitFor(() => expect(save).toBeEnabled())
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '400' } })
+    expect(save).toBeDisabled()
+    fireEvent.click(save)
+    expect(createDietLogMock).not.toHaveBeenCalled()
+    expect(screen.queryByText('预计摄入')).not.toBeInTheDocument()
+    await waitFor(() => expect(calculateIntakeMock).toHaveBeenLastCalledWith(candidate.name, 400))
+    expect(save).toBeDisabled()
+    await act(async () => updated.resolve({ ...intake, grams: 400, calories: 464 }))
+    await act(async () => { fireEvent.click(save) })
+    expect(createDietLogMock).toHaveBeenCalledWith(expect.objectContaining({ portion: '400g', calories: 464 }))
+  })
+
+  it.each(['success', 'error'])('较慢的旧请求 %s 不能覆盖新份量的计算结果', async (status) => {
+    const old = deferred<IntakeResult>()
+    calculateIntakeMock.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ ...intake, grams: 400, calories: 464 })
+    await openPortion()
+    await waitFor(() => expect(calculateIntakeMock).toHaveBeenCalledTimes(1))
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '400' } })
+    const save = screen.getByRole('button', { name: '确认记录' })
+    await waitFor(() => expect(save).toBeEnabled())
+    await act(async () => {
+      if (status === 'success') old.resolve(intake)
+      else old.reject(new Error('old request failed'))
+    })
+    expect(screen.getByText('464')).toBeInTheDocument()
+    expect(toastMock).not.toHaveBeenCalled()
+    await act(async () => { fireEvent.click(save) })
+    expect(createDietLogMock).toHaveBeenCalledWith(expect.objectContaining({ portion: '400g', calories: 464 }))
+  })
+
+  it('计算过程中清空克数后，迟到的结果也不能恢复保存按钮', async () => {
+    const pending = deferred<IntakeResult>()
+    calculateIntakeMock.mockReturnValueOnce(pending.promise)
+    await openPortion()
+    await waitFor(() => expect(calculateIntakeMock).toHaveBeenCalledTimes(1))
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '' } })
+    await act(async () => pending.resolve(intake))
+    expect(screen.getByRole('button', { name: '确认记录' })).toBeDisabled()
+    expect(screen.queryByText('预计摄入')).not.toBeInTheDocument()
+  })
+
+  it.each(['0', '-10', ''])('无效份量 %s 会清除旧结果并禁止保存', async (value) => {
+    calculateIntakeMock.mockResolvedValue(intake)
+    await openPortion()
+    const save = screen.getByRole('button', { name: '确认记录' })
+    await waitFor(() => expect(save).toBeEnabled())
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value } })
+    expect(save).toBeDisabled()
+    expect(screen.queryByText('预计摄入')).not.toBeInTheDocument()
+    fireEvent.click(save)
+    expect(createDietLogMock).not.toHaveBeenCalled()
+  })
+
+  it('新计算失败后不能保存旧结果', async () => {
+    calculateIntakeMock.mockResolvedValueOnce(intake).mockRejectedValueOnce(new Error('offline'))
+    await openPortion()
+    const save = screen.getByRole('button', { name: '确认记录' })
+    await waitFor(() => expect(save).toBeEnabled())
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '400' } })
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('计算失败')))
+    expect(save).toBeDisabled()
+    expect(screen.queryByText('预计摄入')).not.toBeInTheDocument()
+  })
+
+  it('关闭面板后取消尚未执行的计算', async () => {
+    await openPortion()
+    vi.useFakeTimers()
+    try {
+      fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '400' } })
+      fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+      await act(async () => { await vi.advanceTimersByTimeAsync(600) })
+      expect(calculateIntakeMock).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('上传→识别→选候选→调克数→保存 完整流程', async () => {
     getDietLogsMock.mockResolvedValue([])
     uploadImageMock.mockResolvedValue({ id: 99, filename: 'meal.png', mime_type: 'image/png', size: 1 })

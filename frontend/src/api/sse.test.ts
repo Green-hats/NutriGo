@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createChatStream } from './sse'
 import { useAuthStore } from '../stores/auth'
+import { deferred } from '../test/deferred'
 
 const fetch = vi.hoisted(() => vi.fn())
 vi.mock('./http', () => ({ apiFetch: fetch }))
@@ -59,5 +60,35 @@ it('取消原生请求时不显示断线错误', async () => {
   handle.cancel()
   await new Promise((resolve) => setTimeout(resolve, 0))
   expect(fetch.mock.calls[0][1].signal.aborted).toBe(true)
+  expect(events.onError).not.toHaveBeenCalled()
+})
+
+it('切换账号后，旧流的 401 不会刷新或重试新账号', async () => {
+  useAuthStore.getState().setAuth('first', { id: 1, username: 'first' }, 'r1')
+  const pending = deferred<Response>()
+  fetch.mockReturnValueOnce(pending.promise)
+  const events = callbacks()
+  createChatStream(12, 'first', events, 'hello')
+  useAuthStore.getState().setAuth('second', { id: 2, username: 'second' }, 'r2')
+  pending.resolve(new Response('{}', { status: 401 }))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(fetch.mock.calls[0][1].signal.aborted).toBe(true)
+  expect(events.onError).not.toHaveBeenCalled()
+  expect(useAuthStore.getState().token).toBe('second')
+})
+
+it('退出账号会中止流并丢弃迟到的回复', async () => {
+  useAuthStore.getState().setAuth('first', { id: 1, username: 'first' }, 'r1')
+  let stream!: ReadableStreamDefaultController<Uint8Array>
+  fetch.mockResolvedValue(new Response(new ReadableStream({ start(controller) { stream = controller } })))
+  const events = callbacks()
+  createChatStream(12, 'first', events, 'hello')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  useAuthStore.getState().logout()
+  stream.enqueue(new TextEncoder().encode('event: chunk\ndata: private answer\n\n'))
+  stream.close()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(events.onChunk).not.toHaveBeenCalled()
   expect(events.onError).not.toHaveBeenCalled()
 })

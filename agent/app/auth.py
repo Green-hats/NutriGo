@@ -14,7 +14,11 @@ import hmac
 import json
 import time
 
+import httpx
+from fastapi import HTTPException
+
 from app.config import settings
+from recognition.go_client import go_client
 
 
 def _b64decode(segment: str) -> bytes:
@@ -80,3 +84,21 @@ def extract_user_id(authorization: str | None) -> int | None:
         return None
     user_id = payload.get("user_id")
     return int(user_id) if isinstance(user_id, (int, float)) else None
+
+
+async def require_user_id(authorization: str | None) -> int:
+    """先本地验签，再向 Go 查询吊销状态，所有受保护路由共用此入口。"""
+    user_id = extract_user_id(authorization)
+    if user_id is None or authorization is None:
+        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    try:
+        result = await go_client.verify_access_token(authorization.split(" ", 1)[1].strip())
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 401:
+            raise HTTPException(status_code=401, detail="登录已失效，请重新登录") from exc
+        raise HTTPException(status_code=503, detail="暂时无法验证登录状态，请稍后重试") from exc
+    except (httpx.RequestError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail="暂时无法验证登录状态，请稍后重试") from exc
+    if not isinstance(result, dict) or result.get("user_id") != user_id:
+        raise HTTPException(status_code=503, detail="无法验证登录状态")
+    return user_id

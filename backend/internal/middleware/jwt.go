@@ -51,7 +51,10 @@ func JWTAuth(db *gorm.DB) gin.HandlerFunc {
 		// 查黑名单：登出后的 jti 应立即失效
 		if claims.ID != "" {
 			var count int64
-			db.Model(&model.BlacklistedToken{}).Where("jti = ?", claims.ID).Count(&count)
+			if err := db.WithContext(c.Request.Context()).Model(&model.BlacklistedToken{}).Where("jti = ?", claims.ID).Count(&count).Error; err != nil {
+				httperr.Abort(c, http.StatusServiceUnavailable, "暂时无法验证登录状态，请稍后重试")
+				return
+			}
 			if count > 0 {
 				httperr.Abort(c, http.StatusUnauthorized, "token已失效，请重新登录")
 				return

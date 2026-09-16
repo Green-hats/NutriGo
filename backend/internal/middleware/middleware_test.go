@@ -41,6 +41,25 @@ func setupRouter(mw gin.HandlerFunc) *gin.Engine {
 }
 
 // 测试 JWTAuth：无 Authorization 头返回 401
+func TestJWTAuthFailsClosedWhenRevocationLookupFails(t *testing.T) {
+	db := testTokenDB(t)
+	token, err := config.GenerateToken(1, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropTable(&model.BlacklistedToken{}); err != nil {
+		t.Fatal(err)
+	}
+	r := setupRouter(JWTAuth(db))
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("无法查询吊销状态时应拒绝访问，got %d", w.Code)
+	}
+}
+
 func TestJWTAuthMissingHeader(t *testing.T) {
 	r := setupRouter(JWTAuth(testTokenDB(t)))
 

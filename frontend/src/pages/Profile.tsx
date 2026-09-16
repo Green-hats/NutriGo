@@ -50,8 +50,8 @@ export default function Profile() {
     }
   }
 
-  const handleLogout = async () => {
-    await logoutRemote() // 尽力吊销后端令牌（失败不阻塞）
+  const handleLogout = () => {
+    void logoutRemote() // 先捕获当前令牌，远端吊销不阻塞本地退出。
     logout()
     navigate('/login')
   }

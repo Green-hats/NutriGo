@@ -77,6 +77,8 @@ describe('Profile 健康档案页', () => {
 
   it('退出登录调用远端吊销并跳转登录页', async () => {
     getProfileMock.mockResolvedValue(profile)
+    // 模拟无响应的网络，不能阻塞本地清理和导航。
+    logoutRemoteMock.mockReturnValue(new Promise(() => {}))
     const user = userEvent.setup()
     render(<Profile />)
 

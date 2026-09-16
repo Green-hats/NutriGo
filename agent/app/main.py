@@ -26,7 +26,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from app import db
-from app.auth import extract_user_id
+from app.auth import require_user_id
 from app.chat_io import SSEChatIO
 from app.config import settings
 from app.conversation import Conversation
@@ -161,9 +161,7 @@ async def chat(
     """SSE 流式对话（需 JWT）"""
 
     # 从 Authorization 头解析用户，不再信任 URL 里的 user_id
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    user_id = await require_user_id(request.headers.get("Authorization"))
 
     # 输入长度限制，防 token 轰炸
     if len(message) > settings.MAX_MESSAGE_LENGTH:
@@ -193,9 +191,7 @@ async def chat(
 @app.post("/api/sessions/{session_id}/regenerate")
 async def regenerate(session_id: int, request: Request) -> StreamingResponse:
     """重新生成最后一条回复：回滚到最后一次提问，重新跑 agent loop"""
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    user_id = await require_user_id(request.headers.get("Authorization"))
 
     request_id_var.set(new_request_id())
 
@@ -283,9 +279,7 @@ def _sse_response(request: Request, conv: Conversation, chat_io: SSEChatIO,
 @app.get("/api/sessions", response_model=PagedSessions)
 async def list_sessions(request: Request) -> dict:
     """会话列表（分页：limit/offset，返回 { items, total, limit, offset }）"""
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    user_id = await require_user_id(request.headers.get("Authorization"))
 
     try:
         limit = int(request.query_params.get("limit", 20))
@@ -302,9 +296,7 @@ async def list_sessions(request: Request) -> dict:
 
 @app.get("/api/sessions/{session_id}", response_model=SessionDetail)
 async def get_session(session_id: int, request: Request) -> SessionDetail:
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    user_id = await require_user_id(request.headers.get("Authorization"))
     row = await db.get_session(session_id, user_id=user_id)
     if row is None:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -321,9 +313,7 @@ async def get_session(session_id: int, request: Request) -> SessionDetail:
 
 @app.delete("/api/sessions/{session_id}")
 async def delete_session(session_id: int, request: Request) -> dict:
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    user_id = await require_user_id(request.headers.get("Authorization"))
     if not await db.delete_session(session_id, user_id=user_id):
         raise HTTPException(status_code=404, detail="会话不存在")
     return {"message": "删除成功"}
@@ -336,9 +326,7 @@ class BatchDeleteRequest(BaseModel):
 @app.post("/api/sessions/batch-delete")
 async def batch_delete_sessions(req: BatchDeleteRequest, request: Request) -> dict:
     """批量删除会话（仅本人），返回实际删除条数"""
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    user_id = await require_user_id(request.headers.get("Authorization"))
     if not req.ids:
         raise HTTPException(status_code=400, detail="请提供要删除的会话 id 列表")
     deleted = await db.delete_sessions(req.ids, user_id=user_id)
@@ -352,9 +340,7 @@ class RenameRequest(BaseModel):
 @app.patch("/api/sessions/{session_id}")
 async def rename_session(session_id: int, req: RenameRequest, request: Request) -> dict:
     """手动重命名会话"""
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    user_id = await require_user_id(request.headers.get("Authorization"))
     if not req.name.strip():
         raise HTTPException(status_code=400, detail="会话名称不能为空")
     if not await db.update_session_name(session_id, req.name.strip(), user_id=user_id):
@@ -411,9 +397,7 @@ async def identify_food(req: IdentifyRequest, request: Request) -> list:
       3. 查 nutrition.db 获取营养和份量
     """
     # 0. JWT 鉴权
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    user_id = await require_user_id(request.headers.get("Authorization"))
 
     # 内部接口持有服务级权限，必须先验证图片归属，再读取缓存或图片内容。
     try:
@@ -483,9 +467,7 @@ class IntakeRequest(BaseModel):
 @app.post("/api/calculate-intake")
 async def calc_intake(req: IntakeRequest, request: Request) -> dict:
     """根据食物名和克数计算实际摄入营养（需 JWT）"""
-    user_id = extract_user_id(request.headers.get("Authorization"))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="未认证或 token 无效")
+    await require_user_id(request.headers.get("Authorization"))
     result = await calculate_intake(req.food_name, req.grams)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])

@@ -35,6 +35,13 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml logs --t
 | `/api/health`、`/api/ready` | Go 探活 |
 | 其他路径 | 404；内部图片读取和 Go 内部接口不经公网代理 |
 
+Agent 的所有受保护接口在本地验签后，会通过容器内网调用 Go 的
+`GET /api/internal/auth/verify`，同时携带服务令牌与用户访问令牌。
+Go 使用与普通 API 相同的 JWT 黑名单校验，因此退出登录后，已吊销的访问令牌
+无法再发起 Agent 请求，图片缓存也不会绕过校验。该校验不缓存结果；
+Go 不可达或无法查询吊销状态时，Agent 返回 503，不会降级放行。
+健康检查不依赖该接口。升级时先更新 Go，再更新 Agent；旧版 Go 没有此接口。
+
 ```bash
 curl https://api.your-domain.com/api/health
 curl https://api.your-domain.com/agent-api/health

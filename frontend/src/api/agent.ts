@@ -1,5 +1,5 @@
 import { useAuthStore } from '../stores/auth'
-import { tryRefresh } from './authSession'
+import { assertSessionCurrent, refreshForRequest } from './authSession'
 import { apiUrl } from './config'
 import { apiFetch } from './http'
 import type {
@@ -13,14 +13,17 @@ function authHeaders(): Record<string, string> {
 
 // 401 后自动用 refresh_token 换新令牌并重试一次；失败则清除本地登录态
 async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
+  const { token, sessionVersion } = useAuthStore.getState()
   const resp = await apiFetch(apiUrl('agent', path), {
     ...init,
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers as Record<string, string>) },
   })
+  assertSessionCurrent(sessionVersion)
 
-  if (resp.status === 401 && !retried) {
-    const refreshed = await tryRefresh()
-    if (refreshed) {
+  if (resp.status === 401) {
+    if (!retried) {
+      await refreshForRequest(sessionVersion, token)
+      assertSessionCurrent(sessionVersion)
       return request<T>(path, init, true)
     }
     useAuthStore.getState().logout()
@@ -31,7 +34,9 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
     const err = await resp.json().catch(() => ({ detail: resp.statusText }))
     throw new Error(err.detail || err.message || `HTTP ${resp.status}`)
   }
-  return resp.json()
+  const data = await resp.json()
+  assertSessionCurrent(sessionVersion)
+  return data
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {

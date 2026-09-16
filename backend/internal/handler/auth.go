@@ -171,6 +171,11 @@ func (h *AuthHandler) revokeTokenFamily(familyID string, userID uint) {
 		Update("revoked_at", now)
 }
 
+// Verify 供 Agent 查询访问令牌状态，必须同时经过内部鉴权和 JWTAuth。
+func (h *AuthHandler) Verify(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"user_id": c.GetUint("userID")})
+}
+
 // Logout POST /api/auth/logout（需 JWT）
 // 将当前 access token 的 jti 加入黑名单使其立即失效；若附上 refresh_token 则一并吊销。
 // 两个写入在单个事务中完成，保证一致性。

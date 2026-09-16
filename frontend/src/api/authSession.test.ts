@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tryRefresh } from './authSession'
 import { useAuthStore } from '../stores/auth'
+import { deferred } from '../test/deferred'
 
 const fetchMock = vi.fn()
 
@@ -15,6 +16,38 @@ afterEach(() => {
 })
 
 describe('tryRefresh 刷新令牌', () => {
+  it.each(['logout', 'switch'])('刷新期间 %s 后丢弃旧账号令牌', async (action) => {
+    useAuthStore.getState().setAuth('old', { id: 1, username: 'first' }, 'r1')
+    const pending = deferred<Response>()
+    fetchMock.mockReturnValueOnce(pending.promise)
+    const refresh = tryRefresh()
+    useAuthStore.getState().logout()
+    if (action === 'switch') useAuthStore.getState().setAuth('second', { id: 2, username: 'second' }, 'r2')
+    pending.resolve(new Response(JSON.stringify({ token: 'old-refreshed', refresh_token: 'r1-new' })))
+    expect(await refresh).toBe(false)
+    expect(useAuthStore.getState().token).toBe(action === 'logout' ? null : 'second')
+    expect(useAuthStore.getState().user?.id).toBe(action === 'logout' ? undefined : 2)
+  })
+
+  it('新账号不共享旧刷新请求，旧请求完成也不能清除新账号的并发护栏', async () => {
+    useAuthStore.getState().setAuth('first', { id: 1, username: 'first' }, 'r1')
+    const old = deferred<Response>()
+    const current = deferred<Response>()
+    fetchMock.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
+    const oldRefresh = tryRefresh()
+    useAuthStore.getState().setAuth('second', { id: 2, username: 'second' }, 'r2')
+    const newRefresh = tryRefresh()
+    old.resolve(new Response(JSON.stringify({ token: 'first-new', refresh_token: 'r1-new' })))
+    expect(await oldRefresh).toBe(false)
+    const concurrent = tryRefresh()
+    current.resolve(new Response(JSON.stringify({ token: 'second-new', refresh_token: 'r2-new' })))
+    expect(await newRefresh).toBe(true)
+    expect(await concurrent).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(useAuthStore.getState().token).toBe('second-new')
+    expect(useAuthStore.getState().user?.id).toBe(2)
+  })
+
   it('成功时更新令牌并返回 true', async () => {
     useAuthStore.getState().setAuth('old-token', { id: 1, username: 'u' }, 'refresh-abc')
     fetchMock.mockResolvedValue({

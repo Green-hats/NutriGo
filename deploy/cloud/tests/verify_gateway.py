@@ -119,7 +119,7 @@ try:
                 'authorization': 'Bearer test-token', 'body': body or '',
             }, (path, status, payload)
         print('PASS API routes, methods, query parameters, Authorization and POST bodies', flush=True)
-        for path in ('/', '/chat', '/api/internal/users/1/profile', '/api/metrics',
+        for path in ('/', '/chat', '/api/internal/users/1/profile', '/api/internal/auth/verify', '/api/metrics',
                      '/api/images/42', '/api/images/42/raw', '/api/unknown'):
             assert request(path) == (404, b'Not Found'), path
         status, data = request('/agent-api/missing')

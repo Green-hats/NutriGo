@@ -12,12 +12,14 @@ describe('mobile account isolation', () => {
     useAuthStore.getState().setAuth('old', { id: 1, username: 'first' })
     useChatStore.getState().addMessage({ role: 'user', content: 'private meal' })
     useChatStore.getState().setSessionId(12)
+    useChatStore.getState().setStreaming(true)
     useAuthStore.getState().setProfile({ height_cm: 170, weight_kg: 65, age: 25, gender: 'male', goal: 'maintain', allergies: ['peanut'], dietary_habits: [], chronic_diseases: [] })
 
     useAuthStore.getState().setAuth('new', { id: 2, username: 'second' }, 'refresh')
 
     expect(useChatStore.getState().messages).toEqual([])
     expect(useChatStore.getState().sessionId).toBeNull()
+    expect(useChatStore.getState().isStreaming).toBe(false)
     expect(useAuthStore.getState().profile).toBeNull()
     expect(useAuthStore.getState().user?.id).toBe(2)
   })

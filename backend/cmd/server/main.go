@@ -119,6 +119,7 @@ func main() {
 	internal := r.Group("/api")
 	internal.Use(middleware.InternalAuth())
 	{
+		internal.GET("/internal/auth/verify", middleware.JWTAuth(config.DB), authHandler.Verify)
 		internal.GET("/internal/example", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"message": "内部鉴权通过"})
 		})

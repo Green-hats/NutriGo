@@ -77,6 +77,16 @@ class GoClient:
         resp = await self._request("GET", f"/api/images/{image_id}")
         return resp.json()
 
+    async def verify_access_token(self, token: str) -> dict:
+        """实时查询 Go 的令牌吊销状态；不缓存、不重试，故障时由调用方拒绝访问。"""
+        response = await self._get_client().get(
+            f"{self.base}/api/internal/auth/verify",
+            headers={**self.headers, "Authorization": f"Bearer {token}"},
+            timeout=httpx.Timeout(5.0),
+        )
+        response.raise_for_status()
+        return response.json()
+
     async def get_image_data(self, image_id: int) -> bytes:
         """GET /api/images/:id/data → 图片二进制"""
         resp = await self._request("GET", f"/api/images/{image_id}/data")

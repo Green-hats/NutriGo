@@ -14,8 +14,55 @@ import (
 	"gorm.io/gorm"
 
 	"nutri.go/backend/internal/config"
+	"nutri.go/backend/internal/middleware"
 	"nutri.go/backend/internal/model"
 )
+
+func TestLogoutRevokesGoAndAgentVerification(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTestDB(t)
+	body := loginForTokens(t, db)
+	h := &AuthHandler{DB: db}
+	r := gin.New()
+	r.GET("/api/internal/auth/verify", middleware.InternalAuth(), middleware.JWTAuth(db), h.Verify)
+	r.GET("/api/protected", middleware.JWTAuth(db), h.Verify)
+	r.POST("/api/auth/logout", middleware.JWTAuth(db), h.Logout)
+	r.POST("/api/auth/refresh", h.Refresh)
+	token := body["token"].(string)
+	refresh := body["refresh_token"].(string)
+
+	request := func(method, path, payload string, internal bool) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(method, path, bytes.NewBufferString(payload))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		if internal {
+			req.Header.Set("X-Internal-Token", config.InternalToken)
+		}
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+	if w := request("GET", "/api/internal/auth/verify", "", false); w.Code != http.StatusForbidden {
+		t.Fatalf("内部校验接口必须要求服务令牌: %d", w.Code)
+	}
+	if w := request("GET", "/api/internal/auth/verify", "", true); w.Code != http.StatusOK {
+		t.Fatalf("有效访问令牌应通过内部校验: %d %s", w.Code, w.Body.String())
+	} else if mustJSONBody(t, w.Body.Bytes())["user_id"] != body["id"] {
+		t.Fatal("内部校验返回错误的用户")
+	}
+	if w := request("POST", "/api/auth/logout", `{"refresh_token":"`+refresh+`"}`, false); w.Code != http.StatusOK {
+		t.Fatalf("退出失败: %d %s", w.Code, w.Body.String())
+	}
+	for _, path := range []string{"/api/internal/auth/verify", "/api/protected"} {
+		if w := request("GET", path, "", true); w.Code != http.StatusUnauthorized {
+			t.Errorf("退出后的令牌仍可访问 %s: %d", path, w.Code)
+		}
+	}
+	if w := request("POST", "/api/auth/refresh", `{"refresh_token":"`+refresh+`"}`, false); w.Code != http.StatusUnauthorized {
+		t.Errorf("退出后仍可刷新: %d", w.Code)
+	}
+}
 
 // 测试 Register：成功注册返回 201，密码已 bcrypt 加密存储
 func TestRegisterSuccess(t *testing.T) {
