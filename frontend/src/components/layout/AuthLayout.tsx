@@ -18,7 +18,10 @@ export default function AuthLayout({
   footer: ReactNode
 }) {
   return (
-    <Box component="main" className="auth-screen" sx={{ px: 3 }}>
+    <Box component="main" className="auth-screen" sx={{
+      pl: 'calc(24px + var(--safe-area-left))',
+      pr: 'calc(24px + var(--safe-area-right))'
+    }}>
       <Stack
         direction="row"
         sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 3 }}

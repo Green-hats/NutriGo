@@ -94,7 +94,7 @@ Android 发布需要配置自己的 keystore；iOS 真机／分发需要 Apple �
 
 照片由 WebView 解码并压缩；无法解码的 HEIC 等文件会提示改选 JPG、PNG 或 WebP。Android 使用系统相机 Intent 和 FileProvider；iOS 提供相机、相册及局域网权限说明。拍照、系统返回键、键盘和权限拒绝行为仍需在目标真机上验收。
 
-Android 在原生容器处理系统栏、刘海与键盘空间，再清零已处理的 insets 传给 WebView，避免旧版 WebView 遮挡内容或新版重复留白；iOS 使用 CSS 安全区。做法依据 [Android 官方 WebView insets 文档](https://developer.android.com/develop/ui/views/layout/webapps/understand-window-insets)。
+Android 的 WebView 延伸到透明状态栏和导航栏下方，页面背景铺满窗口。原生层通过只读 `NutriGoInsets.getInsets()` 提供系统栏／刘海尺寸和键盘状态，前端按设备像素比转为 CSS 安全区，只给内容和操作控件留出空间；原生容器仅为键盘缩小高度。传给 WebView 的系统栏、刘海和键盘 insets 清零，避免新版 WebView 重复计算；旧版 WebView 也能使用这套显式尺寸。键盘关闭、横竖屏切换时同步更新。iOS 继续使用 CSS `env(safe-area-inset-*)`。处理原则参见 [Android 官方 WebView insets 文档](https://developer.android.com/develop/ui/views/layout/webapps/understand-window-insets)。
 
 当前登录令牌保存在应用 WebView 的 localStorage，并未实现 Keychain / Keystore 加密持久化。当前版本为在线应用，没有离线同步、后台持续生成或系统推送；切离对话页面会取消当前流。
 

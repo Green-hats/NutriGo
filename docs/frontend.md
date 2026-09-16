@@ -178,4 +178,4 @@ API 层自动注入：
 cd frontend && npx vitest run
 ```
 
-98 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑。
+106 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑、Android 安全区换算与键盘／旋转状态。

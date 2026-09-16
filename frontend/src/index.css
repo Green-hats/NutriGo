@@ -1,4 +1,8 @@
 :root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
   color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -29,9 +33,9 @@ select {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-top: var(--safe-area-top);
+  padding-left: var(--safe-area-left);
+  padding-right: var(--safe-area-right);
   background: #f7f8f3;
 }
 .app-content {
@@ -43,7 +47,7 @@ select {
 .app-tabbar {
   flex-shrink: 0;
   padding-top: 8px;
-  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(8px, var(--safe-area-bottom));
 }
 :root[data-keyboard-open='true'] .app-tabbar {
   display: none;
@@ -54,15 +58,23 @@ select {
   margin: 0 auto;
   overflow-y: auto;
   background: #f7f8f3;
-  padding-top: max(28px, env(safe-area-inset-top, 0px));
-  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  padding-top: calc(28px + var(--safe-area-top));
+  padding-bottom: calc(20px + var(--safe-area-bottom));
 }
 .app-overlay {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-top: var(--safe-area-top);
+  padding-right: var(--safe-area-right);
+  padding-bottom: var(--safe-area-bottom);
+  padding-left: var(--safe-area-left);
 }
 .app-toasts {
-  top: calc(16px + env(safe-area-inset-top, 0px));
+  top: calc(16px + var(--safe-area-top));
+  max-width: calc(100% - 32px - var(--safe-area-left) - var(--safe-area-right));
+}
+:root[data-native-platform='android'] .app-shell,
+:root[data-native-platform='android'] .auth-screen,
+:root[data-native-platform='android'] .MuiDialog-paperFullScreen {
+  max-width: none;
 }
 .markdown-body {
   overflow-wrap: anywhere;
