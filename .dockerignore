@@ -18,3 +18,7 @@ deploy/dist
 **/*.jks
 .git
 .github
+# 用户数据备份与恢复演练不进入镜像构建上下文。
+backups
+restore-check
+frontend/artifacts
