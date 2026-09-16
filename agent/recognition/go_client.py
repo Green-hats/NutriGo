@@ -72,6 +72,11 @@ class GoClient:
 
         raise last_err  # type: ignore[misc]
 
+    async def get_image_meta(self, image_id: int) -> dict:
+        """GET /api/images/:id → 含 user_id 的图片元信息，用于归属校验"""
+        resp = await self._request("GET", f"/api/images/{image_id}")
+        return resp.json()
+
     async def get_image_data(self, image_id: int) -> bytes:
         """GET /api/images/:id/data → 图片二进制"""
         resp = await self._request("GET", f"/api/images/{image_id}/data")

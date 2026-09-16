@@ -3,12 +3,15 @@ import { goApi } from '../api/go'
 import { agentApi } from '../api/agent'
 import { Plus, Camera, Trash2, ChevronLeft, ChevronRight, Loader2, Check, BarChart3 } from 'lucide-react'
 import { toast } from '../lib/toast'
+import { prepareFoodImage } from '../lib/foodImage'
 import { ErrorBlock } from '../components/ui/ErrorBlock'
 import { Skeleton } from '../components/ui/Skeleton'
 import NutritionChart from '../components/diary/NutritionChart'
 import type { DietRecord, IdentifyResult, IntakeResult } from '../types'
 
-function fmt(d: Date): string { return d.toISOString().slice(0, 10) }
+function fmt(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 
 export default function Diary() {
@@ -33,7 +36,7 @@ export default function Diary() {
   const totalCal = records.reduce((s, r) => s + (r.calories || 0), 0)
 
   return (
-    <div className="min-h-screen bg-gray-50 relative">
+    <div className="min-h-full bg-gray-50 relative pb-24">
       <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative">
         饮食日记
         <button onClick={() => setShowChart(true)} aria-label="查看营养趋势" className="absolute right-4 top-1/2 -translate-y-1/2"><BarChart3 size={22} /></button>
@@ -71,7 +74,7 @@ export default function Diary() {
         ))}
       </div>
 
-      <button onClick={() => setShowFlow(true)} aria-label="添加记录" className="fixed bottom-20 right-6 bg-green-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-green-700 transition-colors z-40"><Plus size={28} /></button>
+      <button onClick={() => setShowFlow(true)} aria-label="添加记录" className="diary-add fixed right-6 bg-green-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-green-700 transition-colors z-40"><Plus size={28} /></button>
 
       {showFlow && <FoodFlow date={fmt(date)} onDone={() => { loadRecords(); setShowFlow(false) }} onClose={() => setShowFlow(false)} />}
     </div>
@@ -92,6 +95,7 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   const [estimated, setEstimated] = useState<IntakeResult | null>(null)
   const [estimating, setEstimating] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -100,10 +104,11 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
     setStep('identifying')
     try {
-      const img = await goApi.uploadImage(file)
+      const img = await goApi.uploadImage(await prepareFoodImage(file))
       setImageId(img.id)
       const results = await agentApi.identifyFood(img.id)
       if (results.length === 0) {
@@ -155,7 +160,7 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
   }
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
+    <div className="app-overlay fixed inset-0 bg-white z-50 flex flex-col">
       <div className="bg-green-600 text-white py-4 px-6 flex justify-between items-center">
         <span className="font-semibold">{STEP_LABELS[stepIdx]}</span>
         <button ref={closeRef} onClick={onClose} aria-label="关闭" className="text-white">✕</button>
@@ -177,8 +182,10 @@ function FoodFlow({ date, onDone, onClose }: { date: string; onDone: () => void;
           <div className="flex flex-col items-center gap-6 mt-16">
             <Camera size={64} className="text-green-600" />
             <p className="text-gray-500">拍一张你的食物照片</p>
-            <button onClick={() => fileRef.current?.click()} className="bg-green-600 text-white rounded-xl px-8 py-3 font-medium">📷 拍照 / 从相册选择</button>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+            <button onClick={() => cameraRef.current?.click()} className="bg-green-600 text-white rounded-xl px-8 py-3 font-medium">拍照</button>
+            <button onClick={() => fileRef.current?.click()} className="border border-green-200 text-green-700 rounded-xl px-8 py-3 font-medium">从相册选择</button>
+            <input ref={fileRef} aria-label="选择食物照片" type="file" accept="image/*" className="hidden" onChange={handleFile} />
+            <input ref={cameraRef} aria-label="拍摄食物照片" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
           </div>
         )}
 

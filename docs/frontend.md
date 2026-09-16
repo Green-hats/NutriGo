@@ -2,9 +2,9 @@
 
 ## 概述
 
-移动端优先的单页应用，提供拍照识别、AI 对话、饮食日记和健康档案管理。端口 **5173**。
+Tauri 2 手机 App 的 React 界面，提供拍照识别、AI 对话、饮食日记和健康档案。Android / iOS 工程位于 `frontend/src-tauri`，运行方式见 [手机 App 文档](MOBILE.md)。**5173** 仅为开发预览端口。
 
-技术栈：React 19 + TypeScript + Vite + TailwindCSS + Zustand
+技术栈：Tauri 2 + Rust + React 19 + TypeScript + Vite + TailwindCSS + Zustand
 
 ## 启动
 
@@ -24,9 +24,11 @@ frontend/src/
 ├── index.css                   # Tailwind + Markdown 样式
 ├── types/index.ts              # TypeScript 类型定义
 ├── stores/
-│   ├── auth.ts                 # Zustand: token, refreshToken, user, profile (持久化)
+│   ├── auth.ts                 # Zustand: token, refreshToken, user 持久化；profile 仅内存
 │   └── chat.ts                 # Zustand: messages, sessionId, isStreaming
 ├── api/
+│   ├── config.ts               # 云端 API 地址校验与路径拼接
+│   ├── http.ts                 # 原生 HTTP 插件 / 浏览器 fetch 适配
 │   ├── go.ts                   # Go REST (自动带 JWT + 401 自动刷新)
 │   ├── agent.ts                # Python REST (自动带 JWT + 401 自动刷新)
 │   ├── authSession.ts          # 刷新令牌换取新令牌（并发护栏）+ 登出
@@ -58,6 +60,8 @@ frontend/src/
 
 ## 页面路由
 
+使用 HashRouter，安装包中的地址形如 `#/chat`，不依赖服务器页面回退。
+
 | 路径 | 页面 | 认证 | 功能 |
 |------|------|------|------|
 | `/login` | 登录 | 无 | 用户名密码登录 |
@@ -68,7 +72,9 @@ frontend/src/
 
 ## 状态管理
 
-### authStore（持久化到 localStorage）
+### authStore
+
+仅 token、refreshToken、user 按 API 地址隔离后持久化到 localStorage，profile 留在内存；登录与登出均清空会话状态。目前尚未接入 Keychain / Keystore。
 
 ```typescript
 { token: string, refreshToken: string, user: { id, username }, profile: UserProfile }

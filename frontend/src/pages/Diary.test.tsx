@@ -5,6 +5,8 @@ import Diary from './Diary'
 import { useAuthStore } from '../stores/auth'
 import type { DietRecord, IdentifyResult, IntakeResult } from '../types'
 
+vi.mock('../lib/foodImage', () => ({ prepareFoodImage: async (file: File) => file }))
+
 const getDietLogsMock = vi.fn()
 const deleteDietLogMock = vi.fn()
 const uploadImageMock = vi.fn()

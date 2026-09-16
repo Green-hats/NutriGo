@@ -1,4 +1,7 @@
-const AGENT_URL = '/agent-api'
+import { apiUrl } from './config'
+import { apiFetch } from './http'
+import { tryRefresh } from './authSession'
+import { useAuthStore } from '../stores/auth'
 
 export interface SSECallbacks {
   onSessionId: (sessionId: number) => void
@@ -31,28 +34,22 @@ export function createChatStream(
 
   const run = async () => {
     try {
-      let resp: Response
-      if (mode === 'regenerate' && sessionId) {
-        resp = await fetch(`${AGENT_URL}/sessions/${sessionId}/regenerate`, {
-          method: 'POST',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            Accept: 'text/event-stream',
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-        })
-      } else {
-        const params = new URLSearchParams({ message: message || '' })
-        if (sessionId) params.set('session_id', String(sessionId))
-        resp = await fetch(`${AGENT_URL}/chat?${params}`, {
-          method: 'GET',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            Accept: 'text/event-stream',
-          },
-          signal: controller.signal,
-        })
+      const params = new URLSearchParams({ message: message || '' })
+      if (sessionId) params.set('session_id', String(sessionId))
+      const regenerating = mode === 'regenerate' && sessionId !== null
+      const path = regenerating ? `/sessions/${sessionId}/regenerate` : `/chat?${params}`
+      const send = (accessToken: string | null) => apiFetch(apiUrl('agent', path), {
+        method: regenerating ? 'POST' : 'GET',
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          Accept: 'text/event-stream',
+        },
+        signal: controller.signal,
+      })
+      let resp = await send(token)
+      if (resp.status === 401 && !controller.signal.aborted && await tryRefresh()) {
+        if (controller.signal.aborted) return
+        resp = await send(useAuthStore.getState().token)
       }
 
       if (!resp.ok) {
@@ -117,9 +114,14 @@ export function createChatStream(
           let data = ''
           for (const line of block.split(/\r?\n/)) {
             if (line.startsWith('event:')) event = line.slice(6).trim()
-            else if (line.startsWith('data:')) data += line.slice(5).trim() + '\n'
+            else if (line.startsWith('data:')) {
+              // SSE 只移除冒号后的一个可选空格，保留 token 空格和 Markdown 缩进。
+              const value = line.slice(5)
+              data += (value.startsWith(' ') ? value.slice(1) : value) + '\n'
+            }
           }
-          if (data) handleEvent(event, data.trimEnd())
+          if (data) handleEvent(event, data.slice(0, -1))
+          if (streamEndedNormally) return
         }
       }
 
@@ -129,7 +131,7 @@ export function createChatStream(
       }
     } catch (e) {
       const err = e as { name?: string; message?: string } | null
-      if (err?.name !== 'AbortError') callbacks.onError(err?.message || '连接中断')
+      if (!controller.signal.aborted && err?.name !== 'AbortError') callbacks.onError(err?.message || '连接中断')
     }
   }
 

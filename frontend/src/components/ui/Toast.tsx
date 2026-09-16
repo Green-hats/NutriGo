@@ -25,7 +25,7 @@ export default function Toast() {
   const dismiss = (tid: number) => setToasts((prev) => prev.filter((t) => t.id !== tid))
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 w-[90%] max-w-sm">
+    <div className="app-toasts fixed left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 w-[90%] max-w-sm">
       {toasts.map((t) => (
         <div
           key={t.id}

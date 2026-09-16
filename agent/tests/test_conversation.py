@@ -47,7 +47,7 @@ def test_to_messages_strips_thinking_and_builds_system():
     conv.add_assistant_message("answer", thinking="内部思考")
     msgs = conv.to_messages()
     assert msgs[0]["role"] == "system"
-    assert "5" in msgs[0]["content"]  # 系统提示注入 user_id
+    assert "服务端绑定当前登录用户" in msgs[0]["content"]
     assert all("thinking" not in m for m in msgs)
 
 

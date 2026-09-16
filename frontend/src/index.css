@@ -7,10 +7,50 @@
   }
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
+    margin: 0;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
   }
+  button, a { touch-action: manipulation; }
+  input, textarea, select { font-size: 16px; }
 }
 
 @layer components {
+  .app-shell {
+    height: var(--app-height, 100dvh);
+    max-width: 640px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    background: white;
+    overflow: hidden;
+  }
+  .app-content { flex: 1; min-height: 0; overflow-y: auto; }
+  .app-tabbar {
+    flex-shrink: 0;
+    padding-top: 6px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  }
+  :root[data-keyboard-open="true"] .app-tabbar { display: none; }
+  .auth-screen {
+    height: var(--app-height, 100dvh);
+    max-width: 480px;
+    margin: 0 auto;
+    overflow-y: auto;
+    padding-top: max(24px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  }
+  .app-overlay {
+    height: var(--app-height, 100dvh);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .diary-add { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  .app-toasts { top: calc(16px + env(safe-area-inset-top, 0px)); }
   .markdown-body h1 { @apply text-lg font-bold mt-4 mb-2; }
   .markdown-body h2 { @apply text-base font-bold mt-3 mb-1.5; }
   .markdown-body h3 { @apply text-sm font-bold mt-2 mb-1; }

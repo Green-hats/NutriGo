@@ -52,6 +52,17 @@ async def test_get_image_data_returns_bytes(client_config, monkeypatch):
     assert data == b"\x89PNG fake"
 
 
+async def test_get_image_meta_returns_owner(client_config, monkeypatch):
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["X-Internal-Token"] == "test-internal-token"
+        assert request.url.path == "/api/images/12"
+        return httpx.Response(200, json={"id": 12, "user_id": 7})
+
+    _patch_transport(monkeypatch, httpx.MockTransport(handler))
+    data = await gc.GoClient().get_image_meta(12)
+    assert data == {"id": 12, "user_id": 7}
+
+
 async def test_http_error_raises(client_config, monkeypatch):
     _patch_transport(monkeypatch, httpx.MockTransport(lambda req: httpx.Response(500)))
     with pytest.raises(httpx.HTTPStatusError):

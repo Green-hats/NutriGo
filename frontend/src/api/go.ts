@@ -1,8 +1,8 @@
 import { useAuthStore } from '../stores/auth'
 import { tryRefresh } from './authSession'
+import { apiUrl } from './config'
+import { apiFetch } from './http'
 import type { UserProfile, DietRecord, DailySummary, DietLogInput, Paginated } from '../types'
-
-const GO_URL = '/api'
 
 function getUserId(): number {
   const user = useAuthStore.getState().user
@@ -39,7 +39,7 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const resp = await fetch(`${GO_URL}${path}`, { ...options, headers })
+  const resp = await apiFetch(apiUrl('go', path), { ...options, headers })
 
   if (resp.status === 401 && !retried) {
     const refreshed = await tryRefresh()

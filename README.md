@@ -79,13 +79,21 @@ cp agent/.env.example agent/.env
 ./start.sh
 ```
 
-Open **http://localhost:5173** in your browser 🎉
+The command above starts local services and the browser preview. The product is a **Tauri 2 Android / iOS app**:
+
+```bash
+cd frontend
+npm run android:dev
+# On macOS with Xcode: npm run ios:dev
+```
+
+Stop any existing Vite process first to free port 5173. See the [mobile guide](docs/MOBILE.md) for prerequisites, device debugging, API configuration and signing. Local development works before a cloud domain is available.
 
 ### Service Layout
 
 | Service | Port | Stack | Responsibility |
 |---------|------|-------|----------------|
-| `frontend` | :5173 | React 19 + TS + TailwindCSS | User interface |
+| `frontend` | App bundle (dev :5173) | Tauri 2 + React 19 + TS | Android / iOS interface |
 | `backend` | :3333 | Go + Gin + GORM + SQLite | Users / data / files |
 | `agent` | :8000 | FastAPI + litellm + ChromaDB | AI chat / recognition / RAG |
 
@@ -93,20 +101,12 @@ Open **http://localhost:5173** in your browser 🎉
 
 ## 🏗️ Architecture
 
-```
-┌─────────────┐  REST / JWT   ┌──────────────┐
-│  Frontend   │ ────────────► │   Backend    │
-│  React 19   │ ◄──────────── │  Go + Gin    │
-└─────┬───────┘               │    :3333     │
-      │                       │  SQLite · JWT│
-      │                       └───────▲───────┘
-      │ SSE chat / REST recognition    │ REST (Internal Token)
-      ▼                               │
-┌─────┬───────────────────────────────┬─────────────────────┐
-│                   Agent · FastAPI :8000                   │
-│                  Agent Loop: 5 tools + LLM                 │
-│                    + RAG (ChromaDB) + CLIP                 │
-└───────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    App[Android / iOS · Tauri 2 + React] -->|HTTPS · JWT| Caddy
+    Caddy -->|/api/*| Go[Go + SQLite]
+    Caddy -->|/agent-api/*| Agent[FastAPI · CLIP · RAG · LLM]
+    Agent -->|Internal Token| Go
 ```
 
 - **Agent Loop** — the LLM autonomously decides which tool to call; streams chain-of-thought (`reasoning_content`)
@@ -122,6 +122,8 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 
 | Doc | Description |
 |-----|-------------|
+| [Mobile app](docs/MOBILE.md) | Android / iOS development, native builds and cloud connection |
+| [Cloud deployment](deploy/cloud/README.md) | Caddy HTTPS + Go + Agent on one server |
 | [Architecture](docs/ARCHITECTURE.md) | System architecture, data flow, security design |
 | [API Reference](backend/API.md) | All Go backend endpoints |
 | [Agent Doc](docs/agent.md) | Python Agent design & tool descriptions |
@@ -135,8 +137,8 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 ```bash
 # Unit tests (no services required, CI-friendly)
 make test-go-unit        # Go: 83 cases
-make test-frontend       # Frontend vitest: 38 cases (store + component)
-make test-agent-unit     # Agent pytest: 69 cases (no LLM / models)
+make test-frontend       # Frontend vitest: store / components / mobile API transport
+make test-agent-unit     # Agent pytest: no LLM / models
 
 # Integration tests (services must be running)
 make test-backend        # Go backend: 67 cases
@@ -156,7 +158,7 @@ make test
 
 | Layer | Tech |
 |-------|------|
-| Frontend | React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
+| Mobile app | Tauri 2 · Rust · React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
 | Agent | Python 3.13 · FastAPI · litellm · Chinese-CLIP · ChromaDB · SSE |
 | Backend | Go 1.26 · Gin · GORM · SQLite · JWT · bcrypt |
 | Quality | Go test · pytest · ruff · mypy · oxlint · vitest · GitHub Actions CI |
@@ -165,18 +167,7 @@ make test
 
 ## 🚀 Deployment
 
-See [`deploy/`](deploy/README.md) for a deployment example (author's personal setup, not a universal recommendation):
-
-- **Frontend node** — static hosting + Caddy reverse proxy with automatic HTTPS
-- **Backend node** — backend + agent orchestrated with Docker Compose
-- Image recognition is CPU-optimized (precomputed text vectors + int8 quantization, ~2–3s per image)
-
-```
-Frontend (Caddy)                  Backend (Docker)
- /  static frontend               backend :3333
- /api       → :3333               agent   :8000
- /agent-api → :8000                └─ litellm → LLM API
-```
+See [cloud deployment](deploy/cloud/README.md). Caddy exposes one HTTPS API origin, while Go and Agent run on the private Compose network. React assets are distributed inside the mobile app. No frontend hosting is required.
 
 ---
 

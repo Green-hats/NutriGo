@@ -22,6 +22,10 @@ export default function Chat() {
   const token = useAuthStore((s) => s.token)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => () => {
+    streamRef.current?.cancel()
+    useChatStore.getState().setStreaming(false)
+  }, [])
 
   const send = (text: string) => {
     const msg = text.trim()
@@ -97,15 +101,15 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] relative">
-      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative">
+    <div className="flex flex-col h-full min-h-0 relative">
+      <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold relative shrink-0">
         <button onClick={() => setShowHistory(true)} aria-label="历史会话" className="absolute left-4 top-1/2 -translate-y-1/2"><History size={22} /></button>
         NutriGo AI 营养师
         <button onClick={clearMessages} title="新建会话" className="absolute right-4 top-1/2 -translate-y-1/2"><Plus size={24} /></button>
       </div>
       {showHistory && <HistorySidebar onSelect={handleHistorySelect} onClose={() => setShowHistory(false)} />}
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         <ChatErrorBoundary>
         {messages.length === 0 && (
           <div className="flex flex-col items-center mt-16">
@@ -187,15 +191,15 @@ export default function Chat() {
         </ChatErrorBoundary>
       </div>
 
-      <div className="border-t px-4 py-3 bg-white">
+      <div className="border-t px-4 py-3 bg-white shrink-0">
         <div className="flex gap-2">
           <input
-            className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-green-500"
+            className="flex-1 min-w-0 border border-gray-200 rounded-full px-4 py-2.5 text-base outline-none focus:border-green-500"
             placeholder="输入消息..."
             maxLength={2000}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') send(input) }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(input) }}
           />
           {isStreaming ? (
             <button onClick={stop} title="停止生成"

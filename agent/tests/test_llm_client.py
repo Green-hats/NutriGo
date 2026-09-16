@@ -197,6 +197,35 @@ async def test_tool_call_crosses_chunks(monkeypatch, registry):
     assert ("tool_result", "nutrition:苹果") in chat_io.events
 
 
+async def test_agent_loop_binds_session_user_despite_model_arguments(monkeypatch):
+    registry = ToolRegistry()
+    queried_users = []
+
+    @registry.tool()
+    async def personal_lookup(user_id: int) -> str:
+        queried_users.append(user_id)
+        return "当前用户的档案"
+
+    chat_io = RecordingChatIO()
+    conv = Conversation(user_id=7)
+    calls = 0
+
+    async def handler(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return stream(make_chunk(tool_calls=[
+                make_tool_call(0, "call_1", "personal_lookup", '{"user_id":999}'),
+            ]))
+        return stream(make_chunk(content="分析完成"))
+
+    set_acompletion(monkeypatch, handler)
+    await run_agent_loop(conv, registry, chat_io)
+
+    assert queried_users == [7]
+    assert chat_io.has("done")
+
+
 async def test_unknown_tool_reports_error(monkeypatch, registry):
     chat_io = RecordingChatIO()
     conv = make_conv()

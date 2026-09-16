@@ -98,7 +98,7 @@ agent/
 ## Agent Loop 流程
 
 ```
-JWT 校验（提取 user_id） → 系统提示词注入 user_id
+JWT 校验（提取 user_id） → 服务端绑定会话用户
 → 用户消息 → LLM 流式推理
   ├── reasoning_content → thinking 事件（思维链，前端折叠展示）
   ├── chunk token       → 实时 SSE 推送
@@ -124,9 +124,9 @@ JWT 校验（提取 user_id） → 系统提示词注入 user_id
 ### 用户身份识别
 
 - `user_id` 从 `Authorization` 头中的 JWT 解出，**不信任 URL 参数**
-- `conversation.py` 的 `_build_system_msg()` 会把 user_id 注入系统提示词，
-  让 LLM 调用 `get_user_profile` 等工具时直接使用，不再向用户索要 ID
-- `llm_client.py` 执行工具时还会用 `defaults={"user_id": conv.user_id}` 兜底补齐参数
+- 工具 schema 不向 LLM 暴露 `user_id`，系统提示词说明身份由服务端绑定
+- `llm_client.py` 通过独立参数 `user_id=conv.user_id` 传入会话身份；工具执行层丢弃模型提供的 `user_id`，缺少有效认证身份时拒绝执行用户数据工具
+- 图片识别先通过 Go 图片元信息校验归属，再读取缓存或图片内容；他人的图片返回 403，图片不存在返回 404，无法验证归属时返回 502
 
 ### 健壮性
 

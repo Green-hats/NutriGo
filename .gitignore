@@ -1,5 +1,7 @@
 # Environment
 .env
+.env.local
+.env.*.local
 
 # Go
 backend/data.db
@@ -22,6 +24,23 @@ agent/data/chroma_db/
 # Node
 node_modules/
 frontend/dist/
+frontend/src-tauri/target/
+frontend/src-tauri/gen/schemas/
+# 原生工程本身提交，构建缓存和机器/签名配置不提交。
+frontend/src-tauri/gen/android/.gradle/
+frontend/src-tauri/gen/android/**/.kotlin/
+frontend/src-tauri/gen/android/.idea/
+frontend/src-tauri/gen/android/**/build/
+frontend/src-tauri/gen/android/local.properties
+frontend/src-tauri/gen/android/key.properties
+frontend/src-tauri/gen/android/app/src/main/jniLibs/
+frontend/src-tauri/gen/android/app/src/main/java/**/generated/
+frontend/src-tauri/gen/android/app/tauri.build.gradle.kts
+frontend/src-tauri/gen/apple/build/
+frontend/src-tauri/gen/apple/Pods/
+frontend/src-tauri/gen/apple/**/xcuserdata/
+*.keystore
+*.jks
 
 # 部署构建产物（deploy/scripts/build-frontend.sh 生成）
 deploy/dist/

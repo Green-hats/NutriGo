@@ -19,6 +19,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
@@ -414,7 +415,19 @@ async def identify_food(req: IdentifyRequest, request: Request) -> list:
     if user_id is None:
         raise HTTPException(status_code=401, detail="未认证或 token 无效")
 
-    # 0.5 缓存命中直接返回，跳过 CLIP 推理
+    # 内部接口持有服务级权限，必须先验证图片归属，再读取缓存或图片内容。
+    try:
+        image_meta = await go_client.get_image_meta(req.image_id)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            raise HTTPException(status_code=404, detail="图片不存在") from e
+        raise HTTPException(status_code=502, detail="无法验证图片归属，请稍后重试") from e
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail="无法验证图片归属，请稍后重试") from e
+    if image_meta.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="无权识别他人的图片")
+
+    # 归属校验通过后，缓存命中可跳过 CLIP 推理。
     cached = _cache_get(req.image_id)
     if cached is not None:
         return cached

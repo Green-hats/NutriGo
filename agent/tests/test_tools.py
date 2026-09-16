@@ -1,9 +1,12 @@
 """工具注册与执行机制单元测试（不调用真实工具）"""
 
 import asyncio
+from unittest.mock import Mock
+
+import pytest
 
 from app.config import settings
-from app.tools import RegisteredTool, ToolRegistry
+from app.tools import RegisteredTool, ToolRegistry, registry
 
 
 def add(a: int, b: int) -> str:
@@ -80,6 +83,46 @@ async def test_execute_async_defaults_not_overriding():
     tool = RegisteredTool(greet, "greet", "d")
     result = await tool.execute_async('{"name":"alice","prefix":"LLM "}', defaults={"prefix": "Injected "})
     assert result == "LLM alice"
+
+
+@pytest.mark.parametrize("name", ["get_user_profile", "get_diet_history", "get_diet_summary"])
+def test_personal_tool_schema_hides_user_id(name):
+    tool = registry.get(name)
+    assert tool is not None
+    schema = tool.to_openai()["function"]["parameters"]
+    assert "user_id" not in schema["properties"]
+    assert "user_id" not in schema["required"]
+
+
+@pytest.mark.parametrize("arguments", ['{}', '{"user_id":999}', '{"user_id":null}'])
+async def test_personal_tool_binds_authenticated_user(arguments):
+    def personal_lookup(user_id: int) -> str:
+        return str(user_id)
+
+    tool = RegisteredTool(personal_lookup, "personal_lookup", "d")
+    assert await tool.execute_async(arguments, user_id=7) == "7"
+    assert tool.execute(arguments, user_id=7) == "7"
+
+
+@pytest.mark.parametrize("user_id", [None, 0, -1, True])
+async def test_personal_tool_requires_trusted_identity(user_id):
+    called = Mock()
+
+    def personal_lookup(user_id: int) -> str:
+        called(user_id)
+        return "private data"
+
+    tool = RegisteredTool(personal_lookup, "personal_lookup", "d")
+    # 模型参数和普通 defaults 均不能充当认证身份。
+    result = await tool.execute_async('{"user_id":999}', defaults={"user_id":7}, user_id=user_id)
+    assert "拒绝执行" in result
+    assert "拒绝执行" in tool.execute('{"user_id":999}', user_id=user_id)
+    called.assert_not_called()
+
+
+async def test_non_personal_tool_ignores_model_user_id():
+    tool = RegisteredTool(greet, "greet", "d")
+    assert await tool.execute_async('{"name":"alice","user_id":999}', user_id=7) == "alice"
 
 
 async def test_execute_async_error_caught():

@@ -1,16 +1,18 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import Toast from './components/ui/Toast'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import { useMobileViewport } from './lib/mobile'
 import Chat from './pages/Chat'
 import Diary from './pages/Diary'
 import Profile from './pages/Profile'
 
 export default function App() {
+  useMobileViewport()
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Toast />
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -24,6 +26,6 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   )
 }

@@ -9,13 +9,13 @@ const tabs = [
 
 export default function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2 flex justify-around z-50">
+    <nav aria-label="主导航" className="app-tabbar bg-white border-t border-gray-100 px-6 flex justify-around">
       {tabs.map(({ to, icon: Icon, label }) => (
         <NavLink
           key={to}
           to={to}
           className={({ isActive }) =>
-            `flex flex-col items-center gap-0.5 text-xs transition-colors ${
+            `min-h-12 min-w-16 flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
               isActive ? 'text-green-600' : 'text-gray-400'
             }`
           }

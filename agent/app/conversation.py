@@ -36,13 +36,13 @@ class Conversation:
         self._name = ""                        # 会话名（已手动改名则不再自动覆盖）
 
     def _build_system_msg(self) -> str:
-        """组装系统提示词：追加当前用户 ID，让 LLM 调用 get_user_profile 等工具时知道传什么"""
+        """组装系统提示词：用户数据工具始终由服务端绑定当前身份。"""
         msg = self.system_msg
         if self.user_id:
             msg += (
-                f"\n\n当前对话的用户 ID 是 {self.user_id}。"
-                "当需要调用 get_user_profile、get_diet_history 等工具时，"
-                "直接使用该 ID 作为 user_id 参数，不要向用户索要 ID。"
+                "\n\n用户数据工具已由服务端绑定当前登录用户。"
+                "调用 get_user_profile、get_diet_history 等工具时无需提供 user_id，"
+                "不要向用户索要 ID，也不能切换到其他用户。"
             )
         return msg
 

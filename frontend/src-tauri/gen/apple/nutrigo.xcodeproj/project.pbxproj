@@ -1,0 +1,460 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		002AF57C2C7408A756C843F9 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C59FF3ED476C40262363B389 /* libapp.a */; };
+		13FE08939A697F68896C06FB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 34A6E36056916B1572F229BB /* Assets.xcassets */; };
+		2E299EA11954BC63F33CBE6A /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 41B24581F32392709931F99C /* assets */; };
+		3983CD868A66B874A8AB2C61 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D81FC2729CC4850A522CB934 /* Security.framework */; };
+		4946D55D6A1421D28A8995BF /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E4B65185AB26E74282EBF5AE /* WebKit.framework */; };
+		651648081A3FD50E8C4CF38E /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 95E6682A3F6FE40F7A424CA2 /* MetalKit.framework */; };
+		87804CBEA9F0B9B720F07A19 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3D5692AC2B533E8F4EEF3BCF /* LaunchScreen.storyboard */; };
+		893EE529DB50246F382AC7C1 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = CB5CBFC96D1A6D491FCBAB44 /* main.mm */; };
+		9A6CFC25E24D2C938475692F /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B8EA42E4174EA0D3CB1804D9 /* Metal.framework */; };
+		AC0AE0568D20A54DF05C3CCD /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B7638092B859BE1C30B600B3 /* CoreGraphics.framework */; };
+		CBA4315CE38872CC1B8F4D22 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA41C9B4AAA4C18CF4C75CD6 /* UIKit.framework */; };
+		CE2717FAAEB054D337241F9F /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D70E2B7E4410B3EE74EF7FB1 /* QuartzCore.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		3358C3D9F1106BEA2E1383C5 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		34A6E36056916B1572F229BB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		3D5692AC2B533E8F4EEF3BCF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		416EA1C1E8A6E519DFBF6D7F /* nutrigo_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = nutrigo_iOS.entitlements; sourceTree = "<group>"; };
+		41B24581F32392709931F99C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		5A5DD3E6529C741B40514572 /* nutrigo_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = nutrigo_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		95E6682A3F6FE40F7A424CA2 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		96DE2BDD4D90F1BE90988222 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B7638092B859BE1C30B600B3 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		B8EA42E4174EA0D3CB1804D9 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		C59FF3ED476C40262363B389 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		CB5CBFC96D1A6D491FCBAB44 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		D07B018A3650041F38D4F3F9 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		D70E2B7E4410B3EE74EF7FB1 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		D81FC2729CC4850A522CB934 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		E15D17B8F334340CA588477A /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		E4B65185AB26E74282EBF5AE /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		FA41C9B4AAA4C18CF4C75CD6 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		079A2A4791AB77C5DF86B025 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				002AF57C2C7408A756C843F9 /* libapp.a in Frameworks */,
+				AC0AE0568D20A54DF05C3CCD /* CoreGraphics.framework in Frameworks */,
+				9A6CFC25E24D2C938475692F /* Metal.framework in Frameworks */,
+				651648081A3FD50E8C4CF38E /* MetalKit.framework in Frameworks */,
+				CE2717FAAEB054D337241F9F /* QuartzCore.framework in Frameworks */,
+				3983CD868A66B874A8AB2C61 /* Security.framework in Frameworks */,
+				CBA4315CE38872CC1B8F4D22 /* UIKit.framework in Frameworks */,
+				4946D55D6A1421D28A8995BF /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		071C83BB77722FBD8B07FD22 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				D07B018A3650041F38D4F3F9 /* lib.rs */,
+				3358C3D9F1106BEA2E1383C5 /* main.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		0CAE7880EF6DFFF279612A3A /* nutrigo */ = {
+			isa = PBXGroup;
+			children = (
+				CB5CBFC96D1A6D491FCBAB44 /* main.mm */,
+				F73D73D77882443D9B036420 /* bindings */,
+			);
+			path = nutrigo;
+			sourceTree = "<group>";
+		};
+		216CDFF8AA892BC46B0D70E6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B7638092B859BE1C30B600B3 /* CoreGraphics.framework */,
+				C59FF3ED476C40262363B389 /* libapp.a */,
+				B8EA42E4174EA0D3CB1804D9 /* Metal.framework */,
+				95E6682A3F6FE40F7A424CA2 /* MetalKit.framework */,
+				D70E2B7E4410B3EE74EF7FB1 /* QuartzCore.framework */,
+				D81FC2729CC4850A522CB934 /* Security.framework */,
+				FA41C9B4AAA4C18CF4C75CD6 /* UIKit.framework */,
+				E4B65185AB26E74282EBF5AE /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		2C353D86155ABBEC7523AAF4 = {
+			isa = PBXGroup;
+			children = (
+				41B24581F32392709931F99C /* assets */,
+				34A6E36056916B1572F229BB /* Assets.xcassets */,
+				3D5692AC2B533E8F4EEF3BCF /* LaunchScreen.storyboard */,
+				C725226E46670F4D1033692E /* Externals */,
+				5EFA39C46391749B05825FA5 /* nutrigo_iOS */,
+				4A57A5C0AE067FB70FEDDB9E /* Sources */,
+				071C83BB77722FBD8B07FD22 /* src */,
+				216CDFF8AA892BC46B0D70E6 /* Frameworks */,
+				339ACC6E7F18DFE168C8D84B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		339ACC6E7F18DFE168C8D84B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5A5DD3E6529C741B40514572 /* nutrigo_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4A57A5C0AE067FB70FEDDB9E /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				0CAE7880EF6DFFF279612A3A /* nutrigo */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		5EFA39C46391749B05825FA5 /* nutrigo_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				96DE2BDD4D90F1BE90988222 /* Info.plist */,
+				416EA1C1E8A6E519DFBF6D7F /* nutrigo_iOS.entitlements */,
+			);
+			path = nutrigo_iOS;
+			sourceTree = "<group>";
+		};
+		C725226E46670F4D1033692E /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		F73D73D77882443D9B036420 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				E15D17B8F334340CA588477A /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6A43222E7FD4111500BF4BCB /* nutrigo_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3FEAA0F2B78227565966D7F1 /* Build configuration list for PBXNativeTarget "nutrigo_iOS" */;
+			buildPhases = (
+				F8F2CD028C1BDDD18655279F /* Build Rust Code */,
+				E30D22FA65FA2922611D8608 /* Sources */,
+				FD84D495942F494341C2F266 /* Resources */,
+				079A2A4791AB77C5DF86B025 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = nutrigo_iOS;
+			packageProductDependencies = (
+			);
+			productName = nutrigo_iOS;
+			productReference = 5A5DD3E6529C741B40514572 /* nutrigo_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		20CD298D9749C1B011DEB87B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = B59076B0EDAE4DB82146BE83 /* Build configuration list for PBXProject "nutrigo" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 2C353D86155ABBEC7523AAF4;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 339ACC6E7F18DFE168C8D84B /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6A43222E7FD4111500BF4BCB /* nutrigo_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		FD84D495942F494341C2F266 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				13FE08939A697F68896C06FB /* Assets.xcassets in Resources */,
+				87804CBEA9F0B9B720F07A19 /* LaunchScreen.storyboard in Resources */,
+				2E299EA11954BC63F33CBE6A /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F8F2CD028C1BDDD18655279F /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "npm run tauri -- ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E30D22FA65FA2922611D8608 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				893EE529DB50246F382AC7C1 /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		378162B676785178054A268A /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = nutrigo_iOS/nutrigo_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = nutrigo_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.greenhats.nutrigo;
+				PRODUCT_NAME = "NutriGo";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		9CCBFD7ED5AD4EDD4B82C204 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = nutrigo_iOS/nutrigo_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = nutrigo_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.greenhats.nutrigo;
+				PRODUCT_NAME = "NutriGo";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		FDC75735C08B3E6C8E119AB7 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		FFF00BF18AFC29D99F7B1417 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3FEAA0F2B78227565966D7F1 /* Build configuration list for PBXNativeTarget "nutrigo_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9CCBFD7ED5AD4EDD4B82C204 /* debug */,
+				378162B676785178054A268A /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		B59076B0EDAE4DB82146BE83 /* Build configuration list for PBXProject "nutrigo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FDC75735C08B3E6C8E119AB7 /* debug */,
+				FFF00BF18AFC29D99F7B1417 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 20CD298D9749C1B011DEB87B /* Project object */;
+}

@@ -28,7 +28,8 @@ class RegisteredTool:
         required = []
 
         for param_name, param in sig.parameters.items():
-            if param_name in ("self", "cls"):
+            # 用户身份由服务端绑定，不允许模型选择或填写。
+            if param_name in ("self", "cls", "user_id"):
                 continue
             param_type = "string"
             if param.annotation != inspect.Parameter.empty:
@@ -68,7 +69,7 @@ class RegisteredTool:
             },
         }
 
-    def execute(self, arguments_json: str) -> str:
+    def execute(self, arguments_json: str, *, user_id: int | None = None) -> str:
         """同步执行（async 工具请用 execute_async）"""
         try:
             args = json.loads(arguments_json)
@@ -76,6 +77,9 @@ class RegisteredTool:
             return f"参数解析失败: {arguments_json}"
         if not isinstance(args, dict):
             return f"参数格式错误: {arguments_json}"
+        identity_error = self._bind_user_id(args, user_id)
+        if identity_error:
+            return identity_error
         missing = self._check_missing(args)
         if missing:
             return missing
@@ -84,6 +88,17 @@ class RegisteredTool:
             return self._truncate_result(result)
         except Exception as e:
             return f"工具执行出错: {e}"
+
+    def _bind_user_id(self, args: dict, user_id: int | None) -> str | None:
+        """丢弃模型提供的身份；用户数据工具必须使用服务端认证身份。"""
+        args.pop("user_id", None)
+        if "user_id" not in self.param_names:
+            return None
+        if type(user_id) is not int or user_id <= 0:
+            return "缺少有效的认证用户，拒绝执行用户数据工具"
+        args["user_id"] = user_id
+        return None
+
     def _check_missing(self, args: dict) -> str | None:
         """检查必需参数，缺失时返回提示信息"""
         required = self.parameters.get("required", [])
@@ -100,8 +115,10 @@ class RegisteredTool:
             return result[:limit] + f"……(结果过长，已截断，共{len(result)}字符)"
         return result
 
-    async def execute_async(self, arguments_json: str, defaults: dict | None = None) -> str:
-        """异步执行。defaults 用于补齐 LLM 未提供的参数（如 user_id），仅注入函数实际接受的参数"""
+    async def execute_async(
+        self, arguments_json: str, defaults: dict | None = None, *, user_id: int | None = None,
+    ) -> str:
+        """defaults 补齐普通参数；user_id 只能通过服务端独立参数绑定。"""
         from app.config import settings
         try:
             args = json.loads(arguments_json)
@@ -113,6 +130,9 @@ class RegisteredTool:
             for k, v in defaults.items():
                 if v is not None and k not in args and k in self.param_names:
                     args[k] = v
+        identity_error = self._bind_user_id(args, user_id)
+        if identity_error:
+            return identity_error
         missing = self._check_missing(args)
         if missing:
             return missing

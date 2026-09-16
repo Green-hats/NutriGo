@@ -9,6 +9,12 @@ backend/data.db
 backend/uploads
 frontend/node_modules
 frontend/dist
+frontend/src-tauri
 deploy/dist
+# 服务密钥由运行环境注入，避免 COPY agent/ 将本机配置写入镜像。
+**/.env
+**/.env.*
+**/*.keystore
+**/*.jks
 .git
 .github

@@ -57,7 +57,7 @@ export default function Profile() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-full bg-gray-50">
       <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold">健康档案</div>
       <div className="p-6 space-y-4">
         <Skeleton className="h-32" />
@@ -69,7 +69,7 @@ export default function Profile() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-full bg-gray-50">
       <div className="bg-green-600 text-white py-4 px-6 text-center text-lg font-semibold">健康档案</div>
       {error ? <ErrorBlock message={error} onRetry={loadProfile} /> : (
         <div className="p-6 space-y-4">

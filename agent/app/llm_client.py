@@ -120,7 +120,7 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
                 registered = tools.get(name)
                 t0 = time.monotonic()
                 if registered:
-                    result = await registered.execute_async(args, defaults={"user_id": conv.user_id})
+                    result = await registered.execute_async(args, user_id=conv.user_id)
                 else:
                     result = f"未知工具: {name}"
                 logger.info(f"工具 {name} 执行 {time.monotonic()-t0:.1f}s 结果{len(result)}字符")

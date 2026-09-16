@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useChatStore } from './chat'
 import type { User, UserProfile } from '../types'
 
 interface AuthState {
@@ -21,12 +22,22 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       user: null,
       profile: null,
-      setAuth: (token, user, refreshToken = null) => set({ token, user, refreshToken }),
+      setAuth: (token, user, refreshToken = null) => {
+        useChatStore.getState().clearMessages()
+        set({ token, user, refreshToken, profile: null })
+      },
       setTokens: (token, refreshToken) => set({ token, refreshToken }),
       setProfile: (profile) => set({ profile }),
-      logout: () => set({ token: null, user: null, profile: null, refreshToken: null }),
+      logout: () => {
+        useChatStore.getState().clearMessages()
+        useChatStore.getState().setStreaming(false)
+        set({ token: null, user: null, profile: null, refreshToken: null })
+      },
       isLoggedIn: () => !!get().token,
     }),
-    { name: 'nutrigo-auth' }
+    {
+      name: `nutrigo-auth:${import.meta.env.VITE_API_BASE_URL || 'development'}`,
+      partialize: ({ token, refreshToken, user }) => ({ token, refreshToken, user }),
+    }
   )
 )

@@ -1,5 +1,11 @@
 # NutriGo 部署
 
+当前产品为 **Tauri 2 Android / iOS App + 云端 API**，请使用 [cloud/README.md](cloud/README.md) 和 [手机端文档](../docs/MOBILE.md)。云端只运行 Caddy、Go 和 Agent，前端资源随安装包分发。
+
+## 旧版网页部署参考
+
+下文保留原网页部署流程供已有部署迁移时参考；新手机 App 不需要静态站点节点。
+
 > **说明**：本目录是作者个人的一套部署示例（前端节点 + 后端节点），供参考而非通用推荐。
 > 实际部署请按自己的服务器数量、地域、资源配置调整，不一定需要两台机器——
 > 单机跑全部服务、或用 K8s/云托管等完全不同的方案都可行。
@@ -95,20 +101,25 @@ apt update && apt install caddy
 ```
 <your-domain> {
 	encode gzip
-	root * /srv/nutrigo
-	try_files {path} /index.html
-	file_server
 
 	handle /api/* {
 		reverse_proxy <backend-ip>:3333
 	}
-	handle /agent-api/* {
+	handle_path /agent-api/* {
+		rewrite * /api{uri}
 		reverse_proxy <backend-ip>:8000 {
 			flush_interval -1
 		}
 	}
+	handle {
+		root * /srv/nutrigo
+		try_files {path} /index.html
+		file_server
+	}
 }
 ```
+
+`/agent-api/*` 会转换为 Agent 的 `/api/*`，查询参数保持不变；前端页面回退仅处理非 API 请求。
 
 ```bash
 sudo systemctl reload caddy
@@ -136,7 +147,7 @@ scp -r deploy/dist/* root@<frontend-ip>:/srv/nutrigo/
 |---|---|
 | 前端可访问 | `curl -I https://<your-domain>` |
 | backend 反代 | `curl https://<your-domain>/api/health` |
-| agent 反代 | `curl https://<your-domain>/agent-api/api/health` |
+| agent 反代 | `curl https://<your-domain>/agent-api/health` |
 | 注册 | `curl -X POST https://<your-domain>/api/auth/register ...` |
 
 浏览器打开 `https://<your-domain>`：注册 → 登录 → 上传食物图识别 → AI 对话 → 饮食统计。

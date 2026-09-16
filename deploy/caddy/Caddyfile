@@ -9,21 +9,25 @@
 <your-domain> {
 	encode gzip
 
-	# 前端静态资源（React 构建产物）
-	root * /srv/nutrigo
-	try_files {path} /index.html
-	file_server
-
 	# 反代到后端节点 backend (Go :3333)
 	handle /api/* {
 		reverse_proxy <backend-ip>:3333
 	}
 
 	# 反代到后端节点 agent (FastAPI :8000)
-	handle /agent-api/* {
+	handle_path /agent-api/* {
+		# 与 Vite 开发代理一致：/agent-api/* → /api/*，保留查询参数。
+		rewrite * /api{uri}
 		# SSE 流式对话（聊天流），需关闭缓冲
 		reverse_proxy <backend-ip>:8000 {
 			flush_interval -1
 		}
+	}
+
+	# 仅非 API 请求使用 React 页面回退，避免把 API 路径改成 /index.html。
+	handle {
+		root * /srv/nutrigo
+		try_files {path} /index.html
+		file_server
 	}
 }

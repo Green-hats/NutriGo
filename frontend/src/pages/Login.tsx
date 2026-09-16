@@ -27,7 +27,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-center px-6">
+    <div className="auth-screen flex flex-col justify-center px-6">
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-green-600">NutriGo</h1>
         <p className="text-gray-500 mt-2">你的 AI 营养师</p>

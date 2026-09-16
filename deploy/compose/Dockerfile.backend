@@ -5,7 +5,7 @@
 # 注意: go-sqlite3 需要 CGO，构建阶段须安装 gcc
 # ============================================================
 
-FROM golang:1.26 AS builder
+FROM golang:1.26-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libc6-dev \
@@ -23,15 +23,15 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /out/nutrigo-server ./cmd/server
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY --from=builder /out/nutrigo-server /app/nutrigo-server
+COPY --from=builder /out/nutrigo-server /usr/local/bin/nutrigo-server
 
 ENV APP_ENV=production
 
 EXPOSE 3333
 
-CMD ["/app/nutrigo-server"]
+CMD ["/usr/local/bin/nutrigo-server"]

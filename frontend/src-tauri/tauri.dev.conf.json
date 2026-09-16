@@ -1,0 +1,19 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "app": {
+    "security": {
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost http: https: ws:; font-src 'self' data:",
+      "capabilities": [
+        "default",
+        {
+          "identifier": "development-http",
+          "description": "仅开发命令加载：允许连接电脑上的 Vite / 本地 API。",
+          "windows": ["main"],
+          "permissions": [
+            { "identifier": "http:default", "allow": [{ "url": "http://*/*" }] }
+          ]
+        }
+      ]
+    }
+  }
+}

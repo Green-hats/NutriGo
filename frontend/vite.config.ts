@@ -5,8 +5,13 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  clearScreen: false,
   server: {
     port: 5173,
+    strictPort: true,
+    host: process.env.TAURI_DEV_HOST || '127.0.0.1',
+    hmr: process.env.TAURI_DEV_HOST ? { host: process.env.TAURI_DEV_HOST, port: 5174 } : undefined,
+    watch: { ignored: ['**/src-tauri/**'] },
     proxy: {
       '/api': {
         target: 'http://localhost:3333',

@@ -79,13 +79,21 @@ cp agent/.env.example agent/.env
 ./start.sh
 ```
 
-浏览器打开 **http://localhost:5173** 🎉
+以上命令用于本地服务与浏览器预览。手机 App 使用 **Tauri 2**，同时支持 Android 和 iOS：
+
+```bash
+cd frontend
+npm run android:dev
+# macOS / Xcode 环境也可运行 npm run ios:dev
+```
+
+运行手机开发命令前停止已有的 Vite 进程，避免占用 5173。工具链、真机调试、API 地址和签名配置见 [手机 App 文档](docs/MOBILE.md)；无域名时可先本地开发。
 
 ### 服务架构
 
 | 服务 | 端口 | 技术栈 | 职责 |
 |------|------|--------|------|
-| `frontend` | :5173 | React 19 + TS + TailwindCSS | 用户界面 |
+| `frontend` | 安装包（开发 :5173） | Tauri 2 + React 19 + TS | Android / iOS 界面 |
 | `backend` | :3333 | Go + Gin + GORM + SQLite | 用户/数据/文件 |
 | `agent` | :8000 | FastAPI + litellm + ChromaDB | AI 对话/识别/RAG |
 
@@ -93,20 +101,12 @@ cp agent/.env.example agent/.env
 
 ## 🏗️ 架构
 
-```
-┌─────────────┐  REST / JWT   ┌──────────────┐
-│  Frontend   │ ────────────► │   Backend    │
-│  React 19   │ ◄──────────── │  Go + Gin    │
-└─────┬───────┘               │    :3333     │
-      │                       │  SQLite · JWT│
-      │                       └───────▲───────┘
-      │ SSE 对话 / REST 识别              │ REST (Internal Token)
-      ▼                               │
-┌─────┬───────────────────────────────┬─────────────────────┐
-│                   Agent · FastAPI :8000                   │
-│                  Agent Loop: 5 工具 + LLM                  │
-│                  + RAG (ChromaDB) + CLIP                  │
-└───────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    App[Android / iOS · Tauri 2 + React] -->|HTTPS · JWT| Caddy
+    Caddy -->|/api/*| Go[Go + SQLite]
+    Caddy -->|/agent-api/*| Agent[FastAPI · CLIP · RAG · LLM]
+    Agent -->|Internal Token| Go
 ```
 
 - **Agent Loop** — LLM 自主决定调用工具，支持思维链（reasoning_content）流式推送
@@ -122,6 +122,8 @@ cp agent/.env.example agent/.env
 
 | 文档 | 内容 |
 |------|------|
+| [手机 App](docs/MOBILE.md) | Android / iOS 开发、原生打包与云端连接 |
+| [云端部署](deploy/cloud/README.md) | Caddy HTTPS + Go + Agent 单机部署 |
 | [架构设计](docs/ARCHITECTURE.md) | 系统架构、数据流、安全设计 |
 | [API 文档](backend/API.md) | Go 后端全部接口 |
 | [Agent 文档](docs/agent.md) | Python Agent 设计与工具说明 |
@@ -135,8 +137,8 @@ cp agent/.env.example agent/.env
 ```bash
 # 单元测试（无需启动服务，适合 CI）
 make test-go-unit        # Go：83 用例
-make test-frontend       # 前端 vitest：38 用例（store + 组件）
-make test-agent-unit     # Agent pytest：69 用例（不联网、不加载模型）
+make test-frontend       # 前端 vitest：store / 组件 / 移动端网络层
+make test-agent-unit     # Agent pytest：不联网、不加载模型
 
 # 集成测试（需服务运行）
 make test-backend        # Go 后端：67 用例
@@ -156,7 +158,7 @@ make test
 
 | 层 | 技术 |
 |----|------|
-| 前端 | React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
+| 手机 App | Tauri 2 · Rust · React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
 | Agent | Python 3.13 · FastAPI · litellm · Chinese-CLIP · ChromaDB · SSE |
 | 后端 | Go 1.26 · Gin · GORM · SQLite · JWT · bcrypt |
 | 质量 | Go test · pytest · ruff · mypy · oxlint · vitest · GitHub Actions CI |

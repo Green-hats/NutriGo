@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>UIUserInterfaceStyle</key>
+  <string>Light</string>
+  <key>NSCameraUsageDescription</key>
+  <string>拍摄食物照片，用于识别食物和记录营养摄入。</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>选择食物照片，用于识别食物和记录营养摄入。</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>开发调试时连接同一网络中的开发服务器。</string>
+</dict>
+</plist>

@@ -1,4 +1,6 @@
 import { useAuthStore } from '../stores/auth'
+import { apiUrl } from './config'
+import { apiFetch } from './http'
 
 // 并发刷新护栏：同一时刻只允许一个 refresh 请求在途，
 // 其余并发 401 请求共享同一个 Promise。
@@ -15,7 +17,7 @@ export async function tryRefresh(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const resp = await fetch('/api/auth/refresh', {
+        const resp = await apiFetch(apiUrl('go', '/auth/refresh'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: refreshToken }),
@@ -38,7 +40,7 @@ export async function tryRefresh(): Promise<boolean> {
 export async function logoutRemote(): Promise<void> {
   const { token, refreshToken } = useAuthStore.getState()
   try {
-    await fetch('/api/auth/logout', {
+    await apiFetch(apiUrl('go', '/auth/logout'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

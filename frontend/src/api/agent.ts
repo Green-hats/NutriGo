@@ -1,7 +1,7 @@
-const AGENT_URL = '/agent-api'
-
 import { useAuthStore } from '../stores/auth'
 import { tryRefresh } from './authSession'
+import { apiUrl } from './config'
+import { apiFetch } from './http'
 import type {
   IdentifyResult, IntakeResult, SessionInfo, SessionDetail, Paginated,
 } from '../types'
@@ -13,7 +13,7 @@ function authHeaders(): Record<string, string> {
 
 // 401 后自动用 refresh_token 换新令牌并重试一次；失败则清除本地登录态
 async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
-  const resp = await fetch(`${AGENT_URL}${path}`, {
+  const resp = await apiFetch(apiUrl('agent', path), {
     ...init,
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers as Record<string, string>) },
   })

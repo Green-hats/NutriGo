@@ -26,15 +26,15 @@ COPY agent/pyproject.toml agent/uv.lock ./
 # uv.lock 绑定完整 torch；容器里改用 CPU 版 torch，因此跳过 uv 的 torch 解析，
 # 直接手工 pip 安装剩余依赖，避免拉回 GPU 版 torch。
 RUN pip install --no-cache-dir \
-        litellm>=1.50 \
-        aiosqlite>=0.20 \
-        httpx>=0.27 \
-        python-dotenv>=1.0 \
-        pydantic>=2.0 \
-        transformers>=4.50 \
-        pillow>=10.0 \
-        chromadb>=0.5 \
-        sentence-transformers>=5.6.1
+        "litellm>=1.50" \
+        "aiosqlite>=0.20" \
+        "httpx>=0.27" \
+        "python-dotenv>=1.0" \
+        "pydantic>=2.0" \
+        "transformers>=4.50" \
+        "pillow>=10.0" \
+        "chromadb>=0.5" \
+        "sentence-transformers>=5.6.1"
 
 # ---------- runtime ----------
 FROM python:3.13-slim

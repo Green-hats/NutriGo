@@ -2,29 +2,16 @@
 
 ## 一、整体架构
 
+```mermaid
+flowchart LR
+    Mobile[Android / iOS · Tauri 2 + React] -->|原生 HTTP / SSE| Gateway[Caddy · HTTPS]
+    Gateway -->|/api/*| Go[Go · Gin · SQLite]
+    Gateway -->|/agent-api/* → /api/*| Agent[Python · FastAPI]
+    Agent -->|内部令牌| Go
+    Agent --> Models[CLIP / RAG / LLM API]
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                 React + TypeScript (前端)                        │
-│        Vite / TailwindCSS / Zustand / React Router               │
-└──┬──────────────┬──────────────────┬────────────────────────────┘
-   │ REST (CRUD)  │ REST (识别触发)    │ SSE (对话流)
-   ▼              ▼                  ▼
-┌──────────────┐  ┌─────────────────────────────────────────────────┐
-│  Go (Gin)    │  │              Python (FastAPI)                    │
-│   :3333      │  │               :8000                             │
-│              │  │                                                  │
-│ • 用户注册/登录 │  │ • LLM 对话 + Agent Loop ── SSE 流式输出          │
-│ • 健康档案 CRUD│  │ • 食物图片识别 (Chinese-CLIP) ── REST            │
-│ • 饮食记录 CRUD│  │ • RAG 营养知识检索 (ChromaDB)                    │
-│ • 图片上传存储  │  │ • 食物营养库查询 (nutrition.db)                   │
-│ • JWT+刷新令牌 │  │ • 调用 Go API 获取用户/图片数据                    │
-│ • IP 限流      │  │                                                  │
-│   SQLite     │  │                                                  │
-└──────┬───────┘  └─────────────────────────────────────────────────┘
-       │                        │
-       └────── REST ────────────┘
-      (Python 需要用户画像/饮食记录/图片时，调 Go 的 API)
-```
+
+手机端资源随安装包分发，云端无需托管页面。开发时仍可使用 Vite 浏览器预览。双端工程与运行方式见 [MOBILE.md](MOBILE.md)，部署入口见 [cloud](../deploy/cloud/README.md)。
 
 ---
 
@@ -370,7 +357,7 @@ NutriGo/
 │   ├── pyproject.toml
 │   └── uv.lock
 │
-├── frontend/                  # React + TypeScript
+├── frontend/                  # Tauri 2 + React + TypeScript
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── ui/            # 自定义基础组件
@@ -389,6 +376,7 @@ NutriGo/
 │   │   ├── test/              # vitest 配置
 │   │   ├── App.tsx
 │   │   └── main.tsx
+│   ├── src-tauri/              # Rust、权限、Android / iOS 原生工程
 │   ├── package.json
 │   └── vite.config.ts
 │
@@ -402,7 +390,7 @@ NutriGo/
 
 | 层面 | 措施 |
 |------|------|
-| 传输安全 | 本地部署，服务间内网通信；公网部署需加 HTTPS |
+| 传输安全 | 手机经 HTTPS 访问统一网关；Go / Agent 仅在 Compose 网络内开放 |
 | 认证 | JWT（用户认证，短时 2h + 刷新令牌轮换 + 登出黑名单 + 重放检测）+ 静态 internal_token（Go ↔ Python 服务间鉴权） |
 | 防爆破 | 登录/注册/刷新接口 IP 级令牌桶限流（5 次/分） |
 | 密码存储 | bcrypt 哈希 |
@@ -454,18 +442,6 @@ cd agent && uv run python -m app.main
 cd frontend && npm run dev
 ```
 
-### Docker 部署（后续）
+### 云端部署
 
-```yaml
-# docker-compose.yml
-services:
-  backend:
-    build: ./backend
-    ports: ["3333:3333"]
-  agent:
-    build: ./agent
-    ports: ["8000:8000"]
-  frontend:
-    build: ./frontend
-    ports: ["5173:5173"]
-```
+使用 [deploy/cloud/compose.yml](../deploy/cloud/compose.yml) 部署 Caddy、Go 和 Agent。数据库、图片、模型和证书使用持久卷。完整步骤见 [部署说明](../deploy/cloud/README.md)。

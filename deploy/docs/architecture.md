@@ -34,10 +34,10 @@
 
 1. 用户打开 `https://<your-domain>`（前端节点）→ Caddy 返回前端静态页
 2. 上传食物图片 → 前端 POST `/api/images/upload` → Caddy `/api` → 后端节点 backend 存图 `uploads/`
-3. 触发识别 → 前端 POST `/agent-api/api/identify-food` → Caddy `/agent-api` → 后端节点 agent
-4. agent 通过内网 `GO_BACKEND_URL=http://backend:3333` + `X-Internal-Token` 回取图片
+3. 触发识别 → 前端 POST `/agent-api/identify-food` → Caddy 转换为 `/api/identify-food` → 后端节点 agent
+4. agent 通过内网 `GO_BACKEND_URL=http://backend:3333` + `X-Internal-Token` 查询图片归属，确认属于登录用户后才读取识别缓存或回取图片
 5. agent 本地 Chinese-CLIP 识别 → 查 `nutrition.db` 营养/份量 → 返回 Top-5
-6. 对话 → 前端 GET `/agent-api/api/chat`（SSE 流）→ agent → litellm 调外部 LLM API
+6. 对话 → 前端 GET `/agent-api/chat`（SSE 流）→ Caddy 转换为 `/api/chat`（保留查询参数）→ agent → litellm 调外部 LLM API
 7. 营养统计/档案 → 前端 `/api/*` → 后端节点 backend SQLite
 
 ## 关键设计

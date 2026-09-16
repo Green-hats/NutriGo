@@ -1,0 +1,76 @@
+name: nutrigo-cloud
+
+services:
+  gateway:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?请配置 API_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/compose/Dockerfile.backend
+    restart: unless-stopped
+    working_dir: /data
+    environment:
+      APP_ENV: production
+      JWT_SECRET: ${JWT_SECRET:?请设置强随机 JWT_SECRET}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请设置强随机 INTERNAL_TOKEN}
+    volumes:
+      - backend-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3333/api/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  agent:
+    build:
+      context: ../..
+      dockerfile: deploy/compose/Dockerfile.agent
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      JWT_SECRET: ${JWT_SECRET:?请设置强随机 JWT_SECRET}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请设置强随机 INTERNAL_TOKEN}
+      LLM_MODEL: ${LLM_MODEL:-deepseek/deepseek-chat}
+      LLM_API_KEY: ${LLM_API_KEY:?请设置 LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      GO_BACKEND_URL: http://backend:3333
+      DATABASE_PATH: /app/agent/data/agent.db
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    volumes:
+      - agent-data:/app/agent/data
+      - chroma-data:/app/agent/chroma_db
+      - model-data:/models
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ready', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
+
+volumes:
+  caddy-data:
+  caddy-config:
+  backend-data:
+  agent-data:
+  chroma-data:
+  model-data:
