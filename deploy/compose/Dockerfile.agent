@@ -16,10 +16,11 @@ ENV UV_SYSTEM_PYTHON=1 \
 
 WORKDIR /build
 
-# 1) 先装 torch CPU 版（PyTorch 官方 CPU 源，无 CUDA 组件）
-RUN pip install --no-cache-dir torch torchvision \
+# 1) 仅从 PyTorch CPU 源下载 torch / torchvision，普通依赖随后从 PyPI 解析。
+# 再次安装已存在的 torch 不会升级为 CUDA 版，但会补齐其声明的依赖。
+RUN pip install --no-cache-dir --no-deps torch torchvision \
         --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir "uvicorn[standard]>=0.30" "fastapi>=0.115"
+    && pip install --no-cache-dir torch torchvision "uvicorn[standard]>=0.30" "fastapi>=0.115"
 
 # 2) 其余 agent 依赖（litellm / transformers / chromadb / sentence-transformers ...）
 COPY agent/pyproject.toml agent/uv.lock ./
