@@ -26,14 +26,6 @@ vi.mock('../components/chat/HistorySidebar', () => ({
   default: () => <div data-testid="history-sidebar" />
 }))
 
-vi.mock('react-markdown', () => ({
-  default: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  )
-}))
-
-vi.mock('remark-gfm', () => ({ default: () => null }))
-
 afterEach(() => vi.restoreAllMocks())
 
 beforeEach(() => {
@@ -76,6 +68,51 @@ describe('Chat 页面', () => {
       mocks.captured.cb.onChunk('回复')
     })
     expect(screen.getByText(/这是回复/)).toBeInTheDocument()
+  })
+
+  it('历史回复中的多个数值范围保留波浪号，不产生删除线', () => {
+    const paragraphs = [
+      '每日总消耗约 2200~2400 kcal。增肌建议多加 300~500 kcal，即每日摄入约 2500~2900 kcal。',
+      '午餐/晚餐各 100~150g 鸡胸肉或瘦牛肉（各约 25~35g）。',
+      '每天 4~6 g/kg（约 220~330 g）。'
+    ]
+    useChatStore.getState().setMessages([
+      { role: 'assistant', content: paragraphs.join('\n\n') }
+    ])
+    const { container } = render(<Chat />)
+    for (const paragraph of paragraphs) {
+      expect(screen.getByText(paragraph)).toBeVisible()
+    }
+    expect(container.querySelector('.markdown-body del')).toBeNull()
+  })
+
+  it('流式回复分段收到多个波浪号时，已显示内容不会变为删除线', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<Chat />)
+    await sendMessage(user, '请说明数值范围')
+    let reply = ''
+    for (const chunk of ['范围 2200~', '2400 kcal，另一个范围 300', '~500 kcal。']) {
+      reply += chunk
+      act(() => mocks.captured.cb.onChunk(chunk))
+      expect(container.querySelector('.markdown-body')).toHaveTextContent(reply)
+      expect(container.querySelector('.markdown-body del')).toBeNull()
+    }
+    act(() => mocks.captured.cb.onDone())
+    expect(screen.getByText(reply)).toBeVisible()
+  })
+
+  it('保留显式双波浪号删除线、粗体和表格格式', () => {
+    useChatStore.getState().setMessages([
+      {
+        role: 'assistant',
+        content: '**范围说明**\n\n~~已更正内容~~\n\n| 项目 | 范围 |\n| --- | --- |\n| 示例 | 100~150 g，200~250 g |'
+      }
+    ])
+    const { container } = render(<Chat />)
+    expect(container.querySelector('strong')).toHaveTextContent('范围说明')
+    expect(container.querySelectorAll('.markdown-body del')).toHaveLength(1)
+    expect(container.querySelector('.markdown-body del')).toHaveTextContent('已更正内容')
+    expect(screen.getByRole('cell', { name: '100~150 g，200~250 g' })).toBeVisible()
   })
 
   it('工具调用先显示进行中卡片，完成后显示结果', async () => {

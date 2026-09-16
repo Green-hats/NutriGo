@@ -530,7 +530,9 @@ export default function Chat() {
                           </Box>
                         )}
                         {msg.content ? (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          <ReactMarkdown
+                            remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
+                          >
                             {msg.content +
                               (isStreaming && i === messages.length - 1
                                 ? '▍'
