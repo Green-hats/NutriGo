@@ -72,7 +72,9 @@ curl https://api.your-domain.com/agent-api/health
 
 ## 后续启用 AI
 
-在服务器 `.env` 中填写实际供应商支持的 `LLM_MODEL`、`LLM_API_KEY`，必要时填写 `LLM_BASE_URL`，然后设置 `AI_ENABLED=true`。确保服务器可以获取 Hugging Face 模型或已在 `model-data` 卷中准备模型缓存，并按需要恢复 RAG 数据。已有模型卷会覆盖镜像内的 `/models`，因此对已有部署仅重新构建镜像并不能补齐卷内缓存。可以先在同一个卷中下载模型：
+仅启用云端文字对话时，填写 LLM 配置并设置 `AI_ENABLED=true`、`RAG_ENABLED=false`、`FOOD_RECOGNITION_ENABLED=false`、`PRELOAD_MODELS=0`。文字对话和已有营养数据工具不依赖本地模型；照片识别会返回明确的未就绪提示，RAG 初始化也不会阻塞启动。DeepSeek 官方可使用 `LLM_MODEL=deepseek/deepseek-flash`、`LLM_BASE_URL=https://api.deepseek.com`，并设置 `LLM_REASONING_EFFORT=none` 使用非思考模式。仅将 Key 填入服务器 `.env` 的 `LLM_API_KEY`。
+
+在服务器 `.env` 中填写实际供应商支持的 `LLM_MODEL`、`LLM_API_KEY`，必要时填写 `LLM_BASE_URL`，然后设置 `AI_ENABLED=true`。需要知识库与照片识别时，将 `RAG_ENABLED` 和 `FOOD_RECOGNITION_ENABLED` 也设为 `true`。确保服务器可以获取 Hugging Face 模型或已在 `model-data` 卷中准备模型缓存，并按需要恢复 RAG 数据。已有模型卷会覆盖镜像内的 `/models`，因此对已有部署仅重新构建镜像并不能补齐卷内缓存。可以先在同一个卷中下载模型：
 
 ```bash
 docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml run --rm --no-deps agent python -c "from transformers import ChineseCLIPModel, ChineseCLIPProcessor; ChineseCLIPModel.from_pretrained('OFA-Sys/chinese-clip-vit-base-patch16'); ChineseCLIPProcessor.from_pretrained('OFA-Sys/chinese-clip-vit-base-patch16'); from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5')"

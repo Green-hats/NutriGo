@@ -57,6 +57,9 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       AI_ENABLED: ${AI_ENABLED:-true}
+      RAG_ENABLED: ${RAG_ENABLED:-true}
+      FOOD_RECOGNITION_ENABLED: ${FOOD_RECOGNITION_ENABLED:-true}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
       GO_BACKEND_URL: http://backend:3333
       DATABASE_PATH: /app/agent/data/agent.db
       CORS_ORIGINS: ${CORS_ORIGINS:-}

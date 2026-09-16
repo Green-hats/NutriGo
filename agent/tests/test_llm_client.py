@@ -358,7 +358,15 @@ def test_build_kwargs_includes_key_and_tools(monkeypatch, registry):
 def test_build_kwargs_omits_empty_fields(monkeypatch, registry):
     monkeypatch.setattr("app.llm_client.settings.LLM_API_KEY", "")
     monkeypatch.setattr("app.llm_client.settings.LLM_BASE_URL", "")
+    monkeypatch.setattr("app.llm_client.settings.LLM_REASONING_EFFORT", "")
     kwargs = _build_kwargs([], tools=None, stream=False)
     assert "api_key" not in kwargs
     assert "api_base" not in kwargs
     assert "tools" not in kwargs
+    assert "reasoning_effort" not in kwargs
+
+
+def test_configured_reasoning_effort_is_passed_to_provider(monkeypatch):
+    monkeypatch.setattr("app.llm_client.settings.LLM_REASONING_EFFORT", "none")
+    kwargs = _build_kwargs([{"role": "user", "content": "hi"}], None, stream=True)
+    assert kwargs["reasoning_effort"] == "none"

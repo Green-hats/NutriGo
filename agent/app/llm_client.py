@@ -151,6 +151,8 @@ def _build_kwargs(messages: list[dict], tools: list[dict] | None, stream: bool) 
         kwargs["api_key"] = settings.LLM_API_KEY
     if settings.LLM_BASE_URL:
         kwargs["api_base"] = settings.LLM_BASE_URL
+    if settings.LLM_REASONING_EFFORT:
+        kwargs["reasoning_effort"] = settings.LLM_REASONING_EFFORT
     if tools:
         kwargs["tools"] = tools
     return kwargs

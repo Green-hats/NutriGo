@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await db.init_db()                 # agent.db — sessions 表
     await init_nutrition_db()          # nutrition.db — 食物营养
     await seed_data()                  # 首次启动插入种子数据
-    if settings.AI_ENABLED:
+    if settings.AI_ENABLED and settings.RAG_ENABLED:
         init_rag()                     # ChromaDB — 营养知识库
     logger.info(f"LLM 模型: {settings.LLM_MODEL}")
     logger.info(f"Go 后端:  {settings.GO_BACKEND_URL}")
@@ -406,6 +406,8 @@ async def identify_food(req: IdentifyRequest, request: Request) -> list:
     # 0. JWT 鉴权
     user_id = await require_user_id(request.headers.get("Authorization"))
     require_ai_enabled()
+    if not settings.FOOD_RECOGNITION_ENABLED:
+        raise HTTPException(status_code=409, detail="照片识别模型尚未准备好，暂时无法识别照片。")
 
     # 内部接口持有服务级权限，必须先验证图片归属，再读取缓存或图片内容。
     try:
