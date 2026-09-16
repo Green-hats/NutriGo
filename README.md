@@ -30,11 +30,11 @@
 
 <div align="center">
 
-**Live demo · Mobile app**
+**Live demo · AI chat**
 
-<img src="docs/screenshots/demo.gif" alt="NutriGo mobile UI: AI chat, expandable tool details, food diary, nutrition trends, photo entry and health profile" width="390" />
+<img src="docs/screenshots/demo.gif" alt="NutriGo AI chat: ask a question, view the reply and expand tool details" width="390" />
 
-Current MUI mobile interface: AI chat with expandable tool details, food diary, nutrition trends, photo entry and health profile.
+AI chat walkthrough: ask a question, view the reply and expand the health profile and food diary tool details.
 
 The walkthrough and screenshots use demo data; chat replies are illustrative.
 

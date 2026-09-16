@@ -30,11 +30,11 @@
 
 <div align="center">
 
-**手机 App 交互演示**
+**AI 聊天 Live demo**
 
-<img src="docs/screenshots/demo.gif" alt="NutriGo 手机界面：AI 对话、工具详情展开、饮食日记、营养趋势、拍照入口和健康档案" width="390" />
+<img src="docs/screenshots/demo.gif" alt="NutriGo AI 聊天：输入问题、查看回复和展开工具详情" width="390" />
 
-最新 MUI 手机界面：AI 对话与工具详情展开、饮食日记、营养趋势、拍照入口和健康档案。
+AI 聊天演示：输入问题、查看回复，以及展开健康档案和饮食记录的工具详情。
 
 动图与截图使用演示数据，对话内容为示例回复。
 
