@@ -24,6 +24,9 @@ services:
     build:
       context: ../..
       dockerfile: deploy/compose/Dockerfile.backend
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org}
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
     restart: unless-stopped
     working_dir: /data
     environment:
@@ -44,6 +47,7 @@ services:
       dockerfile: deploy/compose/Dockerfile.agent
       args:
         PRELOAD_MODELS: ${PRELOAD_MODELS:-1}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     restart: unless-stopped
     environment:
       APP_ENV: production

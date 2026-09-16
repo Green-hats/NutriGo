@@ -42,6 +42,8 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml ps
 docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml logs --tail=100 agent
 ```
 
+如果服务器访问默认软件源缓慢，可在 `.env` 中配置可信的 `DEBIAN_MIRROR`、`GOPROXY` 和 `PIP_INDEX_URL`；这些参数仅用于镜像构建，不修改宿主机的软件源。Go 保留模块校验，Debian 保留仓库签名验证，PyTorch 始终从官方 CPU 源下载。
+
 首次构建需要下载 Python/PyTorch 依赖；`PRELOAD_MODELS=1` 时还会下载 CLIP 和嵌入模型，耗时与内存取决于服务器和网络。网关等待服务就绪后启动。RAG 数据需要另外恢复到 Chroma 卷；本模板不会虚构或自动补齐缺失的数据。
 
 ## 路由
