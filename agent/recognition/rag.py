@@ -7,9 +7,12 @@ ChromaDB RAG — 营养知识库检索
 嵌入模型：BAAI/bge-small-zh-v1.5（免费，~100MB）
 """
 import logging
+from pathlib import Path
 
 import chromadb
 from chromadb.utils import embedding_functions
+
+from app.config import settings
 
 logger = logging.getLogger("uvicorn")
 
@@ -26,13 +29,18 @@ def init_rag() -> None:
     """
     global _collection
     try:
+        model_path = settings.RAG_MODEL_PATH
         ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="BAAI/bge-small-zh-v1.5"
+            model_name=model_path,
+            local_files_only=Path(model_path).is_absolute() or Path(model_path).is_dir(),
         )
         client = chromadb.PersistentClient(path=DB_PATH)
         # chromadb 的 EmbeddingFunction 类型与 sentence-transformers 不兼容（第三方 stub 问题）
         _collection = client.get_collection(COLLECTION_NAME, embedding_function=ef)  # type: ignore[arg-type]
-        logger.info(f"RAG 知识库已加载: {DB_PATH}")
+        count = _collection.count()
+        if count == 0:
+            raise ValueError("知识库为空")
+        logger.info("RAG 知识库已加载: %s, %d 条文档", DB_PATH, count)
     except Exception as e:
         logger.warning(f"RAG 初始化失败（知识库缺失或损坏？），营养知识搜索不可用: {e}")
         _collection = None

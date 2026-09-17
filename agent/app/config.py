@@ -55,6 +55,7 @@ class Config:
     # 首次部署尚无模型配置时，保留账号、日记和营养计算，显式关闭 AI 请求。
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "true").lower() == "true"
     RAG_ENABLED: bool = os.getenv("RAG_ENABLED", "true").lower() == "true"
+    RAG_MODEL_PATH: str = os.getenv("RAG_MODEL_PATH", "BAAI/bge-small-zh-v1.5")
     FOOD_RECOGNITION_ENABLED: bool = os.getenv("FOOD_RECOGNITION_ENABLED", "true").lower() == "true"
     # 云端可指向持久化卷中的模型目录，从本地加载，无需启动时访问模型仓库。
     FOOD_MODEL_PATH: str = os.getenv("FOOD_MODEL_PATH", "OFA-Sys/chinese-clip-vit-base-patch16")

@@ -161,3 +161,19 @@ python3 deploy/cloud/backup/backup.py restore backups/snapshot-实际备份名 -
 恢复目标必须不存在，脚本拒绝覆盖任何现有目录。生成的 `backend/data.db`、`backend/uploads/` 和 `agent/agent.db` 可用于恢复演练。实际生产回滚前应停止写入、另行备份当前卷，再恢复选定版本；本命令不会自动覆盖生产数据。两个数据库分别取一致快照，不保证跨库同一时刻；需要这种保证时应暂停写入后备份。
 
 自动备份默认仍在同一台服务器。需另外把已验证的快照复制到独立主机或对象存储，才能覆盖整机/磁盘丢失。模型、向量库、TLS 状态和部署密钥不包含在此用户数据备份中，需按各自恢复方式管理。
+
+## 启用已提供的 RAG 资料库
+
+仓库 `agent/chroma_db/` 包含 `nutrition_textbook` 集合、2,277 条非空教材段落及 512 维 BGE 向量。数据库与 HNSW 文件必须来自同一份快照；复制前用 SQLite `PRAGMA integrity_check` 检查，并在副本上用与服务器相同版本的 ChromaDB 验证条数、向量和检索。ChromaDB 打开目录时可能更新内部状态，检查不要直接修改 Git 中的原始快照。
+
+该集合使用 `BAAI/bge-small-zh-v1.5`，不能换成不同的嵌入模型。已验证模型版本为 `7999e1d3359715c523056ef9478215996d62a620`，`model.safetensors` 大小 95827648 字节，官方 SHA-256 为 `354763b9b1357bc9c44f62c6be2276321081ed2567773608c0d0785b61d5a026`。同时下载该版本的 tokenizer、配置、`modules.json` 和 `1_Pooling/config.json`；仅有权重文件不能正常加载。服务器无法访问模型站时，可从本机下载、校验后再传入 `model-data` 卷。
+
+在已有部署上操作：
+
+1. 运行用户数据备份，备份当前 `chroma-data` 卷、`.env` 和旧 Agent 镜像。
+2. 将资料库解压到独立临时目录，与 Git 快照的文件哈希逐个核对。在临时容器使用该目录和本地 BGE 模型运行实际问题检索，确认相关段落命中，再切换生产。
+3. 停止 Agent，完整复制数据库和索引到 Compose 现有 `chroma-data` 卷；不要只复制 SQLite 文件，也不要合并两份不同时刻的索引。
+4. 设置 `RAG_ENABLED=true`，`RAG_MODEL_PATH` 填模型在容器中的绝对路径（例如 `/models/models--BAAI--bge-small-zh-v1.5/snapshots/7999e1d3359715c523056ef9478215996d62a620`）。绝对路径强制使用本地文件，不会在启动时联网下载。
+5. 用原 Compose 项目更新 Agent：`docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d --build --no-deps agent`。确认日志出现 `RAG 知识库已加载` 和正确文档数，再用真实聊天确认 `search_nutrition_knowledge` 返回教材段落；仅健康接口返回正常不代表 RAG 已初始化。
+
+知识库资料用于提供参考，不代表逐条内容已完成专业审校。此操作只更新云端服务，现有 App 即可使用，无需重新安装 APK。Git 快照和固定模型版本是知识库的恢复来源；用户数据库/照片的每日备份不包含模型和向量卷。

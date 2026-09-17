@@ -59,6 +59,7 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       AI_ENABLED: ${AI_ENABLED:-true}
       RAG_ENABLED: ${RAG_ENABLED:-true}
+      RAG_MODEL_PATH: ${RAG_MODEL_PATH:-BAAI/bge-small-zh-v1.5}
       FOOD_RECOGNITION_ENABLED: ${FOOD_RECOGNITION_ENABLED:-true}
       FOOD_MODEL_PATH: ${FOOD_MODEL_PATH:-OFA-Sys/chinese-clip-vit-base-patch16}
       FOOD_MODEL_INT8: ${FOOD_MODEL_INT8:-false}

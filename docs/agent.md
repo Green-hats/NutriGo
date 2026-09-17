@@ -158,7 +158,7 @@ results = identify(image_bytes, labels=["宫保鸡丁", "红烧肉", ...], top_k
 
 ## ChromaDB RAG
 
-`agent/chroma_db/` 已随 Git 仓库提供，包含 SQLite 数据库和向量索引，共 2277 条教材文档。拉取后从 `agent/` 目录启动服务即可加载；嵌入模型仍需下载或提前缓存。更新知识库后，应停止写入，再将整个目录中的数据库和索引一起提交。
+`agent/chroma_db/` 已随 Git 仓库提供，包含 SQLite 数据库和向量索引，共 2277 条教材文档。拉取后从 `agent/` 目录启动服务即可加载；嵌入模型仍需下载或提前缓存。云端可用 `RAG_MODEL_PATH` 指定已校验的模型绝对路径，只从本地加载；空集合会明确降级为知识库不可用。更新知识库后，应停止写入，再将整个目录中的数据库和索引一起提交。
 
 Docker 构建仍排除此目录，已有部署需将数据复制到 Agent 的 `/app/agent/chroma_db` 持久卷中，并在复制期间停止 Agent 服务。
 
