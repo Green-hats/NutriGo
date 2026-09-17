@@ -1,447 +1,333 @@
 # NutriGo — 架构设计文档
 
-## 一、整体架构
+更新日期：2026-09-17。本文描述当前实现，对照源码基线 `bb970c2`（Android 0.1.2）。尚未实现的改进单独列于末节。
+
+移动端运行与签名见 [MOBILE.md](MOBILE.md)，云端部署、模型准备和恢复操作见 [部署说明](../deploy/cloud/README.md)。具体配置和接口以本文链接的源码为准。
+
+## 一、系统形态与交付边界
+
+NutriGo 是 **Tauri 2 手机 App + 单机云端服务**。React 页面、样式与静态资源打进安装包；Caddy 提供 HTTPS API 入口，云端不托管手机页面。Vite 浏览器界面用于开发预览。
+
+| 部分 | 当前实现与交付状态 |
+|---|---|
+| Android | 已发布 ARM64 测试 APK；0.1.2 约 16.1 MiB，要求 Android 8.0+；GitHub Actions 已跑通自动签名和 Release 发布 |
+| iOS | 已有原生工程，最低 iOS 17；CI 检查 iOS Rust 目标，尚无自动签名、IPA / TestFlight 发布流程 |
+| 数据服务 | Go 管理账号、健康档案、饮食记录、汇总、图片和令牌状态 |
+| AI 服务 | Python 管理用户会话和工具编排；调用外部 LLM，执行云端照片识别和 RAG 检索 |
+| 离线能力 | 正常 App 有断网提示和错误恢复；独立 preview 包展示模拟数据。尚无真实数据离线缓存与自动同步 |
+
+Android Release 使用现有测试签名和 `com.greenhats.nutrigo.debug` 包名，以兼容已安装测试版；这不代表已完成应用商店正式发布。
+
+## 二、整体架构
+
+```mermaid
+flowchart TB
+    App["Android / iOS App<br/>Tauri 2 + React + MUI"]
+    LLM["外部 LLM API<br/>由服务端配置供应商和模型"]
+    subgraph Cloud["云服务器：Docker Compose"]
+        Gateway["Caddy<br/>公网 HTTPS 入口"]
+        Go["Go / Gin<br/>数据与认证服务 :3333"]
+        Agent["Python / FastAPI<br/>AI 服务 :8000"]
+        UserData[("backend-data<br/>data.db + uploads")]
+        ChatData[("agent-data<br/>agent.db 用户会话")]
+        Nutrition[("nutrition.db<br/>预置食物营养数据")]
+        Knowledge[("chroma-data<br/>教材段落及向量索引")]
+        Models["model-data<br/>Chinese-CLIP + BGE 权重"]
+        TLS[("caddy-data / caddy-config<br/>证书与运行状态")]
+        Gateway --> Go
+        Gateway --> Agent
+        Gateway --> TLS
+        Agent -->|"内部鉴权与数据读取"| Go
+        Go --> UserData
+        Agent --> ChatData
+        Agent --> Nutrition
+        Agent --> Knowledge
+        Agent --> Models
+    end
+    App -->|"HTTPS / JWT / REST / SSE"| Gateway
+    Agent -->|"服务端 API Key"| LLM
+```
+
+只有网关公开 80 / 443；Go 和 Agent 在 Compose 内网通信。图片、用户数据库、会话、向量库、模型与证书分别持久化；重建容器不等于重建这些卷。配置见 [compose.yml](../deploy/cloud/compose.yml)。
+
+## 三、技术栈与职责
+
+| 层 | 技术与职责 |
+|---|---|
+| 手机端 | Tauri 2 / Rust、React 19、TypeScript、Vite、MUI 9 + Emotion、Zustand、React Router；负责交互、图片压缩、流式展示和连接状态 |
+| 原生通信 | `@tauri-apps/plugin-http` 发起 App 网络请求；浏览器开发预览使用标准 `fetch` 与 Vite 代理 |
+| Go | Gin / GORM / SQLite / JWT / bcrypt；负责业务数据的写入、归属校验、认证与图片生命周期 |
+| Python | FastAPI / LiteLLM / aiosqlite / httpx；负责 Agent Loop、工具调用与用户会话持久化 |
+| 识别与检索 | Chinese-CLIP、BGE-small-zh、ChromaDB、食物营养库；模型在服务器执行，权重不进入 APK |
+| 云端入口 | Caddy HTTPS、路径路由和 SSE 转发；支持域名证书和单独的公网 IP 证书配置 |
+| 交付 | GitHub Actions CI、Android APK 优化构建、固定签名、GitHub 预发布 Release |
+
+Python **保存用户聊天会话及工具结果**，但不直接写 Go 的账号、档案或饮食记录数据库。当前 Agent 工具以查询为主，饮食记录由 App 确认后调用 Go 接口保存。LLM API Key 只在服务端使用。
+
+## 四、网络与错误处理
+
+### 4.1 路径与认证
+
+| 调用方 | 对外路径或服务地址 | 转发和认证 |
+|---|---|---|
+| App → Go | `HTTPS_ORIGIN/api/*` | Caddy 转发至 Go；用户业务接口携带 `Authorization: Bearer ...` |
+| App → Agent | `HTTPS_ORIGIN/agent-api/*` | Caddy 改写为 Agent 的 `/api/*`；用户接口携带同一访问令牌 |
+| Agent → Go | `http://backend:3333/api/*` | `X-Internal-Token`；令牌校验接口另外携带用户 Bearer 令牌 |
+| Agent → LLM | 服务端配置的模型 API 地址 | 服务端 `LLM_API_KEY`，不经手机中转 |
+
+App 的 API 源由构建时 `VITE_API_BASE_URL` 决定，正式构建要求 HTTPS；修改地址需要重新打包。当前原生 HTTP capability 允许 HTTPS 请求，具体请求源由 API 封装决定。源码见 [config.ts](../frontend/src/api/config.ts)、[http.ts](../frontend/src/api/http.ts) 和 [capabilities](../frontend/src-tauri/capabilities/default.json)。
+
+网关只放行业务路由；`/api/internal/*`、图片元信息/二进制读取和 `/api/metrics` 不对公网开放。具体白名单见 [Caddyfile](../deploy/cloud/Caddyfile) 与 [IP 证书配置](../deploy/cloud/Caddyfile.ip)。
+
+### 4.2 REST 与 SSE
+
+对话使用 **fetch + ReadableStream 解析 SSE**，并非浏览器 `EventSource`。因此可以携带 Authorization 请求头，并通过 `AbortController` 取消请求。普通请求默认 20 秒、对话默认 60 秒超时；超时覆盖连接和每次响应体读取，流式数据到达后重新计算读取等待时间。
+
+SSE 事件包括 `session_id`、`chunk`、`thinking`、`tool_call`、`tool_result`、`done`、`error`。是否出现 thinking 内容取决于模型及服务端配置。前端保留 Markdown 空白，单波浪号数值范围不作为删除线解析。实现见 [sse.ts](../frontend/src/api/sse.ts) 和 [Chat.tsx](../frontend/src/pages/Chat.tsx)。
+
+- 401 会尝试轮换刷新令牌并重试一次；断网、超时或暂时服务故障不会直接清空登录态。
+- 切换账号会使旧请求失效，避免旧响应写入新账号界面。
+- 离开聊天页面会取消当前流；服务端检测连接断开后取消本次 Agent 任务并释放并发名额。
+- 未收到 `done` / `error` 就结束的流提示回复可能不完整。当前没有 SSE 自动重连或跨连接续传。
+- 保存失败保留当前表单，恢复网络后由用户重试；尚无服务端请求去重或持久化待同步队列。
+
+## 五、核心数据流
+
+### 5.1 AI 对话与用户数据工具
+
+```mermaid
+sequenceDiagram
+    participant App as 手机 App
+    participant Gateway as Caddy
+    participant Agent as Python Agent
+    participant Go as Go 数据服务
+    participant LLM as 外部 LLM
+    App->>Gateway: GET /agent-api/chat，Bearer + message
+    Gateway->>Agent: GET /api/chat
+    Agent->>Agent: 校验 JWT 签名与有效期
+    Agent->>Go: /api/internal/auth/verify，内部令牌 + Bearer
+    Go-->>Agent: 当前用户与令牌有效状态
+    Agent->>Agent: 按用户加载或创建会话，保存提问
+    Agent-->>App: SSE session_id
+    Agent->>LLM: 当前业务日期、上下文、工具定义
+    opt 模型请求查询用户资料或饮食数据
+        Agent->>Go: 内部查询接口，用户身份由服务端绑定
+        Go-->>Agent: 真实业务数据
+        Agent->>LLM: 工具结果
+    end
+    Agent-->>App: SSE chunk / tool_call / tool_result
+    Agent->>Agent: 保存会话结果
+    Agent-->>App: SSE done
+```
+
+工具注册和用户身份绑定见 [tools.py](../agent/app/tools.py)。当前五项工具为：食物营养查询、健康档案查询、饮食明细查询、多日营养汇总查询、营养知识检索。模型不能自行指定另一用户身份。
+
+Agent 默认限制单条提问长度、工具执行时间、循环轮数、上下文消息数和 token 预算；长会话按用户轮次裁剪发送给模型的上下文，数据库仍保存完整历史。默认同一用户同时最多一个活跃对话。配置见 [config.py](../agent/app/config.py)，上下文处理见 [conversation.py](../agent/app/conversation.py)。
+
+业务日期通过 `APP_TIMEZONE` 显式计算，默认 `Asia/Shanghai`；每次发给模型时重新渲染“今天”，恢复旧会话和跨午夜也使用当前业务日期。App 日记默认日期及餐次使用手机本地时间，用户可手动修改；目前没有按用户保存时区的机制。
+
+### 5.2 拍照识别与记账
+
+1. 用户先选择记录日期和餐次；手机按当前时间提供默认餐次，也允许手动选择。
+2. 选图后前端压缩为 JPEG，最长边 1600px；上传至 `POST /api/images/upload`。Go 验证格式与大小、生成 UUID 文件名，保存文件和图片元信息，返回 `{id, filename, mime_type, size}`。
+3. 前端自动调用 `POST /agent-api/identify-food`，提交数值型 `image_id`。Agent 校验登录、向 Go 查询图片归属，校验通过后才可读取识别缓存或图片二进制。
+4. Chinese-CLIP 在云端 CPU 上对家常菜标签计算候选排序，返回 Top-5、营养数据和默认份量。当前约 510 个家常菜标签；不是任意食物、多菜品分割或重量识别。
+5. 用户确认候选并调整克数；`POST /agent-api/calculate-intake` 根据食物库计算营养。候选均不正确时可转手动记录。
+6. 用户确认后，App 调用 `POST /api/diet/logs` 保存所选日期、餐次、营养和图片关联，成功后刷新日记。保存操作不会自动发起 AI 对话。
+
+前端流程见 [Diary.tsx](../frontend/src/pages/Diary.tsx)，压缩见 [foodImage.ts](../frontend/src/lib/foodImage.ts)，服务端见 [identify_food](../agent/app/main.py) 和 [multimodal.py](../agent/recognition/multimodal.py)。候选分数是标签集合内的相对分数，不是经评测校准的准确率；用户确认是当前流程的一部分。
+
+### 5.3 RAG 检索
+
+知识库使用仓库提供的 `agent/chroma_db/` 快照，集合为 `nutrition_textbook`，含 2,277 条教材段落及 512 维 BGE 向量。部署时将经过校验的同一份数据库与索引恢复到 `chroma-data`，嵌入模型版本必须与已有向量匹配。
+
+当前检索取前三段；明确指定维生素时先增加正文名称过滤，降低相近名称混淆。工具每段最多提供 300 字，返回资料编号与文本。当前尚未返回结构化章节/页码来源，也没有通用相关度阈值或重排模型。知识库不可用或无结果时返回明确提示。实现见 [rag.py](../agent/recognition/rag.py)。
+
+## 六、API 概览
+
+以下为服务内部路由。Go 公网前缀仍为 `/api`；Agent 的公网前缀是 `/agent-api`。完整 Go 契约见 [backend/API.md](../backend/API.md)。
+
+### 6.1 Go :3333
+
+| 方法 | 路径 | 说明 | 认证 / 公网可达性 |
+|---|---|---|---|
+| GET | `/api/health`、`/api/ready` | 存活、数据库就绪 | 无认证，网关放行 |
+| GET | `/api/metrics` | 请求数、状态码等指标 | 服务内无认证，网关阻断 |
+| POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/refresh` | 注册、登录、刷新令牌 | 无 Bearer 要求，IP 限流 |
+| POST | `/api/auth/logout` | 吊销访问令牌和可选刷新令牌 | JWT |
+| GET / PUT | `/api/users/:id/profile` | 查看、更新自己的档案 | JWT + 用户归属 |
+| POST | `/api/images/upload` | 上传图片 | JWT |
+| DELETE | `/api/images/:id` | 删除自己的未关联图片 | JWT + 用户归属 |
+| POST / GET | `/api/diet/logs` | 创建、按日期查询明细 | JWT |
+| PUT / DELETE | `/api/diet/logs/:id` | 编辑、删除自己的明细 | JWT + 用户归属 |
+| GET | `/api/diet/summaries` | 日期区间汇总、分页 | JWT |
+| GET | `/api/internal/auth/verify` | 实时检查访问令牌与用户状态 | 内部令牌 + JWT，网关阻断 |
+| GET | `/api/internal/users/:id/profile` | Agent 查询档案 | 内部令牌，网关阻断 |
+| GET | `/api/internal/diet/logs`、`/api/internal/diet/summaries` | Agent 查询明细、汇总 | 内部令牌，网关阻断 |
+| GET | `/api/images/:id`、`/api/images/:id/data` | 图片归属元信息、二进制 | 内部令牌，网关阻断 |
+
+内部查询具有服务级权限，用户隔离由 Agent 先绑定用户身份或核对图片归属实现。路由注册见 [main.go](../backend/cmd/server/main.go)。
+
+### 6.2 Agent :8000
+
+| 方法 | 内部路径 | 说明 | 认证 |
+|---|---|---|---|
+| GET | `/api/health`、`/api/ready` | 存活、会话数据库就绪 | 无 |
+| GET | `/api/chat?message=&session_id=` | 提问并建立 SSE 流 | JWT + Go 实时校验 |
+| GET | `/api/sessions`、`/api/sessions/:id` | 会话列表、历史 | JWT + 会话归属 |
+| POST | `/api/sessions/:id/regenerate` | 重新生成最后回复，返回 SSE | JWT + 会话归属 |
+| DELETE / PATCH | `/api/sessions/:id` | 删除、重命名会话 | JWT + 会话归属 |
+| POST | `/api/identify-food` | 照片识别 | JWT + 图片归属 |
+| POST | `/api/calculate-intake` | 按食物和克数计算营养 | JWT |
+
+所有受保护 Agent 路由使用 [auth.py](../agent/app/auth.py) 的实时令牌校验，Go 不可达时拒绝受保护请求。`/ready` 仅检查数据库连通，不代表 LLM、RAG 或识别质量验收已通过。
+
+## 七、数据模型与持久化
+
+### 7.1 Go 用户数据
+
+GORM 启动时通过 `AutoMigrate` 建表；模型定义是结构来源，目前没有独立的版本化迁移流水线。
+
+| 表 | 内容与约束 |
+|---|---|
+| `users` | 用户名唯一、bcrypt 密码哈希 |
+| `user_profiles` | 每用户一份档案；身高、体重、目标、过敏原、饮食习惯、基础病 |
+| `food_diaries` | 日期字符串、四类餐次、食物、份量、营养、备注、可空图片关联；长期保留明细 |
+| `food_images` | 用户归属、UUID 文件名、文件路径、MIME 类型和字节大小；文件在 uploads 目录 |
+| `daily_summaries` | 保留旧版本已删除明细对应的历史汇总基数，不再定时写入新汇总 |
+| `refresh_tokens` | 刷新令牌的 SHA-256 哈希、用户、令牌家族、有效期和吊销时间 |
+| `blacklisted_tokens` | 已吊销访问令牌的 jti、用户和有效期 |
+
+汇总查询实时叠加现存明细与旧历史基数，并标识 `live` / `aggregated` / `mixed` 来源；补记、编辑、删除后即时反映变化。旧版本已经删除的明细无法由汇总反推，只能从旧备份恢复。实现见 [summary.go](../backend/internal/handler/summary.go)。
+
+后台任务仅清理过期令牌及超期、未关联日记的图片；当前不存在记录聚合删除任务。未关联图片默认保留 7 天，可通过 `UNATTACHED_IMAGE_RETENTION_DAYS` 调整，设为 0 关闭自动清理。
+
+### 7.2 Agent 数据与资源
+
+| 数据 | 存储位置与用途 |
+|---|---|
+| 用户会话 | `agent.db` 的 `sessions` 表：用户归属、名称、系统提示词、JSON 消息历史、创建/更新时间；持久化在 `agent-data` |
+| 食物营养库 | 仓库预置 `agent/nutrition.db`，随 Agent 镜像提供；8,407 条营养数据及份量信息 |
+| 教材向量库 | 仓库 `agent/chroma_db/` 是已提供的快照，部署后由 `chroma-data` 持久化；不是启动时自动补全的空目录 |
+| 模型权重 | `model-data` 中的 CLIP 与 BGE 本地模型；需要预先准备、校验和匹配版本 |
+| 进程内缓存 | 图片识别结果、菜名向量、用户并发计数与会话锁；重启后重建，不作为业务数据来源 |
+
+模型卷会覆盖镜像同路径内容，因此仅重建镜像不能保证已有模型卷已更新。快照恢复和模型准备见 [云端部署说明](../deploy/cloud/README.md)。
+
+## 八、安全与故障边界
+
+- App 仅加载打包资源，CSP 与 Tauri capabilities 限制页面和原生能力；不在 App 中保存 LLM API Key。
+- Go 校验 JWT、访问令牌黑名单与用户状态。Agent 先验签，再调用内部 verify 接口实时确认，避免已退出的令牌继续访问 AI；图片缓存也不能绕过归属校验。
+- 刷新令牌轮换、家族重放检测和登出吊销由 Go 管理；生产环境拒绝缺失或默认服务密钥。
+- 登录、注册和刷新使用 IP 令牌桶限流；业务对象查询和修改按当前用户隔离。
+- 上传限制为 JPEG / PNG / WebP、10 MiB；客户端先压缩，服务端重新检查内容类型、大小并生成文件名。
+- 当前手机登录令牌通过 Zustand persist 保存到 WebView localStorage；尚无 Keychain / Keystore 安全持久化。
+- `AI_ENABLED`、`RAG_ENABLED`、`FOOD_RECOGNITION_ENABLED` 分别控制能力。关闭 AI 时聊天、重新生成和识别明确拒绝；账号、日记、历史查询与营养计算仍可使用。
+
+## 九、单实例部署与扩展约束
+
+当前采用单实例 Go + 单实例 Agent、SQLite 和本地持久卷。SQLite 降低部署成本，但并发写入、磁盘容量和查询延迟需要按实际负载评估。
+
+IP 限流、用户并发额度、会话锁、识别缓存和推理锁都在进程内；识别使用模型级锁串行推理，限制小内存服务器上的同时计算。直接增加容器副本不能保持这些约束一致。
+
+未来扩容需要同时处理共享数据库与图片存储、分布式并发控制、模型任务调度和迁移验证。迁移 PostgreSQL 还需检查 SQL 方言、数据类型、索引、事务和现存数据，不能只替换 GORM driver。
+
+## 十、部署、备份与恢复
+
+云端入口为 [deploy/cloud/compose.yml](../deploy/cloud/compose.yml)，运行 Caddy、Go、Agent；backup 是按需启用的 maintenance 服务。生产变量由服务器上的环境配置注入。域名与公网 IP 分别使用对应 Caddy 配置；IP 证书方案需要持续自动续期，保留证书卷及 80 / 443 可达性。
+
+| 持久卷 | 数据 |
+|---|---|
+| `backend-data` | `/data/data.db` 与 `/data/uploads` |
+| `agent-data` | `/app/agent/data/agent.db` |
+| `chroma-data` | `/app/agent/chroma_db` |
+| `model-data` | `/models` |
+| `caddy-data`、`caddy-config` | 证书及 Caddy 状态 |
+
+用户数据备份通过 SQLite 在线备份 API 分别快照 Go 和 Agent 数据库，再复制图片元信息快照引用的文件。每份备份校验 SHA-256、数据库完整性和行数，并恢复到隔离目录复核，通过后才清理旧副本。默认保留 14 份；提供的 systemd timer 为北京时间每日 03:30，随机延迟最多 5 分钟。
+
+两个数据库分别取得一致快照，未保证跨库同一时刻；需要跨库一致点时先暂停写入。不能直接复制正在写入的 `.db` 而忽略 WAL。
+
+默认备份仍在同一台服务器，尚无自动异地副本。模型、教材向量库、证书和部署密钥不在用户数据备份范围内，须分别保留恢复来源。恢复命令写入新的隔离目录，不自动覆盖生产；上线前备份，升级沿用原 Compose 项目和卷，不使用 `down -v`。操作见 [backup.py](../deploy/cloud/backup/backup.py) 和 [部署说明](../deploy/cloud/README.md)。
+
+已有结构化日志、数据库探针、Go 请求指标和 Docker 重启策略；仓库尚未配置集中告警。健康检查不能替代实际登录、AI 调用、知识检索、识别与恢复验收。
+
+## 十一、CI 与 Android 发布
+
+[ci.yml](../.github/workflows/ci.yml) 在 main 推送、PR 和被发布工作流复用时运行六组检查：
+
+| 检查 | 范围 |
+|---|---|
+| Lint | Python lint / 类型、前端 lint、Go vet |
+| Test | Go 单元与真实服务集成、Agent 单元、前端单元、备份恢复、发布保护测试 |
+| Build | Go 与前端构建 |
+| Tauri native check | App 构建、Rust 检查、iOS Rust 目标检查 |
+| Android compact APK | ARM64 联网包与独立 preview 包构建，20 MiB 上限 |
+| Cloud gateway | Compose 配置与网关路由 / SSE 行为 |
+
+真实 LLM、模型准确率、完整手机 UI 自动化和 iOS 签名发版不在这六组检查的验收范围。Agent 的在线集成脚本不属于默认 pytest 单元集合。
+
+Android 体积优化脚本清理旧 APK 构建输出，对 Rust 启用体积优化、Thin LTO 和符号移除，按 ARM64 单架构分发。它仍使用兼容旧安装的 debug 应用标识；普通 CI Artifacts 使用临时签名。
 
 ```mermaid
 flowchart LR
-    Mobile[Android / iOS · Tauri 2 + React] -->|原生 HTTP / SSE| Gateway[Caddy · HTTPS]
-    Gateway -->|/api/*| Go[Go · Gin · SQLite]
-    Gateway -->|/agent-api/* → /api/*| Agent[Python · FastAPI]
-    Agent -->|内部令牌| Go
-    Agent --> Models[CLIP / RAG / LLM API]
+    Trigger["main 手动运行<br/>或 android-v版本 标签"] --> Prepare["核对源码、版本、HTTPS 配置<br/>已有标签与 Release"]
+    Prepare --> CI["复用完整六组 CI"]
+    CI --> Download["下载本次运行的联网 APK"]
+    Download --> Sign["使用 Actions Secrets 固定签名"]
+    Sign --> Verify["核对包名、版本、证书、ARM64<br/>ZIP、16 KB 对齐、20 MiB 上限"]
+    Verify --> Draft["创建或续传本提交的草稿<br/>上传 APK、SHA256SUMS、manifest"]
+    Draft --> Publish["核对远端大小与 SHA-256<br/>公开预发布 Release"]
 ```
 
-手机端资源随安装包分发，云端无需托管页面。开发时仍可使用 Vite 浏览器预览。双端工程与运行方式见 [MOBILE.md](MOBILE.md)，部署入口见 [cloud](../deploy/cloud/README.md)。
+发布入口为 [android-release.yml](../.github/workflows/android-release.yml)。版本须在 Tauri 配置、Cargo.toml 和 Cargo.lock 中一致；标签匹配应用版本，提交须在 main 历史中。发布串行执行，拒绝移动已有标签或覆盖已公开版本，仅允许继续同一提交创建的未发布草稿。
 
----
+签名文件、密码和别名在 Actions Secrets 中；真实 API 源与签名证书指纹在仓库 Variables 中。发布使用已有安装的固定签名；只有发布 job 申请 `contents: write`。手机升级下载 Release 附件，不使用普通 CI 临时签名包。配置与操作见 [MOBILE.md](MOBILE.md)。
 
-## 二、技术栈
+该流水线发布 Android 安装包，不部署云服务器，也不自动升级用户手机；服务端更新仍走独立的备份、部署和验收步骤。
 
-| 层 | 技术 |
-|----|------|
-| **前端** | React 19 / TypeScript (strict) / Vite / MUI 9 + Emotion / Zustand / React Router |
-| **Go 后端**（数据服务） | Gin / GORM / golang-jwt / SQLite |
-| **Python 后端**（AI 服务） | FastAPI / litellm / ChromaDB / Chinese-CLIP / Pillow / httpx |
+## 十二、源码导航
 
----
-
-## 三、通讯方式
-
-| 链路 | 方式 | 原因 |
-|------|------|------|
-| 前端 ↔ Go | REST | CRUD 请求-响应，无长连接需求 |
-| 前端 ↔ Python（对话） | **SSE** | 单向流式输出，`EventSource` 自动重连，比 WebSocket 简单 |
-| 前端 ↔ Python（食物识别） | REST | 上传触发请求-响应，非流式 |
-| Python ↔ Go | REST | Python 需要用户画像、饮食记录、图片文件时，主动调 Go |
-
----
-
-## 四、核心数据流
-
-### 4.1 对话流程
-
-```
-用户输入消息
-     │
-     ▼
-前端 EventSource → GET Python /api/chat?session_id=xxx&message=xxx
-     │                    │
-     │              Agent Loop 执行：
-     │              LLM 推理 → 工具调用(查营养/查用户画像) → 再推理 → ...
-     │                    │
-     │              SSE: data: {chunk}\n\n
-     ▼                    ▼
-前端逐字流式渲染回复
-```
-
-### 4.2 食物识别流程
-
-```
-用户拍照/选择图片
-     │
-     ▼
-前端 → POST Go /api/images/upload
-     │         │
-     │    存储图片到文件系统，写入数据库记录
-     │    返回 { image_id, url }
-     │
-     ▼
-用户点击"识别"
-     │
-     ▼
-前端 → POST Python /api/identify-food
-     │         { image_id: "xxx" }
-     │                │
-     │           Python → GET Go /api/images/:id/data   (拿到图片二进制)
-     │                │
-     │           Chinese-CLIP 推理识别
-     │                │
-     │           返回 [{ name, confidence }, ...]
-     ▼                ▼
-前端展示候选列表
-     │
-用户确认食物 + 份量
-     │
-     ├──→ POST Go /api/diet/logs          (写入饮食记录)
-     │
-     └──→ GET Python /api/chat?message=今天午餐吃了宫保鸡丁，帮我分析一下营养
-          (LLM 结合用户画像 → SSE 流式返回营养分析与建议)
-```
-
-### 4.3 Python 调 Go 获取用户画像
-
-```
-用户对话: "帮我推荐今天的晚餐"
-     │
-     ▼
-Python Agent Loop:
-  LLM 决定需要用户画像
-     │
-     ▼
-Agent 工具调用: get_user_profile()
-     │
-     ▼
-Python → GET Go /api/users/:id/profile  (带内部服务鉴权 token)
-     │         │
-     │    返回 { height, weight, goal, allergies, ... }
-     ▼         ▼
-工具返回数据 → LLM 结合信息 → 推荐食谱 → SSE 流式返回
-```
-
----
-
-## 五、各层职责边界
-
-| 服务 | 做 | 不做 |
-|------|-----|-----|
-| **前端** | 页面渲染、拍照交互、对话 UI、数据可视化 | 不直接调 LLM API |
-| **Go** | 用户认证、用户画像 CRUD、饮食记录 CRUD、图片文件上传与存储、图片获取 API | 不做 AI 推理、不执行模型 |
-| **Python** | LLM 对话(SSE)、Agent 编排与工具调用、食物图片识别、RAG 检索、食物营养库查询、调 Go API 获取数据 | 不存用户数据、不存文件、不管理饮食记录 |
-
----
-
-## 六、API 设计概览
-
-### 6.1 Go 服务 (:3333)
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| `GET` | `/api/health` | 健康检查 | 无 |
-| `GET` | `/api/ready` | 就绪探针（校验 DB 连接） | 无 |
-| `GET` | `/api/metrics` | Prometheus 指标 | 无 |
-| `POST` | `/api/auth/register` | 用户注册 | 无（IP 限流） |
-| `POST` | `/api/auth/login` | 登录，返回 JWT + 刷新令牌 | 无（IP 限流） |
-| `POST` | `/api/auth/refresh` | 刷新令牌轮换 | 无（IP 限流） |
-| `POST` | `/api/auth/logout` | 登出，吊销令牌 | JWT |
-| `GET` | `/api/users/:id/profile` | 获取用户健康档案 | JWT |
-| `PUT` | `/api/users/:id/profile` | 更新用户健康档案 | JWT |
-| `POST` | `/api/images/upload` | 上传食物图片 | JWT |
-| `DELETE` | `/api/images/:id` | 删除图片 | JWT |
-| `POST` | `/api/diet/logs` | 创建饮食记录 | JWT |
-| `GET` | `/api/diet/logs?date=` | 查询饮食记录列表 | JWT |
-| `DELETE` | `/api/diet/logs/:id` | 删除饮食记录 | JWT |
-| `GET` | `/api/diet/summaries?start=&end=` | 每日营养汇总 | JWT |
-| `GET` | `/api/internal/users/:id/profile` | 查档案（Agent 用） | 内部 |
-| `GET` | `/api/internal/diet/logs` | 查饮食记录（Agent 用） | 内部 |
-| `GET` | `/api/internal/diet/summaries` | 查每日汇总（Agent 用） | 内部 |
-| `GET` | `/api/images/:id` | 图片元信息（Agent 用） | 内部 |
-| `GET` | `/api/images/:id/data` | 图片二进制（Agent 用） | 内部 |
-
-> 完整契约见 `backend/API.md`。
-
-### 6.2 Python 服务 (:8000)
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| `GET` | `/api/health` | 健康检查 | 无 |
-| `GET` | `/api/chat?message=&session_id=` | 对话（SSE 流式） | JWT |
-| `GET` | `/api/sessions` | 会话列表 | JWT |
-| `GET` | `/api/sessions/:id` | 获取会话历史 | JWT |
-| `POST` | `/api/sessions/:id/regenerate` | 重新生成最后回复 | JWT |
-| `DELETE` | `/api/sessions/:id` | 删除会话 | JWT |
-| `PATCH` | `/api/sessions/:id` | 重命名会话 | JWT |
-| `POST` | `/api/identify-food` | 食物图片识别 | JWT |
-| `POST` | `/api/calculate-intake` | 按克数计算摄入营养 | JWT |
-
----
-
-## 七、Python 端模块（基于现有 AgentN 代码演进）
-
-| 模块 | 来源 | 说明 |
-|------|------|------|
-| `llm_client.py` | **重构** | Agent Loop 保留，新增 SSE 流式 `stream()` 方法 |
-| `tools.py` | **保留** | `@tool` 装饰器机制不变 |
-| `conversation.py` | **保留** | 会话状态 + 回滚，适配 SSE ChatIO |
-| `chat_io.py` | **保留重构** | ChatIO 抽象接口保留，新增 `SSEChatIO` 实现 |
-| `db.py` | **保留** | SQLite 操作保留，仅用于会话持久化 |
-| `nutrition.py` | **新增** | Agent 工具实现：查营养、查用户画像、查饮食记录/汇总 |
-| `rag.py` | **新增** | ChromaDB 向量检索，加载营养知识文档 |
-| `multimodal.py` | **新增** | Chinese-CLIP 食物识别模型加载与推理 |
-| `go_client.py` | **新增** | 封装对 Go 后端的 HTTP 调用 |
-| `config.py` | **新增** | 配置管理，读取 .env |
-| `main.py` | **重写** | FastAPI 入口，路由注册 |
-
----
-
-## 八、Go 端模块
-
-| 路径 | 说明 |
-|------|------|
-| `cmd/server/main.go` | 入口，Gin 路由注册、优雅关闭、启动后台任务 |
-| `internal/config/` | 密钥加载（jwt.go）、DB 连接、限流/保留期常量 |
-| `internal/model/` | GORM 数据模型（User、UserProfile、FoodDiary、FoodImage、DailySummary、RefreshToken、BlacklistedToken） |
-| `internal/handler/` | HTTP handler 层（auth/profile/diet/image/summary + validate） |
-| `internal/middleware/` | JWT 认证 + 内部服务鉴权 + IP 限流 + 可观测性 |
-| `internal/service/` | 后台任务（图片清理 / 记录聚合 / 令牌清理） |
-
----
-
-## 九、数据库设计
-
-### 9.1 Go — data.db (SQLite)
-
-```sql
--- users
-CREATE TABLE users (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    username   TEXT NOT NULL UNIQUE,
-    password   TEXT NOT NULL,          -- bcrypt hash
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- user_profiles
-CREATE TABLE user_profiles (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id        INTEGER NOT NULL UNIQUE REFERENCES users(id),
-    height_cm      REAL,
-    weight_kg      REAL,
-    age            INTEGER,
-    gender         TEXT,                -- male / female / other
-    goal           TEXT,                -- lose_weight / maintain / gain_muscle
-    allergies      TEXT,                -- JSON array
-    dietary_habits TEXT,                -- JSON array, e.g. ["vegetarian", "no_pork"]
-    chronic_diseases TEXT,              -- JSON array, e.g. ["hypertension", "diabetes"]
-    updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- food_diary
-CREATE TABLE food_diary (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL REFERENCES users(id),
-    date       DATE NOT NULL,
-    meal_type  TEXT,                    -- breakfast / lunch / dinner / snack
-    food_name  TEXT NOT NULL,
-    portion    TEXT,                    -- e.g. "200g", "1 bowl"
-    calories   REAL,
-    protein_g  REAL,
-    fat_g      REAL,
-    carbs_g    REAL,
-    notes      TEXT,
-    image_id   INTEGER REFERENCES food_images(id),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- food_images
-CREATE TABLE food_images (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL REFERENCES users(id),
-    filename   TEXT NOT NULL,
-    path       TEXT NOT NULL,
-    mime_type  TEXT,
-    size_bytes INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- refresh_tokens（刷新令牌，只存 SHA-256 哈希）
-CREATE TABLE refresh_tokens (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL,
-    family_id  TEXT NOT NULL DEFAULT '',   -- 令牌家族，用于重放检测
-    token_hash TEXT NOT NULL UNIQUE,       -- SHA-256(token)，不存明文
-    expires_at DATETIME NOT NULL,
-    revoked_at DATETIME,                   -- 轮换/登出后置位
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- blacklisted_tokens（登出后被吊销的访问令牌，按 jti）
-CREATE TABLE blacklisted_tokens (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL,
-    jti        TEXT NOT NULL UNIQUE,
-    expires_at DATETIME NOT NULL,          -- 到期后由清理任务删除
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### 9.2 Python — agent.db (SQLite)
-
-复用现有 AgentN 的 sessions 表结构：
-
-```sql
-CREATE TABLE sessions (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT NOT NULL DEFAULT '',
-    system_msg  TEXT NOT NULL DEFAULT '',
-    messages    TEXT NOT NULL DEFAULT '[]',
-    user_id     INTEGER,                  -- 新增：关联 Go 的用户 ID
-    created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-    updated_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-);
-```
-
-### 9.3 ChromaDB（Python 端管理）
-
-存储中国膳食指南、食物成分表等知识文档的向量嵌入，用于 RAG 检索。
-
----
-
-## 十、目录结构
-
-```
+```text
 NutriGo/
-├── PROPOSAL.md                # 项目策划书
-├── ARCHITECTURE.md            # 架构设计文档（本文件）
-├── ROADMAP.md                 # 开发路线图
-├── .env                       # 环境变量
-├── .gitignore
-├── docker-compose.yml
-│
-├── backend/                   # Go 后端
-│   ├── cmd/server/main.go
-│   ├── internal/
-│   │   ├── handler/
-│   │   │   ├── auth.go        # 注册/登录/刷新令牌/登出
-│   │   │   ├── profile.go
-│   │   │   ├── diet.go
-│   │   │   ├── image.go
-│   │   │   └── summary.go
-│   │   ├── middleware/
-│   │   │   ├── jwt.go         # JWT 校验 + 黑名单
-│   │   │   ├── internal_auth.go
-│   │   │   ├── rate_limit.go  # IP 令牌桶限流
-│   │   │   └── observability.go # 请求日志 + 指标
-│   │   ├── model/
-│   │   │   ├── user.go
-│   │   │   ├── food_diary.go
-│   │   │   ├── food_image.go
-│   │   │   ├── daily_summary.go
-│   │   │   └── token.go       # 刷新令牌 / 黑名单表
-│   │   ├── service/           # 后台任务
-│   │   │   ├── aggregator.go
-│   │   │   ├── cleanup.go
-│   │   │   └── token_cleanup.go
-│   │   └── config/            # 密钥/DB/限流/保留期配置
-│   ├── uploads/               # 运行期生成（.gitignore）
-│   ├── go.mod
-│   └── go.sum
-│
-├── agent/                     # Python Agent 服务
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── llm_client.py
-│   │   ├── conversation.py
-│   │   ├── tools.py
-│   │   ├── chat_io.py
-│   │   ├── db.py              # 会话持久化
-│   │   └── auth.py            # JWT 校验（标准库）
-│   ├── recognition/
-│   │   ├── nutrition.py       # Agent 工具函数
-│   │   ├── rag.py             # ChromaDB 检索
-│   │   ├── multimodal.py      # Chinese-CLIP 识别
-│   │   ├── db.py              # nutrition.db 食物库
-│   │   └── go_client.py       # Go 后端 HTTP 客户端
-│   ├── tests/                 # pytest 单元测试
-│   ├── chroma_db/             # RAG 向量库（运行期生成）
-│   ├── nutrition.db           # 预置食物营养库（8407 条）
-│   ├── pyproject.toml
-│   └── uv.lock
-│
-├── frontend/                  # Tauri 2 + React + TypeScript
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── ui/            # 自定义基础组件
-│   │   │   ├── chat/
-│   │   │   ├── diary/
-│   │   │   └── layout/
-│   │   ├── pages/
-│   │   │   ├── Login.tsx
-│   │   │   ├── Register.tsx
-│   │   │   ├── Chat.tsx
-│   │   │   ├── Diary.tsx
-│   │   │   └── Profile.tsx
-│   │   ├── stores/            # Zustand（auth / chat）
-│   │   ├── api/               # Go + Agent API 调用封装
-│   │   ├── types/             # TypeScript 类型定义
-│   │   ├── test/              # vitest 配置
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── src-tauri/              # Rust、权限、Android / iOS 原生工程
-│   ├── package.json
-│   └── vite.config.ts
-│
-└── agentn_ref/                # 原 AgentN 代码引用（可选，方便对照）
-    └── (复制自原 AgentN 项目)
+├── .github/
+│   ├── workflows/             # CI 与 Android Release
+│   └── scripts/               # 发布、签名与保护测试
+├── docs/                     # 本文、移动端、模块说明与路线图
+├── frontend/
+│   ├── src/api/               # HTTP、SSE、令牌刷新、开发 preview
+│   ├── src/stores/            # auth / chat 状态与账号切换隔离
+│   ├── src/pages/             # 登录、聊天、日记、档案
+│   ├── src/components/        # MUI 组件、详情卡、日记编辑、布局
+│   ├── src/lib/               # 连接提示、图片压缩、安全区、餐次
+│   ├── src-tauri/             # Rust、CSP、capabilities、图标
+│   │   └── gen/               # Android / Apple 原生项目
+│   └── scripts/               # App 配置与精简 APK 构建
+├── backend/
+│   ├── cmd/server/main.go     # 路由、启动、后台清理、关闭
+│   └── internal/              # handler、model、middleware、config、service
+├── agent/
+│   ├── app/                   # FastAPI、鉴权、Agent Loop、会话、工具、业务日期
+│   ├── recognition/           # CLIP、RAG、营养计算、Go 客户端
+│   ├── tests/                 # 单元与独立运行的在线集成脚本
+│   ├── nutrition.db           # 预置营养数据
+│   └── chroma_db/             # 已提供的教材与向量索引快照
+└── deploy/
+    ├── compose/               # Docker 构建文件与本地编排
+    └── cloud/                 # 云端 Compose、Caddy、网关测试、备份和 timer
 ```
 
----
+## 十三、尚未实现的改进
 
-## 十一、安全设计
+下列是后续设计方向，不能作为当前能力或验收结论：
 
-| 层面 | 措施 |
-|------|------|
-| 传输安全 | 手机经 HTTPS 访问统一网关；Go / Agent 仅在 Compose 网络内开放 |
-| 认证 | JWT（用户认证，短时 2h + 刷新令牌轮换 + 登出黑名单 + 重放检测）+ 静态 internal_token（Go ↔ Python 服务间鉴权） |
-| 防爆破 | 登录/注册/刷新接口 IP 级令牌桶限流（5 次/分） |
-| 密码存储 | bcrypt 哈希 |
-| 文件上传 | 限制文件类型（仅图片）和大小（10MB），文件名 UUID 化防遍历 |
-| API Key | 通过 .env 注入，不编码在代码中，.gitignore 排除 |
-| 数据隔离 | 用户只能访问自己的数据，通过 JWT 中的 user_id 校验 |
-| 令牌安全 | 刷新令牌只存 SHA-256 哈希；轮换后旧令牌立即失效 |
+| 方向 | 当前缺口与改进目标 |
+|---|---|
+| 弱网记账 | 尚无服务端幂等键、重启后草稿恢复、真实数据离线缓存和待同步队列 |
+| 识别质量 | 需要真实照片评测、低置信度处理与纠错反馈；功能链路通过不代表准确率达标 |
+| 知识可信度 | 需要结构化来源、相关度判断、资料版本审校与固定问答质量评测 |
+| 手机凭证 | 将现有 localStorage 凭证迁移到系统安全存储，并保持退出与账号隔离 |
+| 运维恢复 | 异地备份、备份失败及服务异常告警、定期恢复演练 |
+| 移动端交付 | App 内检查更新、完整手机 UI 回归、iOS 真机验收与签名发布 |
 
----
-
-## 十二、选型与架构权衡
-
-### 为什么用 SQLite 而不是 PostgreSQL
-
-当前为**单实例、中小规模**部署（2C4G），数据量级为个位数用户 × 每日数十条记录：
-
-- **零运维**：单文件、无独立进程，备份即复制文件，契合 Docker 单机部署
-- **写入瓶颈不在当前量级**：SQLite 单写者限制在 QPS 远低于本项目流量时无感知
-- **与聚合任务匹配**：后台聚合按日批量写入，天然符合 SQLite 的写模型
-
-**何时需要迁移到 PostgreSQL**：多实例水平扩展、QPS 超过 SQLite 单写者上限、或需要外部写入方。
-此时仅需替换 GORM driver（`config/db.go` 一行）并引入版本化迁移工具（如 golang-migrate）。
-
-### 已知的并发限制（诚实声明）
-
-以下机制均为**进程内**实现，仅适用于单实例部署：
-
-- IP 限流表（`middleware/rate_limit.go`）与 Agent 的用户并发上限（`MAX_ACTIVE_PER_USER`）按进程计数
-- 会话写锁（`app/rate_limit.py`）为单进程 asyncio.Lock
-
-横向扩容到多实例时，需要把限流/并发控制外置到 Redis 等共享存储，
-或通过负载均衡器的连接数控制兜底。
-
----
-
-## 十三、部署方案
-
-### 开发环境
-
-```bash
-# 三个终端分别启动
-# Go
-cd backend && go run ./cmd/server
-
-# Python
-cd agent && uv run python -m app.main
-
-# 前端
-cd frontend && npm run dev
-```
-
-### 云端部署
-
-使用 [deploy/cloud/compose.yml](../deploy/cloud/compose.yml) 部署 Caddy、Go 和 Agent。数据库、图片、模型和证书使用持久卷。完整步骤见 [部署说明](../deploy/cloud/README.md)。
+后续修改路由、数据归属、持久卷、鉴权、日期规则或发布流程时，应同步更新本文对应章节；运行参数和操作命令集中维护在移动端与部署文档中。
