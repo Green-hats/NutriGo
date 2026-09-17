@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   push:
     branches: [main]
   pull_request:
@@ -45,7 +46,7 @@ jobs:
 
       - name: Lint Python (ruff)
         working-directory: agent
-        run: ruff check app/ recognition/ tests/
+        run: ruff check app/ recognition/ tests/ ../.github/scripts/
 
       - name: Type check Python (mypy)
         working-directory: agent
@@ -94,6 +95,9 @@ jobs:
       - name: Go unit tests
         working-directory: backend
         run: go test ./internal/...
+
+      - name: Android release guard tests
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 
       # Go 集成测试：构建并启动真实服务，跑 test_api.py（含饮食记录编辑与校验）
       # 放大限流参数，避免本地 IP 的 8 次认证请求触发 429

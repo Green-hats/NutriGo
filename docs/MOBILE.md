@@ -90,7 +90,31 @@ VITE_API_BASE_URL=https://你的API地址 npm run android:compact -- --ci
 
 脚本先清理 Android app 构建目录，避免增量 ZIP 打包留下大块空白，再对 Rust 启用体积优化、Thin LTO、单代码生成单元并移除符号。仅这次打包覆盖 Cargo 开发配置，日常 `android:dev` 保留调试体验；未改变 panic、断言和溢出检查行为。编译选项参考 [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html)。线上包与离线预览包均有 **20 MiB** 体积上限，超限会使构建和 CI 失败。
 
-为了覆盖已有测试版，精简包仍使用 `com.greenhats.nutrigo.debug` 和构建机器原有的 Android debug keystore。发布更新必须在同一签名环境构建，并验证签名、版本号、覆盖安装和启动；不要用另一台机器或 CI 生成的不同签名包替换 Release 附件。它仍是测试包，商店发布继续使用上面的正式构建与独立发布签名。
+为了覆盖已有测试版，精简包仍使用 `com.greenhats.nutrigo.debug` 和原有 Android debug 签名。Release 工作流会使用仓库 Secrets 中保存的同一 keystore 重新签署 CI 产物，并检查证书指纹。普通 CI Artifacts 使用临时调试签名，更新手机上的 Release 版本时请下载 Release 附件。它仍是测试包，商店发布继续使用上面的正式构建与独立发布签名。
+
+### 自动发布 GitHub Release
+
+工作流入口：[Actions → Android Release](https://github.com/Green-hats/NutriGo/actions/workflows/android-release.yml)。
+
+1. 更新 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中 NutriGo 的版本号，提交到 `main`。例如 `0.1.2` 对应 Android versionCode `1002`。
+2. 在该工作流页面点击 **Run workflow**，选择 **main**；或推送与版本一致的标签，例如 `git tag android-v0.1.2 && git push origin android-v0.1.2`。两种方式选择一种即可。
+3. 工作流复用完整 CI，通过后下载同一次运行的联网 APK，使用固定签名签署，并校验包名、版本、ARM64 架构、签名指纹、ZIP 完整性、16 KB 对齐和 20 MiB 体积上限。
+4. 自动创建 `android-v<版本号>` 的预发布 Release，上传 APK、`SHA256SUMS.txt`、`release-manifest.json`。先上传到草稿并核对 GitHub 返回的校验值，全部一致后才公开。说明包含源码提交、安装要求和 CI 链接。
+
+手动发布仅允许 `main`；标签版本必须与源码一致，提交必须已进入 `main`。已公开的 Release 不会被覆盖，已有标签不会被移动；上传中断时可重跑同一提交，继续它自己的草稿。升级签名不匹配、未配置真实 HTTPS 地址或任意 CI 失败都会阻止发布。
+
+仓库 **Settings → Secrets and variables → Actions** 需要以下配置：
+
+| 类型 | 名称 | 用途 |
+|---|---|---|
+| Variable | `NUTRIGO_API_BASE_URL` | 实际云端 HTTPS 源地址；发布不接受示例占位地址 |
+| Variable | `ANDROID_SIGNING_CERT_SHA256` | 已发布 APK 的签名证书 SHA-256，64 位十六进制 |
+| Secret | `ANDROID_KEYSTORE_BASE64` | 现有 keystore 的 Base64 内容 |
+| Secret | `ANDROID_KEYSTORE_PASSWORD` | keystore 密码 |
+| Secret | `ANDROID_KEY_ALIAS` | 签名密钥别名 |
+| Secret | `ANDROID_KEY_PASSWORD` | 签名密钥密码 |
+
+不要重新生成已有应用的签名密钥，也不要把 keystore 或密码提交到 Git。签名仅在全部 CI 通过后的发布任务使用，临时 keystore 在签署结束后删除；只有发布任务申请 `contents: write` 权限。iOS 当前仍做原生检查，此流程只发布 Android APK。
 
 界面使用 MUI 9 + Emotion 和本地系统字体，不需要在线字体服务。构建目标为 Safari 17 / Chrome 117，依据 [MUI 浏览器支持范围](https://mui.com/material-ui/getting-started/supported-platforms/)。
 

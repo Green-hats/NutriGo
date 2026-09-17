@@ -1,0 +1,91 @@
+name: Android Release
+run-name: Android Release · ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['android-v*']
+
+permissions:
+  contents: read
+
+# Serialize publication, including manual and tag runs for the same version.
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.metadata.outputs.tag }}
+      version: ${{ steps.metadata.outputs.version }}
+      sha: ${{ steps.metadata.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Validate source, version and existing releases
+        id: metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUTRIGO_API_BASE_URL: ${{ vars.NUTRIGO_API_BASE_URL }}
+          ANDROID_SIGNING_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: python3 .github/scripts/android_release.py prepare
+
+  checks:
+    name: Release checks
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Sign and publish APK
+    needs: [prepare, checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      NUTRIGO_API_BASE_URL: ${{ vars.NUTRIGO_API_BASE_URL }}
+      ANDROID_SIGNING_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: build-tools;36.0.0
+          log-accepted-android-sdk-licenses: false
+      - name: Download this run's checked online APK
+        uses: actions/download-artifact@v8
+        with:
+          name: NutriGo-online-arm64.apk
+          path: release-input
+          # APK is itself a ZIP; keep it intact.
+          skip-decompress: true
+          digest-mismatch: error
+      - name: Sign with the existing installation identity
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: python3 .github/scripts/android_release.py sign
+      - name: Publish verified APK and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/android_release.py publish
