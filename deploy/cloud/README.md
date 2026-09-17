@@ -176,4 +176,4 @@ python3 deploy/cloud/backup/backup.py restore backups/snapshot-实际备份名 -
 4. 设置 `RAG_ENABLED=true`，`RAG_MODEL_PATH` 填模型在容器中的绝对路径（例如 `/models/models--BAAI--bge-small-zh-v1.5/snapshots/7999e1d3359715c523056ef9478215996d62a620`）。绝对路径强制使用本地文件，不会在启动时联网下载。
 5. 用原 Compose 项目更新 Agent：`docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d --build --no-deps agent`。确认日志出现 `RAG 知识库已加载` 和正确文档数，再用真实聊天确认 `search_nutrition_knowledge` 返回教材段落；仅健康接口返回正常不代表 RAG 已初始化。
 
-知识库资料用于提供参考，不代表逐条内容已完成专业审校。此操作只更新云端服务，现有 App 即可使用，无需重新安装 APK。Git 快照和固定模型版本是知识库的恢复来源；用户数据库/照片的每日备份不包含模型和向量卷。
+检索会对明确指定的维生素名称增加正文匹配条件，降低 C/D/E 等相近名称混淆；无匹配时返回未找到相关知识，不混用其他维生素的结果。知识库资料用于提供参考，不代表逐条内容已完成专业审校。此操作只更新云端服务，现有 App 即可使用，无需重新安装 APK。Git 快照和固定模型版本是知识库的恢复来源；用户数据库/照片的每日备份不包含模型和向量卷。

@@ -49,3 +49,36 @@ def test_broken_collection_clears_previous_state(monkeypatch, rag_backend):
     client.get_collection.side_effect = RuntimeError("invalid index")
     rag.init_rag()
     assert rag._collection is None
+
+
+def test_vitamin_search_keeps_named_nutrient_constraint(rag_backend):
+    collection, _, _ = rag_backend
+    collection.query.return_value = {"documents": [["维生素C 的相关内容"]]}
+    rag.init_rag()
+    assert rag.search("维生素ｃ的作用") == ["维生素C 的相关内容"]
+    constraint = collection.query.call_args.kwargs["where_document"]
+    assert {"$contains": "维生素C"} in constraint["$or"]
+    assert {"$contains": "维生素 c"} in constraint["$or"]
+    assert all("维生素D" not in item["$contains"] for item in constraint["$or"])
+
+
+def test_named_nutrient_without_match_does_not_fall_back(rag_backend):
+    collection, _, _ = rag_backend
+    collection.query.return_value = {"documents": [[]]}
+    rag.init_rag()
+    assert rag.search("维生素B12的食物来源") == []
+    collection.query.assert_called_once()
+
+
+def test_general_query_has_no_vitamin_filter(rag_backend):
+    collection, _, _ = rag_backend
+    collection.query.return_value = {"documents": [["膳食纤维"]]}
+    rag.init_rag()
+    rag.search("膳食纤维的作用")
+    assert collection.query.call_args.kwargs["where_document"] is None
+
+
+def test_comparing_vitamins_preserves_both_names():
+    constraint = rag._vitamin_filter("维生素C与D有什么区别")
+    assert {"$contains": "维生素C"} in constraint["$or"]
+    assert {"$contains": "维生素D"} in constraint["$or"]

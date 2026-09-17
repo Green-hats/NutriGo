@@ -7,6 +7,8 @@ ChromaDB RAG — 营养知识库检索
 嵌入模型：BAAI/bge-small-zh-v1.5（免费，~100MB）
 """
 import logging
+import re
+import unicodedata
 from pathlib import Path
 
 import chromadb
@@ -20,6 +22,22 @@ COLLECTION_NAME = "nutrition_textbook"
 DB_PATH = "./chroma_db"
 
 _collection = None
+
+
+def _vitamin_filter(query: str) -> dict | None:
+    """指定维生素名称时先限定正文，避免 C/D/E 等相近语义混淆。"""
+    normalized = unicodedata.normalize("NFKC", query)
+    names = re.findall(r"维生素\s*([A-EK](?:\s*\d{1,2})?)", normalized, re.I)
+    if not names:
+        return None
+    # 比较问题也保留省略了“维生素”的第二个名称，如“维生素C与D”。
+    names += re.findall(r"(?:和|与|及|、|/)\s*([A-EK](?:\s*\d{1,2})?)(?![a-z\d])", normalized, re.I)
+    names = [re.sub(r"\s+", "", name) for name in names]
+    terms = sorted({
+        f"维生素{space}{name.upper() if upper else name.lower()}"
+        for name in names for space in ("", " ", "\n") for upper in (True, False)
+    })
+    return {"$or": [{"$contains": term} for term in terms]} if terms else None
 
 
 def init_rag() -> None:
@@ -54,7 +72,9 @@ def search(query: str, top_k: int = 3) -> list[str]:
     """
     if _collection is None:
         return ["知识库未初始化"]
-    results = _collection.query(query_texts=[query], n_results=top_k)
+    results = _collection.query(
+        query_texts=[query], n_results=top_k, where_document=_vitamin_filter(query),
+    )
     documents = results.get("documents") or []
     return documents[0] if documents else []  # type: ignore[return-value]
 
