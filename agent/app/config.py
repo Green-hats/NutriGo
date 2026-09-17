@@ -12,7 +12,9 @@
 """
 
 import os
-from datetime import date
+import re
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -42,6 +44,10 @@ def _require_secret(name: str, value: str, dev_default: str) -> str:
 
 class Config:
     """单例配置，所有模块通过 `from config import settings` 使用"""
+
+    # 饮食记录使用业务日历，不能依赖 Docker 默认的 UTC 时区。
+    # 无效的 IANA 时区会在启动时直接报错，避免悄悄查询错误日期。
+    TIMEZONE: ZoneInfo = ZoneInfo(os.getenv("APP_TIMEZONE", "Asia/Shanghai"))
 
     # --- LLM 配置 ---
     # litellm 模型标识：格式为 "provider/model"，例如：
@@ -97,9 +103,24 @@ class Config:
     MAX_MESSAGE_LENGTH: int = int(os.getenv("MAX_MESSAGE_LENGTH", "2000"))  # 单条用户消息最大字符数
     SYSTEM_PROMPT: str = _SYSTEM_PROMPT
 
+    def today(self) -> date:
+        return datetime.now(self.TIMEZONE).date()
+
+    def render_system_prompt(self, template: str) -> str:
+        # 兼容旧会话中已经渲染过的日期，只更新已知的相对日期约定，
+        # 不替换自定义说明或历史消息中的其他日期。
+        template = re.sub(
+            r'(今天的日期是 |用户说"今天"即 )\d{4}-\d{2}-\d{2}',
+            r'\g<1>TODAY_DATE', template,
+        )
+        return (
+            template.replace("TODAY_DATE", self.today().isoformat())
+            .replace("CURRENT_TIMEZONE", self.TIMEZONE.key)
+        )
+
     @property
     def system_prompt(self) -> str:
-        return self.SYSTEM_PROMPT.replace("TODAY_DATE", date.today().isoformat())
+        return self.render_system_prompt(self.SYSTEM_PROMPT)
 
 
 # 全局单例，其他模块 import 这个就行

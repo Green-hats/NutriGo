@@ -1,8 +1,9 @@
 """
 营养计算 + Agent 工具函数
 """
-from datetime import date, timedelta
+from datetime import timedelta
 
+from app.config import settings
 from recognition import db
 from recognition.go_client import go_client
 
@@ -131,8 +132,9 @@ async def get_diet_summary(user_id: int, start: str = "", end: str = "", limit: 
     输出：覆盖天数、日均营养、逐日列表、最高/最低热量日。
     """
     if not start or not end:
-        end = date.today().isoformat()
-        start = (date.today() - timedelta(days=6)).isoformat()  # 近 7 天含今天
+        today = settings.today()
+        end = today.isoformat()
+        start = (today - timedelta(days=6)).isoformat()  # 近 7 天含今天
 
     try:
         summaries = await go_client.get_diet_summaries(user_id, start, end)

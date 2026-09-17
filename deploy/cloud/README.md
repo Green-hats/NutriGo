@@ -16,6 +16,8 @@ openssl rand -hex 32
 
 编辑 `deploy/cloud/.env`，分别填入两个独立生成的 `JWT_SECRET`、`INTERNAL_TOKEN`，再填写 `API_DOMAIN`（仅域名或 IP，不含协议、端口、路径）及 LLM 配置。Go 与 Agent 使用相同的一组服务密钥。该文件不要提交到 Git，建议执行 `chmod 600 deploy/cloud/.env`。
 
+`APP_TIMEZONE` 默认为 `Asia/Shanghai`（北京时间）。Agent 每次请求都会按此时区刷新“今天”，默认近 7 天汇总也使用相同日期；服务器或容器保持 UTC 不影响查询。恢复会话和重新生成会重新计算日期，已保存的历史回复保持原文。面向其他时区部署时改为相应的 IANA 时区并重建 Agent 容器；当前未按每个手机自动切换时区。
+
 没有域名时，使用公网 IP 证书配置：
 
 ```dotenv

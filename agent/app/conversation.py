@@ -30,14 +30,15 @@ class Conversation:
     ) -> None:
         self.session_id = session_id          # 数据库会话 ID
         self.user_id = user_id                 # NutriGo 用户 ID
-        self.system_msg = system_msg or settings.system_prompt
+        self.system_msg = system_msg or settings.SYSTEM_PROMPT
         self.messages: list[dict] = []         # 消息历史（不含 system 消息）
         self._dirty = False                    # 有未保存的变更
         self._name = ""                        # 会话名（已手动改名则不再自动覆盖）
 
     def _build_system_msg(self) -> str:
         """组装系统提示词：用户数据工具始终由服务端绑定当前身份。"""
-        msg = self.system_msg
+        # 每次发送给模型时渲染，跨午夜、恢复旧会话及重新生成均使用当前日期。
+        msg = settings.render_system_prompt(self.system_msg)
         if self.user_id:
             msg += (
                 "\n\n用户数据工具已由服务端绑定当前登录用户。"

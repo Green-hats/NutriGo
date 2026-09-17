@@ -39,6 +39,7 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: production
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Shanghai}
       LLM_MODEL: ${LLM_MODEL:-deepseek/deepseek-chat}
       LLM_API_KEY: ${LLM_API_KEY:?请在 .env 设置 LLM_API_KEY}
       LLM_BASE_URL: ${LLM_BASE_URL:-}

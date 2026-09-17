@@ -1,5 +1,5 @@
 """会话状态与上下文截断逻辑单元测试"""
-
+from datetime import datetime
 
 from app.config import settings
 from app.conversation import Conversation
@@ -49,6 +49,50 @@ def test_to_messages_strips_thinking_and_builds_system():
     assert msgs[0]["role"] == "system"
     assert "服务端绑定当前登录用户" in msgs[0]["content"]
     assert all("thinking" not in m for m in msgs)
+
+
+def test_system_date_refreshes_when_conversation_crosses_midnight(utc_clock):
+    utc_clock.instant = datetime.fromisoformat("2026-09-16T15:59:59+00:00")
+    conv = Conversation(user_id=5)
+    conv.add_user_message("今天吃了什么")
+    before = conv.to_messages()[0]["content"]
+    utc_clock.instant = datetime.fromisoformat("2026-09-16T16:00:00+00:00")
+    after = conv.to_messages()[0]["content"]
+    assert "今天的日期是 2026-09-16" in before
+    assert "今天的日期是 2026-09-17" in after
+    assert "TODAY_DATE" not in after
+
+
+async def test_loaded_legacy_prompt_refreshes_date_without_rewriting_history(db_path, utc_clock):
+    from app import db
+
+    await db.init_db()
+    legacy = ('今天的日期是 2026-09-16，用户说"今天"即 2026-09-16。'
+              '\n自定义说明：2026-09-15 的记录请保留。')
+    sid = await db.create_session(system_msg=legacy, user_id=5)
+    history = [{"role": "assistant", "content": "今天是 2026-09-16"}]
+    await db.save_messages(sid, history)
+    conv = await Conversation.load(sid, user_id=5)
+    assert conv is not None
+    messages = conv.to_messages()
+    assert "今天的日期是 2026-09-17" in messages[0]["content"]
+    assert '用户说"今天"即 2026-09-17' in messages[0]["content"]
+    assert "2026-09-15 的记录请保留" in messages[0]["content"]
+    assert messages[1:] == history
+
+
+async def test_reloaded_default_conversation_uses_current_date(db_path, utc_clock):
+    from app import db
+
+    await db.init_db()
+    utc_clock.instant = datetime.fromisoformat("2026-09-16T15:59:59+00:00")
+    conv = await Conversation.create_new(user_id=5)
+    conv.add_user_message("今天吃了什么")
+    await conv.save()
+    utc_clock.instant = datetime.fromisoformat("2026-09-16T16:00:00+00:00")
+    loaded = await Conversation.load(conv.session_id, user_id=5)
+    assert loaded is not None
+    assert "今天的日期是 2026-09-17" in loaded.to_messages()[0]["content"]
 
 
 # ---------------- 上下文截断 ----------------

@@ -4,12 +4,31 @@ import importlib
 import sys
 import types
 from collections.abc import Generator
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
 
 from app.config import settings
+
+
+@pytest.fixture
+def utc_clock(monkeypatch):
+    """冻结同一个 UTC 瞬间，日期换算仍使用真实的业务时区。"""
+    from app import config
+
+    class Clock(datetime):
+        instant = datetime(2026, 9, 16, 23, 59, tzinfo=UTC)
+
+        @classmethod
+        def now(cls, tz=None) -> datetime:
+            if tz is None:
+                return cls.instant.replace(tzinfo=None)
+            return cls.instant.astimezone(tz)
+
+    monkeypatch.setattr(config, "datetime", Clock, raising=False)
+    return Clock
 
 
 @pytest.fixture

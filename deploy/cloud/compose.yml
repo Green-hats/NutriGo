@@ -52,6 +52,7 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: production
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Shanghai}
       JWT_SECRET: ${JWT_SECRET:?请设置强随机 JWT_SECRET}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请设置强随机 INTERNAL_TOKEN}
       LLM_MODEL: ${LLM_MODEL:-deepseek/deepseek-chat}
