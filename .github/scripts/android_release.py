@@ -11,7 +11,7 @@ import tempfile
 import tomllib
 import zipfile
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / "release-output"
@@ -92,13 +92,24 @@ def load_metadata():
     )
 
 
-def api(path, optional=False):
-    result = subprocess.run(["gh", "api", path], check=False, capture_output=True, text=True)
+def api(path, optional=False, *, method="GET", payload=None, input_file=None):
+    command = ["gh", "api", "--method", method, path]
+    if payload is not None:
+        command.extend(["--input", "-"])
+    if input_file is not None:
+        command.extend(["--input", str(input_file), "-H", "Content-Type: application/octet-stream"])
+    result = subprocess.run(
+        command,
+        input=json.dumps(payload) if payload is not None else None,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
     if optional and result.returncode and "(HTTP 404)" in result.stderr:
         return None
     if result.returncode:
         raise RuntimeError(f"GitHub API request failed: {result.stderr.strip()}")
-    return json.loads(result.stdout)
+    return json.loads(result.stdout) if result.stdout.strip() else None
 
 
 def marker(meta):
@@ -214,33 +225,42 @@ def sign(meta):
 def publish(meta):
     release = check_remote(meta)
     notes = OUTPUT / "RELEASE_NOTES.md"
+    repo = os.environ["GITHUB_REPOSITORY"]
     if release is None:
-        run(
-            "gh",
-            "release",
-            "create",
-            meta["tag"],
-            "--target",
-            meta["sha"],
-            "--draft",
-            "--prerelease",
-            "--title",
-            f"NutriGo Android {meta['version']}",
-            "--notes-file",
-            str(notes),
+        # The release list may lag behind a successful create. Use the returned
+        # ID for every mutation instead of trying to rediscover a new draft.
+        release = api(
+            f"repos/{repo}/releases",
+            method="POST",
+            payload={
+                "tag_name": meta["tag"],
+                "target_commitish": meta["sha"],
+                "draft": True,
+                "prerelease": True,
+                "name": f"NutriGo Android {meta['version']}",
+                "body": notes.read_text(),
+            },
         )
-        release = check_remote(meta)
     if release is None:
         raise ValueError("Release draft was not created")
+    validate_release_state(meta, release, None)
     files = [
         OUTPUT / f"NutriGo-Android-arm64-{meta['version']}.apk",
         OUTPUT / "SHA256SUMS.txt",
         OUTPUT / "release-manifest.json",
     ]
     # Only this commit's unpublished draft may be resumed after an upload failure.
-    run("gh", "release", "upload", meta["tag"], *map(str, files), "--clobber")
-    repo = os.environ["GITHUB_REPOSITORY"]
+    for file in files:
+        for asset in release.get("assets", []):
+            if asset["name"] == file.name:
+                api(f"repos/{repo}/releases/assets/{asset['id']}", method="DELETE")
+        api(
+            f"https://uploads.github.com/repos/{repo}/releases/{release['id']}/assets?name={quote(file.name)}",
+            method="POST",
+            input_file=file,
+        )
     uploaded = api(f"repos/{repo}/releases/{release['id']}")
+    validate_release_state(meta, uploaded, None)
     expected = {
         f.name: (f.stat().st_size, "sha256:" + hashlib.sha256(f.read_bytes()).hexdigest()) for f in files
     }
@@ -248,8 +268,11 @@ def publish(meta):
     if expected != actual:
         raise ValueError("Release asset size or checksum mismatch; keeping the release as a draft")
     check_remote(meta)
-    run("gh", "release", "edit", meta["tag"], "--notes-file", str(notes), "--draft=false")
-    published = api(f"repos/{repo}/releases/{release['id']}")
+    published = api(
+        f"repos/{repo}/releases/{release['id']}",
+        method="PATCH",
+        payload={"draft": False, "body": notes.read_text()},
+    )
     if published["draft"]:
         raise ValueError("Release is still a draft")
     with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:

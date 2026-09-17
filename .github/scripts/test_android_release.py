@@ -122,11 +122,18 @@ class ReleaseGuardsTest(unittest.TestCase):
             with self.subTest(signature=invalid), self.assertRaises(ValueError):
                 validate_apk_details(self.meta, badging, invalid)
 
-    def test_publish_only_after_uploaded_asset_digests_match(self):
+    def test_new_draft_publishes_when_release_list_is_stale(self):
+        self.check_publish(existing=False)
+
+    def test_resume_only_publishes_after_uploaded_asset_digests_match(self):
+        self.check_publish(existing=True)
+
+    def check_publish(self, existing):
         draft = {"id": 1, "draft": True, "target_commitish": self.meta["sha"], "body": marker(self.meta)}
         for mismatch in [False, True]:
             with self.subTest(mismatch=mismatch), tempfile.TemporaryDirectory() as temp:
                 output = Path(temp)
+                (output / "RELEASE_NOTES.md").write_text(marker(self.meta))
                 names = ["NutriGo-Android-arm64-0.1.2.apk", "SHA256SUMS.txt", "release-manifest.json"]
                 assets = []
                 for name in names:
@@ -141,18 +148,38 @@ class ReleaseGuardsTest(unittest.TestCase):
                     )
                 if mismatch:
                     assets[0]["digest"] = "sha256:" + "0" * 64
+
+                def respond(path, *, method="GET", payload=None, input_file=None):
+                    if method == "POST" and path == "repos/example/repo/releases":
+                        self.assertTrue(payload["draft"])
+                        self.assertEqual(payload["target_commitish"], self.meta["sha"])
+                        return draft
+                    if method == "POST" and input_file:
+                        self.assertEqual(
+                            path,
+                            "https://uploads.github.com/repos/example/repo/releases/1/assets?name="
+                            + input_file.name,
+                        )
+                        return next(a for a in assets if a["name"] == input_file.name)
+                    if method == "DELETE":
+                        self.assertEqual(path, "repos/example/repo/releases/assets/9")
+                        return None
+                    self.assertEqual(path, "repos/example/repo/releases/1")
+                    if method == "PATCH":
+                        self.assertFalse(payload["draft"])
+                        return {
+                            "draft": False,
+                            "html_url": "https://github.com/example/repo/releases/tag/test",
+                        }
+                    self.assertEqual(method, "GET")
+                    return {**draft, "assets": assets}
+
+                previous = {**draft, "assets": [{"id": 9, "name": names[0]}]} if existing else None
                 with (
                     patch.object(android_release, "OUTPUT", output),
-                    patch.object(android_release, "check_remote", return_value=draft),
-                    patch.object(
-                        android_release,
-                        "api",
-                        side_effect=[
-                            {"assets": assets},
-                            {"draft": False, "html_url": "https://github.com/example/repo/releases/tag/test"},
-                        ],
-                    ),
-                    patch.object(android_release, "run") as commands,
+                    # A successful create must not depend on this list becoming current.
+                    patch.object(android_release, "check_remote", return_value=previous),
+                    patch.object(android_release, "api", side_effect=respond) as requests,
                     patch.dict(
                         os.environ,
                         GITHUB_REPOSITORY="example/repo",
@@ -164,10 +191,18 @@ class ReleaseGuardsTest(unittest.TestCase):
                             android_release.publish(self.meta)
                     else:
                         android_release.publish(self.meta)
-                    publication = [
-                        c for c in commands.call_args_list if c.args[:3] == ("gh", "release", "edit")
-                    ]
+                    publication = [c for c in requests.call_args_list if c.kwargs.get("method") == "PATCH"]
                     self.assertEqual(len(publication), 0 if mismatch else 1)
+                    uploads = [c for c in requests.call_args_list if c.kwargs.get("input_file")]
+                    self.assertEqual(len(uploads), 3)
+                    creations = [
+                        c
+                        for c in requests.call_args_list
+                        if c.args == ("repos/example/repo/releases",) and c.kwargs.get("method") == "POST"
+                    ]
+                    self.assertEqual(len(creations), 0 if existing else 1)
+                    deletions = [c for c in requests.call_args_list if c.kwargs.get("method") == "DELETE"]
+                    self.assertEqual(len(deletions), 1 if existing else 0)
 
 
 if __name__ == "__main__":
