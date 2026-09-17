@@ -14,6 +14,8 @@
 
 > 拍照识别食物，AI 分析营养，个性化膳食建议。一个功能完整的全栈 AI 营养助手。
 
+<div align="center">
+
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](backend/)
 [![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python)](agent/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](frontend/)
@@ -23,6 +25,8 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/Green-hats/NutriGo/ci.yml?branch=main&logo=github&label=CI)](https://github.com/Green-hats/NutriGo/actions)
 [![Release](https://img.shields.io/github/v/release/Green-hats/NutriGo?logo=github&label=Release)](https://github.com/Green-hats/NutriGo/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/Green-hats/NutriGo?logo=git&label=最近提交)](https://github.com/Green-hats/NutriGo)
+
+</div>
 
 ---
 
