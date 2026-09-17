@@ -12,6 +12,7 @@
     "android:init": "tauri android init",
     "android:dev": "tauri android dev --config src-tauri/tauri.dev.conf.json",
     "android:build": "tauri android build",
+    "android:compact": "node scripts/build-android-compact.mjs",
     "ios:init": "tauri ios init",
     "ios:dev": "tauri ios dev --config src-tauri/tauri.dev.conf.json",
     "ios:build": "tauri ios build",
@@ -20,7 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:preview": "tsc -b && vite build --mode preview",
-    "android:preview": "tauri android build --debug --target aarch64 --apk --config src-tauri/tauri.preview.conf.json"
+    "android:preview": "node scripts/build-android-compact.mjs --preview"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

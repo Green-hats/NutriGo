@@ -79,6 +79,19 @@ npm run ios:build
 
 Android 发布需要配置自己的 keystore；iOS 真机／分发需要 Apple 开发团队和签名，在本机设置 `APPLE_DEVELOPMENT_TEAM` 或 Xcode Signing。当前标识符为 `com.greenhats.nutrigo`，上线前可在 Tauri 配置与原生项目中统一修改。Android 最低版本为 8.0（API 26），iOS 最低版本为 17.0（已同步到 Tauri、Xcode 和 CocoaPods 配置）。Android 设备还需使用 Chromium 117 或更新的 Android System WebView；系统版本满足要求并不保证 WebView 版本满足要求。
 
+### 精简版 Android 测试包
+
+GitHub Release 和 CI 的 ARM64 测试包使用以下命令：
+
+```bash
+cd frontend
+VITE_API_BASE_URL=https://你的API地址 npm run android:compact -- --ci
+```
+
+脚本先清理 Android app 构建目录，避免增量 ZIP 打包留下大块空白，再对 Rust 启用体积优化、Thin LTO、单代码生成单元并移除符号。仅这次打包覆盖 Cargo 开发配置，日常 `android:dev` 保留调试体验；未改变 panic、断言和溢出检查行为。编译选项参考 [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html)。线上包与离线预览包均有 **20 MiB** 体积上限，超限会使构建和 CI 失败。
+
+为了覆盖已有测试版，精简包仍使用 `com.greenhats.nutrigo.debug` 和构建机器原有的 Android debug keystore。发布更新必须在同一签名环境构建，并验证签名、版本号、覆盖安装和启动；不要用另一台机器或 CI 生成的不同签名包替换 Release 附件。它仍是测试包，商店发布继续使用上面的正式构建与独立发布签名。
+
 界面使用 MUI 9 + Emotion 和本地系统字体，不需要在线字体服务。构建目标为 Safari 17 / Chrome 117，依据 [MUI 浏览器支持范围](https://mui.com/material-ui/getting-started/supported-platforms/)。
 
 ## 移动端实现
@@ -136,7 +149,7 @@ cargo check --locked --manifest-path src-tauri/Cargo.toml
 
 ```bash
 cd frontend
-CARGO_PROFILE_DEV_STRIP=debuginfo npm run android:preview -- --ci
+npm run android:preview -- --ci
 ```
 
 沿用上文 Java / Android SDK / NDK 环境。APK 位于 `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`；Android ARM64 调试签名，可直接安装。CI 同时验证正常 App 构建与体验包构建，并在运行页面的 Artifacts 提供 `NutriGo-preview-arm64.apk`，保留 14 天，下载需登录 GitHub。本机构建包与 CI 包的调试签名可能不同，更新时应使用同一来源的包。

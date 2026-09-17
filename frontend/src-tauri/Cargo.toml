@@ -1,6 +1,6 @@
 [package]
 name = "nutrigo"
-version = "0.1.0"
+version = "0.1.1"
 description = "NutriGo mobile nutrition assistant"
 authors = ["NutriGo contributors"]
 license = "GPL-3.0-only"
