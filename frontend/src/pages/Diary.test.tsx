@@ -170,7 +170,7 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
       .mockResolvedValueOnce(intake)
       .mockReturnValueOnce(updated.promise)
     await openPortion()
-    const save = screen.getByRole('button', { name: '确认记录' })
+    const save = screen.getByRole('button', { name: /^确认记录/ })
     await waitFor(() => expect(save).toBeEnabled())
     fireEvent.change(screen.getByRole('spinbutton'), {
       target: { value: '400' }
@@ -206,7 +206,7 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
       fireEvent.change(screen.getByRole('spinbutton'), {
         target: { value: '400' }
       })
-      const save = screen.getByRole('button', { name: '确认记录' })
+      const save = screen.getByRole('button', { name: /^确认记录/ })
       await waitFor(() => expect(save).toBeEnabled())
       await act(async () => {
         if (status === 'success') old.resolve(intake)
@@ -230,7 +230,7 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
     await waitFor(() => expect(calculateIntakeMock).toHaveBeenCalledTimes(1))
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '' } })
     await act(async () => pending.resolve(intake))
-    expect(screen.getByRole('button', { name: '确认记录' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^确认记录/ })).toBeDisabled()
     expect(screen.queryByText('预计摄入')).not.toBeInTheDocument()
   })
 
@@ -239,7 +239,7 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
     async (value) => {
       calculateIntakeMock.mockResolvedValue(intake)
       await openPortion()
-      const save = screen.getByRole('button', { name: '确认记录' })
+      const save = screen.getByRole('button', { name: /^确认记录/ })
       await waitFor(() => expect(save).toBeEnabled())
       fireEvent.change(screen.getByRole('spinbutton'), { target: { value } })
       expect(save).toBeDisabled()
@@ -254,7 +254,7 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
       .mockResolvedValueOnce(intake)
       .mockRejectedValueOnce(new Error('offline'))
     await openPortion()
-    const save = screen.getByRole('button', { name: '确认记录' })
+    const save = screen.getByRole('button', { name: /^确认记录/ })
     await waitFor(() => expect(save).toBeEnabled())
     fireEvent.change(screen.getByRole('spinbutton'), {
       target: { value: '400' }
@@ -306,6 +306,8 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
     // 1. 打开拍照流程
     await user.click(screen.getByRole('button', { name: /拍照记录/ }))
     expect(screen.getByText(/拍一张你的食物照片/)).toBeInTheDocument()
+    // 进入流程即可手动选择餐次；经过上传、识别和份量计算仍应保持。
+    await user.click(screen.getByRole('button', { name: '午餐' }))
 
     // 2. 选择图片 → 触发上传 + 识别
     const fileInput = screen.getByLabelText('选择食物照片')
@@ -333,7 +335,8 @@ describe('Diary 拍照识别流程（FoodFlow）', () => {
     )
 
     // 5. 确认保存
-    await user.selectOptions(screen.getByLabelText('餐次'), 'lunch')
+    expect(screen.getByRole('button', { name: '午餐' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '确认记录 · 午餐' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /确认记录/ }))
     await waitFor(() => expect(createDietLogMock).toHaveBeenCalled(), {
       timeout: 2000
@@ -387,7 +390,7 @@ it('手动录入无需拍照，保存选定餐次和全部营养数值', async (
   const user = userEvent.setup()
   render(<Diary />)
   await user.click(screen.getByRole('button', { name: '手动记录' }))
-  await user.selectOptions(screen.getByLabelText('餐次'), 'breakfast')
+  await user.click(screen.getByRole('button', { name: '早餐' }))
   await user.type(screen.getByLabelText(/食物名称/), '酸奶')
   await user.type(screen.getByLabelText('食用份量'), '200g')
   for (const [label, value] of [['热量', '150'], ['蛋白质', '8'], ['脂肪', '0'], ['碳水', '20']]) {
@@ -408,7 +411,8 @@ it('编辑已有记录保留图片；保存失败保留表单，重试调用更�
   const user = userEvent.setup()
   render(<Diary />)
   await user.click(await screen.findByRole('button', { name: '编辑记录' }))
-  await user.selectOptions(screen.getByLabelText('餐次'), 'dinner')
+  expect(screen.getByRole('button', { name: '午餐' })).toHaveAttribute('aria-pressed', 'true')
+  await user.click(screen.getByRole('button', { name: '晚餐' }))
   const calories = screen.getByLabelText(/热量/)
   await user.clear(calories)
   await user.type(calories, '0')
@@ -439,8 +443,10 @@ it('识别候选都不匹配时可转为手动记录', async () => {
   identifyFoodMock.mockResolvedValue([candidate])
   render(<Diary />)
   fireEvent.click(screen.getByRole('button', { name: '添加记录' }))
+  fireEvent.click(screen.getByRole('button', { name: '晚餐' }))
   fireEvent.change(screen.getByLabelText('选择食物照片'), { target: { files: [new File(['x'], 'meal.jpg', { type: 'image/jpeg' })] } })
   fireEvent.click(await screen.findByRole('button', { name: '都不是，手动记录' }))
   expect(screen.getByLabelText(/食物名称/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '晚餐' })).toHaveAttribute('aria-pressed', 'true')
   expect(createDietLogMock).not.toHaveBeenCalled()
 })

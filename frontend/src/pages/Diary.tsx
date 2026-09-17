@@ -69,6 +69,7 @@ export default function Diary() {
   const [showFlow, setShowFlow] = useState(false)
   const [showChart, setShowChart] = useState(false)
   const [editor, setEditor] = useState<DietRecord | 'new' | null>(null)
+  const [manualMealType, setManualMealType] = useState<string | undefined>()
   const [pendingDelete, setPendingDelete] = useState<DietRecord | null>(null)
   const [deleting, setDeleting] = useState(false)
   const loadVersion = useRef(0)
@@ -275,7 +276,7 @@ export default function Diary() {
         >
           记录这一餐
         </Button>
-        <Button variant="outlined" startIcon={<EditRounded />} onClick={() => setEditor('new')}>
+        <Button variant="outlined" startIcon={<EditRounded />} onClick={() => { setManualMealType(undefined); setEditor('new') }}>
           手动记录
         </Button>
         <Stack
@@ -418,6 +419,7 @@ export default function Diary() {
         </DialogActions>
       </Dialog>
       {editor && <DietRecordEditor date={fmt(date)} record={editor === 'new' ? undefined : editor}
+        initialMealType={manualMealType}
         onClose={() => setEditor(null)} onDone={() => { setEditor(null); loadRecords() }} />}
       {showChart && (
         <Suspense
@@ -440,7 +442,7 @@ export default function Diary() {
             setShowFlow(false)
           }}
           onClose={() => setShowFlow(false)}
-          onManual={() => { setShowFlow(false); setEditor('new') }}
+          onManual={(mealType) => { setManualMealType(mealType); setShowFlow(false); setEditor('new') }}
         />
       )}
     </Box>
@@ -458,7 +460,7 @@ function FoodFlow({
   date: string
   onDone: () => void
   onClose: () => void
-  onManual: () => void
+  onManual: (mealType: string) => void
 }) {
   const [step, setStep] = useState<
     'camera' | 'identifying' | 'candidates' | 'portion' | 'saving'
@@ -629,6 +631,10 @@ function FoodFlow({
         ))}
       </Stepper>
       <DialogContent sx={{ px: 3, pb: 4 }}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="caption" color="text.secondary">记录日期 · {date}</Typography>
+          <MealTypeField value={mealType} onChange={setMealType} disabled={step === 'saving'} />
+        </Box>
         {step === 'camera' && (
           <Stack spacing={2.5} sx={{ alignItems: 'center', pt: 2 }}>
             <Box
@@ -732,7 +738,7 @@ function FoodFlow({
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {step === 'saving'
-                ? `${selected?.name} · ${grams}g`
+                ? `${mealNames[mealType]} · ${selected?.name} · ${grams}g`
                 : '正在寻找匹配的食物，请稍等片刻。'}
             </Typography>
           </Stack>
@@ -802,12 +808,11 @@ function FoodFlow({
               </Paper>
             ))}
             <Button onClick={() => setStep('camera')}>重新拍照</Button>
-            <Button variant="outlined" onClick={onManual}>都不是，手动记录</Button>
+            <Button variant="outlined" onClick={() => onManual(mealType)}>都不是，手动记录</Button>
           </Stack>
         )}
         {step === 'portion' && selected && (
           <Stack spacing={3}>
-            <MealTypeField value={mealType} onChange={setMealType} />
             <Paper
               sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}
             >
@@ -944,7 +949,7 @@ function FoodFlow({
               fullWidth
               size="large"
             >
-              确认记录
+              确认记录 · {mealNames[mealType]}
             </Button>
           </Stack>
         )}

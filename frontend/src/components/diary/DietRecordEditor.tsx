@@ -13,15 +13,16 @@ const nutrients = [
   ['fat_g', '脂肪（g）'], ['carbs_g', '碳水（g）']
 ] as const
 
-export default function DietRecordEditor({ date, record, onClose, onDone }: {
+export default function DietRecordEditor({ date, record, initialMealType, onClose, onDone }: {
   date: string
   record?: DietRecord
+  initialMealType?: string
   onClose: () => void
   onDone: () => void
 }) {
   const [form, setForm] = useState({
     date: record?.date ?? date,
-    meal_type: record?.meal_type || defaultMealType(),
+    meal_type: record?.meal_type || initialMealType || defaultMealType(),
     food_name: record?.food_name ?? '',
     portion: record?.portion ?? '',
     calories: record ? String(record.calories) : '',
