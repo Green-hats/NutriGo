@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly NutriGo backup and disk-space check
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+Unit=nutrigo-backup-check.service
+
+[Install]
+WantedBy=timers.target

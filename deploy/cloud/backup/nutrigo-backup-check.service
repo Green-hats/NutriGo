@@ -1,0 +1,10 @@
+[Unit]
+Description=NutriGo backup integrity, age and disk-space check
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/nutrigo
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/nutrigo/deploy/cloud/backup/operations.py check
+TimeoutStartSec=1800

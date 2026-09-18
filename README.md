@@ -55,6 +55,7 @@
 - **🗓️ Food Diary** — Photo or manual entries by date; meal type defaults to the phone's local time and remains editable, with daily totals and nutrition trends
 - **👤 Personalized Profile** — Height/weight, goals, allergies, pre-existing conditions; AI-tailored dietary advice
 - **🛡️ Authentication & Access Control** — JWT + refresh-token rotation & logout blacklist, IP rate limiting on auth, internal service token, strict key validation in production
+- **💾 Data protection** — Referenced-photo deletion guards, durable cleanup retries, verified local backups, and optional offsite/alert configuration; see the [operations guide](deploy/cloud/README.md).
 
 ---
 

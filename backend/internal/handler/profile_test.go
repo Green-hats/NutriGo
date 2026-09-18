@@ -4,8 +4,11 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -232,5 +235,50 @@ func TestUpdateProfileAgeBoundsAndDecimalMeasurements(t *testing.T) {
 		if body["age"] != float64(age) || body["height_cm"] != 175.5 || body["weight_kg"] != 68.2 {
 			t.Fatalf("unexpected saved values: %v", body)
 		}
+	}
+}
+
+// 注入查询故障：不能伪装成空档案，更新也不能走创建分支。
+func TestProfileDatabaseFailureIsNotEmptyProfile(t *testing.T) {
+	for _, operation := range []string{"get", "internal", "update"} {
+		t.Run(operation, func(t *testing.T) {
+			db := setupTestDB(t)
+			original := model.UserProfile{UserID: 1, Age: 32, HeightCm: 175}
+			if err := db.Create(&original).Error; err != nil {
+				t.Fatal(err)
+			}
+			creates := 0
+			db.Callback().Create().Before("gorm:create").Register("test:count_create", func(tx *gorm.DB) { creates++ })
+			db.Callback().Query().Before("gorm:query").Register("test:query_failure", func(tx *gorm.DB) { tx.AddError(errors.New("private database failure")) })
+			h := &ProfileHandler{DB: db}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Set("userID", uint(1))
+			c.Params = []gin.Param{{Key: "id", Value: "1"}}
+			c.Request = httptest.NewRequest(http.MethodPut, "/api/users/1/profile", bytes.NewBufferString(`{"age":20}`))
+			c.Request.Header.Set("Content-Type", "application/json")
+			switch operation {
+			case "get":
+				h.GetProfile(c)
+			case "internal":
+				h.GetProfileInternal(c)
+			case "update":
+				h.UpdateProfile(c)
+			}
+			if w.Code != http.StatusInternalServerError || strings.Contains(w.Body.String(), "private") {
+				t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+			}
+			if creates != 0 {
+				t.Fatal("query failure must not attempt creation")
+			}
+			db.Callback().Query().Remove("test:query_failure")
+			var saved model.UserProfile
+			if err := db.First(&saved, original.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if saved.Age != original.Age || saved.HeightCm != original.HeightCm {
+				t.Fatal("database failure changed profile")
+			}
+		})
 	}
 }

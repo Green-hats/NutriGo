@@ -301,3 +301,103 @@ func TestImageMetaHidesPath(t *testing.T) {
 		t.Error("GetMeta 不应返回 path 字段")
 	}
 }
+
+func TestImageUploadDatabaseFailureRemovesFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+	db := setupTestDB(t)
+	if err := db.Migrator().DropTable(&model.FoodImage{}); err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("userID", uint(1))
+	c.Request = newUploadRequest(t, "meal.png", tinyPNG)
+	(&ImageHandler{DB: db}).Upload(c)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	entries, err := os.ReadDir(uploadDir)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("failed upload left files: %v, %v", entries, err)
+	}
+}
+
+func TestImageDeleteRejectsSharedDiaryReference(t *testing.T) {
+	db := setupTestDB(t)
+	path := filepath.Join(t.TempDir(), "meal.png")
+	if err := os.WriteFile(path, tinyPNG, 0600); err != nil {
+		t.Fatal(err)
+	}
+	img := model.FoodImage{UserID: 1, Filename: "meal.png", Path: path}
+	db.Create(&img)
+	for _, name := range []string{"米饭", "青菜"} {
+		db.Create(&model.FoodDiary{UserID: 1, Date: "2026-09-18", FoodName: name, ImageID: &img.ID})
+	}
+	for remaining := 2; remaining > 0; remaining-- {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userID", uint(1))
+		c.Params = []gin.Param{{Key: "id", Value: fmt.Sprint(img.ID)}}
+		(&ImageHandler{DB: db}).Delete(c)
+		if w.Code != http.StatusConflict {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		if _, err := os.Stat(path); err != nil {
+			t.Fatal("linked file removed", err)
+		}
+		if err := db.First(&img, img.ID).Error; err != nil {
+			t.Fatal("linked metadata removed", err)
+		}
+		var diary model.FoodDiary
+		db.First(&diary)
+		db.Delete(&diary)
+	}
+}
+
+func TestImageDeleteQueueFailureRollsBack(t *testing.T) {
+	db := setupTestDB(t)
+	path := filepath.Join(t.TempDir(), "meal.png")
+	os.WriteFile(path, tinyPNG, 0600)
+	img := model.FoodImage{UserID: 1, Filename: "meal.png", Path: path}
+	db.Create(&img)
+	// 无法持久保存删除任务时，元信息和文件都必须保留。
+	db.Migrator().DropTable(&model.ImageDeletion{})
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("userID", uint(1))
+	c.Params = []gin.Param{{Key: "id", Value: fmt.Sprint(img.ID)}}
+	(&ImageHandler{DB: db}).Delete(c)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.First(&img, img.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestImageDeleteFilesystemFailureIsQueued(t *testing.T) {
+	db := setupTestDB(t)
+	path := filepath.Join(t.TempDir(), "nonempty")
+	os.Mkdir(path, 0700)
+	os.WriteFile(filepath.Join(path, "block"), []byte("x"), 0600)
+	img := model.FoodImage{UserID: 1, Filename: "meal.png", Path: path}
+	db.Create(&img)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("userID", uint(1))
+	c.Params = []gin.Param{{Key: "id", Value: fmt.Sprint(img.ID)}}
+	(&ImageHandler{DB: db}).Delete(c)
+	if w.Code != http.StatusAccepted {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var job model.ImageDeletion
+	if err := db.Where("image_id = ?", img.ID).First(&job).Error; err != nil {
+		t.Fatal("retry task lost", err)
+	}
+	if err := checkDietImage(db, &img.ID, 1); err != errDietImage {
+		t.Fatalf("deleted image remains attachable: %v", err)
+	}
+}

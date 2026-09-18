@@ -29,7 +29,7 @@ flowchart TB
         Gateway["Caddy<br/>公网 HTTPS 入口"]
         Go["Go / Gin<br/>数据与认证服务 :3333"]
         Agent["Python / FastAPI<br/>AI 服务 :8000"]
-        UserData[("backend-data<br/>data.db：用户、日记、提交回执<br/>uploads：照片")]
+        UserData[("backend-data<br/>data.db：用户、日记、提交回执、图片删除任务<br/>uploads：照片")]
         ChatData[("agent-data<br/>agent.db 用户会话")]
         Nutrition[("nutrition.db<br/>预置食物营养数据")]
         Knowledge[("chroma-data<br/>教材段落及向量索引")]
@@ -44,7 +44,14 @@ flowchart TB
         Agent --> Nutrition
         Agent --> Knowledge
         Agent --> Models
+        Backup["主机备份任务<br/>快照校验、隔离恢复、磁盘检查"]
+        Backups[("本地已验证快照")]
+        UserData --> Backup
+        ChatData --> Backup
+        Backup --> Backups
     end
+    Offsite[("可选：独立存储<br/>配置后复制并读回校验")]
+    Backups -.->|"rclone：可选配置"| Offsite
     App -->|"HTTPS / JWT / REST / SSE"| Gateway
     Agent -->|"LiteLLM / 服务端 API Key"| LLM
     Agent -->|"httpx / base64 照片 / 服务端 API Key"| Vision
@@ -241,13 +248,18 @@ GORM 启动时通过 `AutoMigrate` 建表；模型定义是结构来源，目前
 | `food_diaries` | 日期字符串、四类餐次、食物、份量、营养、备注、可空图片关联；长期保留明细 |
 | `diet_batches` | 用户与提交 UUID 唯一键、内容哈希及保存回执；防止超时重试重复入账 |
 | `food_images` | 用户归属、UUID 文件名、文件路径、MIME 类型和字节大小；文件在 uploads 目录 |
+| `image_deletions` | 待删除文件任务，与图片元信息删除同一事务提交；文件移除成功后才删除任务，失败可跨重启重试 |
 | `daily_summaries` | 保留旧版本已删除明细对应的历史汇总基数，不再定时写入新汇总 |
 | `refresh_tokens` | 刷新令牌的 SHA-256 哈希、用户、令牌家族、有效期和吊销时间 |
 | `blacklisted_tokens` | 已吊销访问令牌的 jti、用户和有效期 |
 
 汇总查询实时叠加现存明细与旧历史基数，并标识 `live` / `aggregated` / `mixed` 来源；补记、编辑、删除后即时反映变化。旧版本已经删除的明细无法由汇总反推，只能从旧备份恢复。实现见 [summary.go](../backend/internal/handler/summary.go)。
 
-后台任务仅清理过期令牌及超期、未关联日记的图片；当前不存在记录聚合删除任务。未关联图片默认保留 7 天，可通过 `UNATTACHED_IMAGE_RETENTION_DAYS` 调整，设为 0 关闭自动清理。
+后台任务清理过期令牌及超期、未关联日记的图片；当前不存在记录聚合删除任务。未关联图片默认按上传时间保留 7 天，可通过 `UNATTACHED_IMAGE_RETENTION_DAYS` 调整，设为 0 关闭此保留期清理。
+
+手动删除检查所有日记引用，有引用时返回 409；日记关联检查与写入在 SQLite 事务内，删除使用条件写入并在同一事务登记 `image_deletions`。文件删除失败返回 202，启动时及每小时重试；保留期为 0 也继续完成已受理删除。上传失败回收文件；上传进程崩溃遗留的未登记 UUID 文件，超过 24 小时后核对清理，只处理 uploads 顶层普通文件。队列文件不属于可访问图片，备份只复制 `food_images` 引用的文件；恢复后队列遇到已不存在的文件视为完成。
+
+档案接口只有 `ErrRecordNotFound` 返回空档案；数据库查询故障返回 500，更新前读取失败时不进入创建分支，避免把故障显示成档案被清空。
 
 ### 7.2 Agent 数据与资源
 
@@ -296,9 +308,9 @@ IP 限流、用户并发额度、会话锁、识别缓存和推理锁都在进�
 
 两个数据库分别取得一致快照，未保证跨库同一时刻；需要跨库一致点时先暂停写入。不能直接复制正在写入的 `.db` 而忽略 WAL。
 
-默认备份仍在同一台服务器，尚无自动异地副本。模型、教材向量库、证书和部署密钥不在用户数据备份范围内，须分别保留恢复来源。恢复命令写入新的隔离目录，不自动覆盖生产；上线前备份，升级沿用原 Compose 项目和卷，不使用 `down -v`。操作见 [backup.py](../deploy/cloud/backup/backup.py) 和 [部署说明](../deploy/cloud/README.md)。
+默认备份仍在同一台服务器。主机 `operations.py` 已提供可选 rclone remote 接入：本地备份时暂缓清理旧副本，复制到独立快照目录并读回校验成功后才执行保留策略。异地失败保留本地快照，健康检查报告缺少最新异地副本；示例未配置独立存储，不代表已启用异地备份。模型、教材向量库、证书和部署密钥不在用户数据备份范围内，须分别保留恢复来源。恢复命令写入新的隔离目录，不自动覆盖生产；上线前备份，升级沿用原 Compose 项目和卷，不使用 `down -v`。操作见 [backup.py](../deploy/cloud/backup/backup.py) 和 [部署说明](../deploy/cloud/README.md)。
 
-已有结构化日志、数据库探针、Go 请求指标和 Docker 重启策略；仓库尚未配置集中告警。健康检查不能替代实际登录、AI 调用、知识检索、识别与恢复验收。
+已有结构化日志、数据库探针、Go 请求指标和 Docker 重启策略。每小时备份检查验证最新快照、36 小时新鲜度、最近任务结果及磁盘阈值，状态写入 `maintenance-status.json`；可选 HTTPS webhook 对故障去重并报告恢复，未填写地址时只写日志和状态。全站集中告警及外部存活监控尚未配置。健康检查不能替代实际登录、AI 调用、知识检索、识别与恢复验收。
 
 ## 十一、CI 与 Android 发布
 
@@ -371,11 +383,11 @@ NutriGo/
 
 | 方向 | 当前缺口与改进目标 |
 |---|---|
-| 弱网记账 | 尚无服务端幂等键、重启后草稿恢复、真实数据离线缓存和待同步队列 |
+| 弱网记账 | 拍照批量记账已有服务端幂等键；其余写接口通用去重、重启后草稿恢复、真实数据离线缓存和待同步队列待补 |
 | 识别质量 | 需要真实照片评测、低置信度处理与纠错反馈；功能链路通过不代表准确率达标 |
 | 知识可信度 | 需要结构化来源、相关度判断、资料版本审校与固定问答质量评测 |
 | 手机凭证 | 将现有 localStorage 凭证迁移到系统安全存储，并保持退出与账号隔离 |
-| 运维恢复 | 异地备份、备份失败及服务异常告警、定期恢复演练 |
+| 运维恢复 | 异地存储与通知接收端待配置；外部服务异常监控、整机恢复演练待补 |
 | 移动端交付 | App 内检查更新、完整手机 UI 回归、iOS 真机验收与签名发布 |
 
 后续修改路由、数据归属、持久卷、鉴权、日期规则或发布流程时，应同步更新本文对应章节；运行参数和操作命令集中维护在移动端与部署文档中。

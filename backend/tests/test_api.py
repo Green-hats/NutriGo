@@ -280,6 +280,12 @@ status, body = request("POST", "/api/diet/logs", body={
 }, headers=auth)
 check("带 image_id 创建 → 201", status, 201)
 
+# 被日记引用的图片必须保留，删除冲突后仍能读取元信息。
+status, body = request("DELETE", f"/api/images/{image_id2}", headers=auth)
+check("删除已关联图片 → 409", status, 409)
+status, body = request("GET", f"/api/images/{image_id2}", headers=internal)
+check("关联图片仍存在 → 200", status, 200)
+
 # 8c. 按日期查询
 status, body = request("GET", f"/api/diet/logs?date={today}", headers=auth)
 check("查询当日记录 → 200", status, 200)

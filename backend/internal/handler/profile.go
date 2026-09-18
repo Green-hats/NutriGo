@@ -4,6 +4,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"nutri.go/backend/internal/httperr"
 	"strconv"
@@ -31,6 +32,11 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 
 	var profile model.UserProfile
 	result := h.DB.Where("user_id = ?", userID).First(&profile)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		slog.Error("读取健康档案失败", "user_id", userID, "error", result.Error)
+		httperr.Response(c, http.StatusInternalServerError, "档案暂时无法读取，请稍后重试")
+		return
+	}
 	if result.Error != nil {
 		// 没填过档案，返回空数据而非 404
 		c.JSON(http.StatusOK, gin.H{
@@ -87,6 +93,11 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	// 先查是否存在，不存在就创建，存在就更新
 	var profile model.UserProfile
 	result := h.DB.Where("user_id = ?", userID).First(&profile)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		slog.Error("更新前读取健康档案失败", "user_id", userID, "error", result.Error)
+		httperr.Response(c, http.StatusInternalServerError, "档案暂时无法读取，请稍后重试")
+		return
+	}
 
 	if result.Error != nil {
 		// 不存在 → 创建
@@ -134,6 +145,11 @@ func (h *ProfileHandler) GetProfileInternal(c *gin.Context) {
 
 	var profile model.UserProfile
 	result := h.DB.Where("user_id = ?", userID).First(&profile)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		slog.Error("内部读取健康档案失败", "user_id", userID, "error", result.Error)
+		httperr.Response(c, http.StatusInternalServerError, "档案暂时无法读取，请稍后重试")
+		return
+	}
 	if result.Error != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"height_cm": 0, "weight_kg": 0, "age": 0,

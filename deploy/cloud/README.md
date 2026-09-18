@@ -139,7 +139,7 @@ PRELOAD_MODELS=0
 
 ## 自动备份与恢复验证
 
-饮食明细不再按 7 天删除。被日记引用的照片持续保留；未关联照片默认 7 天后清理，可用 `UNATTACHED_IMAGE_RETENTION_DAYS=0` 关闭清理。每日汇总实时计算保留的明细，并保留旧版本历史汇总基数；已经被旧版本删除的明细需要旧备份才能恢复。
+饮食明细不再按 7 天删除。被日记引用的照片持续保留；未关联照片默认按上传时间 7 天后清理，可用 `UNATTACHED_IMAGE_RETENTION_DAYS=0` 关闭这项保留期清理。仍被日记引用的照片禁止手动删除（409）。删除任务与元信息移除在同一事务内登记，文件删除失败返回 202 并在每次启动、之后每小时重试；此重试不受保留期设置影响。上传失败会移除已写入文件；未入库的 UUID 图片文件超过 24 小时后核对清理，不处理新文件、未知文件名和符号链接。每日汇总实时计算保留的明细，并保留旧版本历史汇总基数；已经被旧版本删除的明细需要旧备份才能恢复。
 
 维护服务使用 SQLite 在线备份接口快照 Go 与 Agent 数据库，同时复制快照引用的图片。每份备份校验 SHA-256、SQLite 完整性和表行数，并实际恢复到隔离目录再次校验。验证成功后才清理旧备份，默认保留最近 14 份（`BACKUP_KEEP`）。该服务无需网络，不接触 API Key；数据库只读连接使用可写卷挂载，以兼容 SQLite 的 WAL 共享内存文件。
 
@@ -149,19 +149,24 @@ PRELOAD_MODELS=0
 docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml run --rm --no-deps backup
 ```
 
-备份保存在项目的 `backups/snapshot-*`，目录权限为 700，已忽略 Git。Linux 主机安装每日北京时间 03:30 的任务（最多随机延迟 5 分钟，停机错过后补跑）：
+备份保存在项目的 `backups/snapshot-*`，目录权限为 700，已忽略 Git。上面的命令仅执行本地备份；定时任务改由主机 Python 3.9+ 的 `operations.py` 编排本地备份、可选异地复制和健康检查。安装前创建配置文件，确认 `disk_paths` 指向 Docker 数据实际所在文件系统（默认 `/var/lib/docker`）。Linux 主机安装每日北京时间 03:30 的任务及每小时检查：
 
 ```bash
+sudo install -d -m 700 /etc/nutrigo
+# 首次安装时复制；升级时保留已经填写的配置，不要覆盖。
+sudo install -m 600 deploy/cloud/backup/operations.example.json /etc/nutrigo/backup.json
 sudo install -m 644 deploy/cloud/backup/nutrigo-backup.service /etc/systemd/system/
 sudo install -m 644 deploy/cloud/backup/nutrigo-backup.timer /etc/systemd/system/
+sudo install -m 644 deploy/cloud/backup/nutrigo-backup-check.service /etc/systemd/system/
+sudo install -m 644 deploy/cloud/backup/nutrigo-backup-check.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now nutrigo-backup.timer
+sudo systemctl enable --now nutrigo-backup.timer nutrigo-backup-check.timer
 sudo systemctl start nutrigo-backup.service
 sudo systemctl list-timers nutrigo-backup.timer
 sudo journalctl -u nutrigo-backup.service --since today
 ```
 
-服务默认项目路径为 `/opt/nutrigo`；其他路径须修改 `WorkingDirectory`。确认当前 Compose 项目名和现有持久卷一致，避免误备份新空卷。
+服务默认项目路径为 `/opt/nutrigo`；其他路径须修改两个 service 的 `WorkingDirectory`、`ExecStart` 脚本路径和 `--project` 参数。确认当前 Compose 项目名和现有持久卷一致，避免误备份新空卷。
 
 可使用主机 Python 3.9+ 再次验证或隔离恢复，将示例路径替换为实际备份名：
 
@@ -172,7 +177,18 @@ python3 deploy/cloud/backup/backup.py restore backups/snapshot-实际备份名 -
 
 恢复目标必须不存在，脚本拒绝覆盖任何现有目录。生成的 `backend/data.db`、`backend/uploads/` 和 `agent/agent.db` 可用于恢复演练。实际生产回滚前应停止写入、另行备份当前卷，再恢复选定版本；本命令不会自动覆盖生产数据。两个数据库分别取一致快照，不保证跨库同一时刻；需要这种保证时应暂停写入后备份。
 
-自动备份默认仍在同一台服务器。需另外把已验证的快照复制到独立主机或对象存储，才能覆盖整机/磁盘丢失。模型、向量库、TLS 状态和部署密钥不包含在此用户数据备份中，需按各自恢复方式管理。
+### 检测、告警与异地备份接入
+
+`/etc/nutrigo/backup.json` 默认为本地备份，`remote` 和 `alert_webhook` 留空时不会联网。定时编排使用该文件的 `keep`（默认 14）；Compose 单独运行仍使用 `.env` 的 `BACKUP_KEEP`。
+
+- 每小时验证最新快照的哈希和数据库完整性，检查最近一次任务结果、快照是否超过 36 小时、磁盘是否不足 2 GiB 或使用率达到 90%。阈值可配置；备份前也检查磁盘。
+- 结果保存在 `backups/maintenance-status.json`，异常退出码为 1，systemd 标记失败。健康检查不读取业务内容到日志。可通过 `journalctl -u nutrigo-backup.service -u nutrigo-backup-check.service` 查看。
+- `alert_webhook` 可填接收 HTTPS JSON `{"text":"NutriGo backup: ..."}` 的通知入口。相同故障去重，恢复后通知一次；发送失败在下次检查重试，不跟随重定向。没有配置接收地址时，只有状态文件和 systemd 日志，不会主动通知手机。
+- 主机安装 rclone，并把独立服务器/S3 等存储配置为命名 remote，凭据文件放在 `/etc/nutrigo/rclone.conf`（权限 600，禁止提交 Git）。将 `remote` 填为例如 `offsite:nutrigo-backups`，脚本使用 [copy --immutable](https://rclone.org/commands/rclone_copy/) 复制到每份快照的独立目录，再用 [check --download](https://rclone.org/commands/rclone_check/) 读回校验。校验失败不登记异地成功，也不清理旧本地备份；下次定时运行会备份并复制新的完整快照。失败快照保留本地，可按目录手动重传。
+- 异地目标必须实际位于独立设备/存储，脚本无法判断 remote 是否仍指向本机。脚本不删除远端历史，需在存储端另设保留期并关注容量。可使用 rclone crypt remote 加密，恢复密钥另行保管。
+- 手动完整运行：`sudo python3 deploy/cloud/backup/operations.py run --project /opt/nutrigo`；只检查：把 `run` 改为 `check`。已启用异地备份时，应使用编排入口，避免直接执行 Compose 本地备份绕过异地校验与保留策略。
+
+异地复制只有配置真实存储并成功校验后才算启用，目前示例不会创建任何远程资源。远端快照下载后仍须执行 `backup.py verify` 和隔离 `restore`，再按停写恢复流程切换生产。模型、向量库、TLS 状态和部署密钥不包含在此用户数据备份中，需按各自恢复方式管理；整机故障也需要外部监控发现，本机检查不能在主机停机时运行。
 
 ## 启用已提供的 RAG 资料库
 

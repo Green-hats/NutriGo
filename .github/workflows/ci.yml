@@ -46,7 +46,9 @@ jobs:
 
       - name: Lint Python (ruff)
         working-directory: agent
-        run: ruff check app/ recognition/ tests/ ../.github/scripts/
+        run: |
+          ruff check app/ recognition/ tests/ ../.github/scripts/
+          ruff check --config ../deploy/cloud/backup/ruff.toml ../deploy/cloud/backup/
 
       - name: Type check Python (mypy)
         working-directory: agent

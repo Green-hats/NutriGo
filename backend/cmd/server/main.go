@@ -40,7 +40,7 @@ func main() {
 	}
 
 	// 自动建表
-	if err := config.DB.AutoMigrate(&model.User{}, &model.UserProfile{}, &model.FoodImage{}, &model.FoodDiary{}, &model.DietBatch{}, &model.DailySummary{}, &model.RefreshToken{}, &model.BlacklistedToken{}); err != nil {
+	if err := config.DB.AutoMigrate(&model.User{}, &model.UserProfile{}, &model.FoodImage{}, &model.ImageDeletion{}, &model.FoodDiary{}, &model.DietBatch{}, &model.DailySummary{}, &model.RefreshToken{}, &model.BlacklistedToken{}); err != nil {
 		logger.Error("自动建表失败，启动中止", "error", err)
 		os.Exit(1)
 	}

@@ -3,8 +3,10 @@ package handler
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"nutri.go/backend/internal/httperr"
 	"os"
@@ -15,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"nutri.go/backend/internal/model"
+	"nutri.go/backend/internal/service"
 )
 
 const uploadDir = "uploads"
@@ -30,6 +33,13 @@ type ImageHandler struct {
 func (h *ImageHandler) Upload(c *gin.Context) {
 	userID := c.GetUint("userID")
 
+	// 限制整个 multipart 请求，并释放解析时产生的临时文件。
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxFileSize+(1<<20))
+	defer func() {
+		if c.Request.MultipartForm != nil {
+			_ = c.Request.MultipartForm.RemoveAll()
+		}
+	}()
 	// 读取上传文件
 	file, header, err := c.Request.FormFile("image")
 	if err != nil {
@@ -56,19 +66,8 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		return
 	}
 
-	// 生成唯一文件名（UUID v4 风格）
-	ext := filepath.Ext(header.Filename)
-	if ext == "" {
-		// 根据真实 MIME 类型补扩展名
-		switch mimeType {
-		case "image/jpeg":
-			ext = ".jpg"
-		case "image/png":
-			ext = ".png"
-		case "image/webp":
-			ext = ".webp"
-		}
-	}
+	// 扩展名来自实际 MIME，避免保留任意客户端后缀。
+	ext := map[string]string{"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[mimeType]
 	filename := uuid4() + ext
 	savePath := filepath.Join(uploadDir, filename)
 
@@ -83,14 +82,30 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		httperr.Response(c, http.StatusInternalServerError, "读取文件失败")
 		return
 	}
-	dst, err := os.Create(savePath)
+	dst, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		httperr.Response(c, http.StatusInternalServerError, "保存文件失败")
 		return
 	}
-	defer dst.Close()
+	saved := false
+	defer func() {
+		_ = dst.Close()
+		if !saved {
+			if err := os.Remove(savePath); err != nil && !os.IsNotExist(err) {
+				slog.Error("上传失败后移除图片失败，等待文件核对清理", "error", err)
+			}
+		}
+	}()
 	if _, err := io.Copy(dst, file); err != nil {
 		httperr.Response(c, http.StatusInternalServerError, "写入文件失败")
+		return
+	}
+	if err := dst.Sync(); err != nil {
+		httperr.Response(c, http.StatusInternalServerError, "保存文件失败")
+		return
+	}
+	if err := dst.Close(); err != nil {
+		httperr.Response(c, http.StatusInternalServerError, "保存文件失败")
 		return
 	}
 
@@ -107,6 +122,7 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		return
 	}
 
+	saved = true
 	c.JSON(http.StatusCreated, gin.H{
 		"id":        image.ID,
 		"filename":  image.Filename,
@@ -126,7 +142,7 @@ func (h *ImageHandler) GetMeta(c *gin.Context) {
 
 	var image model.FoodImage
 	if result := h.DB.First(&image, id); result.Error != nil {
-		httperr.Response(c, http.StatusNotFound, "图片不存在")
+		imageReadError(c, result.Error)
 		return
 	}
 
@@ -150,7 +166,7 @@ func (h *ImageHandler) GetData(c *gin.Context) {
 
 	var image model.FoodImage
 	if result := h.DB.First(&image, id); result.Error != nil {
-		httperr.Response(c, http.StatusNotFound, "图片不存在")
+		imageReadError(c, result.Error)
 		return
 	}
 
@@ -163,43 +179,40 @@ func (h *ImageHandler) GetData(c *gin.Context) {
 	c.File(image.Path)
 }
 
-// Delete DELETE /api/images/:id（JWT 保护）
-// 只能删除自己的图片。同时删除数据库记录和磁盘文件。
+// Delete DELETE /api/images/:id（JWT 保护）。仍有关联记录时拒绝删除。
 func (h *ImageHandler) Delete(c *gin.Context) {
-	userID := c.GetUint("userID")
-
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
+	if err != nil || id == 0 {
 		httperr.Response(c, http.StatusBadRequest, "无效的图片ID")
 		return
 	}
+	job, err := service.QueueImageDeletion(h.DB, uint(id), c.GetUint("userID"))
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrImageForbidden):
+			httperr.Response(c, http.StatusForbidden, err.Error())
+		case errors.Is(err, service.ErrImageInUse):
+			httperr.Response(c, http.StatusConflict, err.Error())
+		default:
+			imageReadError(c, err)
+		}
+		return
+	}
+	if err := service.CompleteImageDeletion(h.DB, job); err != nil {
+		slog.Error("图片文件删除待重试", "image_id", id, "error", err)
+		c.JSON(http.StatusAccepted, gin.H{"message": "删除已受理，文件清理将自动重试"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+}
 
-	var image model.FoodImage
-	if result := h.DB.First(&image, id); result.Error != nil {
+func imageReadError(c *gin.Context, err error) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		httperr.Response(c, http.StatusNotFound, "图片不存在")
 		return
 	}
-
-	if image.UserID != userID {
-		httperr.Response(c, http.StatusForbidden, "无权删除他人的图片")
-		return
-	}
-
-	// 先删磁盘文件（如果还存在）
-	if _, err := os.Stat(image.Path); err == nil {
-		if err := os.Remove(image.Path); err != nil {
-			httperr.Response(c, http.StatusInternalServerError, "删除文件失败")
-			return
-		}
-	}
-
-	// 再删数据库记录
-	if err := h.DB.Delete(&image).Error; err != nil {
-		httperr.Response(c, http.StatusInternalServerError, "删除记录失败")
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	slog.Error("图片数据操作失败", "error", err)
+	httperr.Response(c, http.StatusInternalServerError, "图片暂时无法处理，请稍后重试")
 }
 
 // uuid4 生成一个随机 UUID（简单实现，不依赖第三方库）

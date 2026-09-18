@@ -2,6 +2,7 @@
 package service
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +21,7 @@ func setupServiceDB(t *testing.T, models ...any) *gorm.DB {
 	if err != nil {
 		t.Fatalf("打开内存库失败: %v", err)
 	}
-	if err := db.AutoMigrate(models...); err != nil {
+	if err := db.AutoMigrate(append(models, &model.ImageDeletion{})...); err != nil {
 		t.Fatalf("建表失败: %v", err)
 	}
 	return db
@@ -162,5 +163,144 @@ func TestImageCleanupQueryFailurePreservesFiles(t *testing.T) {
 	runImageCleanup(db)
 	if _, err := os.Stat(p); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestImageDeletionRetrySurvivesRestartWithRetentionDisabled(t *testing.T) {
+	t.Setenv("UNATTACHED_IMAGE_RETENTION_DAYS", "0")
+	dir := t.TempDir()
+	dbFile := filepath.Join(dir, "test.db")
+	db, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&model.FoodImage{}, &model.FoodDiary{}, &model.ImageDeletion{}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "nonempty")
+	os.Mkdir(path, 0700)
+	block := filepath.Join(path, "block")
+	os.WriteFile(block, []byte("x"), 0600)
+	img := model.FoodImage{UserID: 1, Path: path, Filename: "meal.png", CreatedAt: daysAgo(10)}
+	db.Create(&img)
+	job, err := QueueImageDeletion(db, img.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := CompleteImageDeletion(db, job); err == nil {
+		t.Fatal("expected filesystem failure")
+	}
+	sqlDB, _ := db.DB()
+	sqlDB.Close()
+	// 模拟服务重启，任务仍存在。
+	db, err = gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, _ = db.DB()
+	t.Cleanup(func() { sqlDB.Close() })
+	os.Remove(block)
+	runImageCleanup(db)
+	var count int64
+	db.Model(&model.ImageDeletion{}).Count(&count)
+	if count != 0 {
+		t.Fatal("retry task not completed")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("retry did not delete file", err)
+	}
+}
+
+func TestImageReconciliationPreservesTrackedAndRecentFiles(t *testing.T) {
+	db := setupServiceDB(t, &model.FoodImage{}, &model.FoodDiary{})
+	dir := t.TempDir()
+	paths := make([]string, 5)
+	for i := range paths {
+		paths[i] = filepath.Join(dir, fmt.Sprintf("00000000-0000-4000-8000-%012d.png", i))
+		os.WriteFile(paths[i], []byte("x"), 0600)
+		os.Chtimes(paths[i], daysAgo(2), daysAgo(2))
+	}
+	db.Create(&model.FoodImage{UserID: 1, Filename: filepath.Base(paths[1]), Path: paths[1]})
+	db.Create(&model.ImageDeletion{ImageID: 100, Path: paths[2]})
+	os.Chtimes(paths[3], time.Now(), time.Now())
+	os.Remove(paths[4])
+	os.Symlink(paths[1], paths[4])
+	unknown := filepath.Join(dir, "keep-me.txt")
+	os.WriteFile(unknown, []byte("x"), 0600)
+	os.Chtimes(unknown, daysAgo(2), daysAgo(2))
+	reconcileImageFiles(db, dir, time.Now().Add(-24*time.Hour))
+	if _, err := os.Stat(paths[0]); !os.IsNotExist(err) {
+		t.Fatal("orphan was not removed")
+	}
+	for _, path := range append(paths[1:], unknown) {
+		if _, err := os.Lstat(path); err != nil {
+			t.Fatal("protected file removed", path, err)
+		}
+	}
+}
+
+func TestImageReconciliationDatabaseFailurePreservesFile(t *testing.T) {
+	db := setupServiceDB(t, &model.FoodDiary{})
+	dir := t.TempDir()
+	path := filepath.Join(dir, "00000000-0000-4000-8000-000000000000.png")
+	os.WriteFile(path, []byte("x"), 0600)
+	os.Chtimes(path, daysAgo(2), daysAgo(2))
+	reconcileImageFiles(db, dir, time.Now().Add(-24*time.Hour))
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("database failure must not delete files", err)
+	}
+}
+
+func TestConcurrentDiaryAttachPreventsStaleImageDeletion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "race.db")
+	db, err := gorm.Open(sqlite.Open(path+"?_journal_mode=WAL&_busy_timeout=1000"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&model.FoodImage{}, &model.FoodDiary{}, &model.ImageDeletion{}); err != nil {
+		t.Fatal(err)
+	}
+	other, err := gorm.Open(sqlite.Open(path+"?_journal_mode=WAL&_busy_timeout=1000"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, conn := range []*gorm.DB{db, other} {
+		raw, _ := conn.DB()
+		t.Cleanup(func() { raw.Close() })
+	}
+	img := model.FoodImage{UserID: 1, Filename: "meal.png", Path: filepath.Join(t.TempDir(), "meal.png")}
+	os.WriteFile(img.Path, []byte("x"), 0600)
+	if err := db.Create(&img).Error; err != nil {
+		t.Fatal(err)
+	}
+	selected := make(chan struct{})
+	resume := make(chan struct{})
+	db.Callback().Delete().Before("gorm:delete").Register("test:pause_delete", func(tx *gorm.DB) {
+		close(selected)
+		<-resume
+	})
+	done := make(chan error, 1)
+	go func() { _, err := QueueImageDeletion(db, img.ID, 1); done <- err }()
+	<-selected
+	// 另一个连接在删除事务读完图片之后，先提交新的日记关联。
+	attachErr := other.Create(&model.FoodDiary{UserID: 1, Date: "2026-09-18", FoodName: "米饭", ImageID: &img.ID}).Error
+	close(resume)
+	deleteErr := <-done
+	if attachErr != nil {
+		t.Fatal(attachErr)
+	}
+	if deleteErr == nil {
+		t.Fatal("stale delete must not succeed after a concurrent attach")
+	}
+	if err := other.First(&img, img.ID).Error; err != nil {
+		t.Fatal("referenced image removed", err)
+	}
+	if _, err := os.Stat(img.Path); err != nil {
+		t.Fatal(err)
+	}
+	var count int64
+	other.Model(&model.ImageDeletion{}).Count(&count)
+	if count != 0 {
+		t.Fatal("failed transaction left a deletion job")
 	}
 }

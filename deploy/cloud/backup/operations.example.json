@@ -1,0 +1,11 @@
+{
+  "keep": 14,
+  "max_age_hours": 36,
+  "min_free_bytes": 2147483648,
+  "max_used_percent": 90,
+  "disk_paths": ["/var/lib/docker"],
+  "remote": "",
+  "rclone_config": "/etc/nutrigo/rclone.conf",
+  "alert_webhook": "",
+  "timeout_seconds": 1800
+}
