@@ -21,11 +21,9 @@ it('夜间预选加餐后仍可手动改为午餐；时钟变化不会覆盖手�
   fireEvent.click(screen.getByRole('button', { name: '午餐' }))
   act(() => { vi.setSystemTime(new Date(2026, 8, 18, 8)) })
   expect(screen.getByRole('button', { name: '午餐' })).toHaveAttribute('aria-pressed', 'true')
-  fireEvent.click(screen.getByRole('button', { name: '按当前时间选择' }))
-  expect(screen.getByRole('button', { name: '早餐' })).toHaveAttribute('aria-pressed', 'true')
 })
 
-it('保存中禁止手动和自动修改餐次', () => {
+it('保存中禁止修改餐次', () => {
   const onChange = vi.fn()
   render(<MealTypeField value="dinner" onChange={onChange} disabled />)
   for (const button of screen.getAllByRole('button')) {

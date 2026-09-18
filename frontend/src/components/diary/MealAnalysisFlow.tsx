@@ -148,7 +148,7 @@ export default function MealAnalysisFlow({ date, onDone, onClose, onManual }: {
     slotProps={{ paper: { className: 'app-overlay' } }}>
     <DialogTitle id="food-flow-title" component="div" sx={{ px: 3, pt: 2.5 }}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h2">{step === 'review' ? '确认这一餐' : '记录这一餐'}</Typography>
+        <Typography variant="h2">记录这一餐</Typography>
         <IconButton onClick={onClose} disabled={saving} aria-label="关闭"><CloseRounded /></IconButton>
       </Stack>
     </DialogTitle>

@@ -1,6 +1,5 @@
 import { useId } from 'react'
-import { Button, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
-import { defaultMealType } from '../../lib/meal'
+import { Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 
 export function MealTypeField({ value, onChange, disabled = false }: {
   value: string
@@ -10,13 +9,7 @@ export function MealTypeField({ value, onChange, disabled = false }: {
   const labelId = useId()
   return (
     <Stack spacing={1}>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-        <Typography id={labelId} sx={{ fontWeight: 650 }}>餐次</Typography>
-        <Button size="small" disabled={disabled} onClick={() => onChange(defaultMealType())}
-          sx={{ px: 1, minHeight: 44, fontSize: 12 }}>
-          按当前时间选择
-        </Button>
-      </Stack>
+      <Typography id={labelId} sx={{ fontWeight: 650 }}>餐次</Typography>
       <ToggleButtonGroup exclusive fullWidth value={value} disabled={disabled}
         aria-labelledby={labelId} color="primary"
         onChange={(_, next: string | null) => { if (next) onChange(next) }}

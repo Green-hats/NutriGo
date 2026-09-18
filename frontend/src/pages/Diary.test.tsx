@@ -154,7 +154,7 @@ describe('Diary DeepSeek 照片分析', () => {
     fireEvent.change(screen.getByLabelText('选择食物照片'), {
       target: { files: [new File(['x'], 'meal.png', { type: 'image/png' })] }
     })
-    await screen.findByText('确认这一餐')
+    await screen.findAllByLabelText('食物名称')
   }
 
   it('识别多项食物，修改实际克重后即时重算并统一保存', async () => {
@@ -233,7 +233,7 @@ describe('Diary DeepSeek 照片分析', () => {
     analyzeMealMock.mockRejectedValueOnce(new Error('服务不可用')).mockResolvedValueOnce(analysis)
     fireEvent.change(screen.getByLabelText('选择食物照片'), { target: { files: [new File(['x'], 'meal.png', { type: 'image/png' })] } })
     fireEvent.click(await screen.findByRole('button', { name: '重试分析这张照片' }))
-    await screen.findByText('确认这一餐')
+    await screen.findAllByLabelText('食物名称')
     expect(uploadImageMock).toHaveBeenCalledTimes(2)
     expect(analyzeMealMock).toHaveBeenCalledTimes(3)
   })

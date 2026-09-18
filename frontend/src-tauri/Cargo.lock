@@ -2087,7 +2087,7 @@ dependencies = [
 
 [[package]]
 name = "nutrigo"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "tauri",
  "tauri-build",
