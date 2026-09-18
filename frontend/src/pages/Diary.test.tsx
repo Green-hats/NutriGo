@@ -162,7 +162,7 @@ describe('Diary DeepSeek 照片分析', () => {
     await openAnalysis()
     expect(analyzeMealMock).toHaveBeenCalledWith(99, expect.any(AbortSignal))
     expect(screen.getByText(/本餐预计摄入 · 2/)).toBeInTheDocument()
-    const inputs = screen.getAllByLabelText('实际吃下的克数')
+    const inputs = screen.getAllByLabelText('份量（g）')
     expect(inputs[0]).toHaveValue(200)
     fireEvent.change(inputs[0], { target: { value: '100' } })
     expect(screen.getByText('预计 200 kcal')).toBeInTheDocument()
@@ -179,17 +179,17 @@ describe('Diary DeepSeek 照片分析', () => {
 
   it.each(['', '0', '-5', '3001'])('克数 %s 无效时不能保存', async value => {
     await openAnalysis()
-    fireEvent.change(screen.getAllByLabelText('实际吃下的克数')[0], { target: { value } })
+    fireEvent.change(screen.getAllByLabelText('份量（g）')[0], { target: { value } })
     expect(screen.getByRole('button', { name: /^确认记录/ })).toBeDisabled()
     expect(screen.queryByText(/本餐预计摄入/)).not.toBeInTheDocument()
     expect(createDietBatchMock).not.toHaveBeenCalled()
   })
 
-  it('可移除误识别项、修改每100克的营养和实际食用比例', async () => {
+  it('可移除误识别项、修改每100克的营养和克重', async () => {
     createDietBatchMock.mockResolvedValue([])
     await openAnalysis()
     fireEvent.click(screen.getByRole('button', { name: '移除米饭' }))
-    fireEvent.click(screen.getByRole('button', { name: '这份只吃了一半' }))
+    fireEvent.change(screen.getByLabelText('份量（g）'), { target: { value: '100' } })
     fireEvent.click(screen.getByRole('button', { name: '营养详情 · AI 估算' }))
     fireEvent.change(await screen.findByLabelText('热量 (kcal/100g)'), { target: { value: '180' } })
     fireEvent.click(screen.getByRole('button', { name: /^确认记录/ }))
@@ -206,7 +206,7 @@ describe('Diary DeepSeek 照片分析', () => {
     fireEvent.click(screen.getByRole('button', { name: /^确认记录/ }))
     const button = await screen.findByRole('button', { name: '重试保存' })
     expect(screen.getByText(/重试不会重复记录/)).toBeInTheDocument()
-    expect(screen.getAllByLabelText('实际吃下的克数')[0]).toBeDisabled()
+    expect(screen.getAllByLabelText('份量（g）')[0]).toBeDisabled()
     expect(screen.getByRole('button', { name: '晚餐' })).toBeDisabled()
     fireEvent.click(button)
     fireEvent.click(button)

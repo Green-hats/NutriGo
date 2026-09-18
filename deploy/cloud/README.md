@@ -89,7 +89,7 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d ag
 
 新版 App 使用 `/agent-api/analyze-meal`。在服务器配置 `AI_ENABLED=true`、`FOOD_RECOGNITION_ENABLED=true`、`FOOD_VISION_MODEL=deepseek-flash`。`FOOD_VISION_API_KEY` 只填在服务器；若聊天也使用 DeepSeek 官方端点和 `deepseek/` 模型，可留空并复用 `LLM_API_KEY`。如果聊天用其他供应商或代理，必须单独配置视觉密钥。
 
-新接口直接发送照片给 DeepSeek 官方，返回多项食物、估重范围、营养及假设；精确菜名可采用营养库参考值。前端上传前说明照片去向，并要求用户确认实际份量。模型给出的范围不是称重测量或统计置信区间。
+新接口直接发送照片给 DeepSeek 官方，返回多项食物、估重范围、营养及假设；精确菜名可采用营养库参考值。用户可修改实际份量，确认后才保存记录。模型给出的范围不是称重测量或统计置信区间。
 
 先备份，再同时构建并更新 backend、agent；后端自动迁移新增 `diet_batches` 回执表。新 APK 的批量保存依赖新 Go 接口，不能只更新 Agent。保持全部数据卷；旧版 `/identify-food` 和 `/calculate-intake` 继续可用。检查新版上传→分析→编辑→批量保存→查询，并用同一提交编号重试确认无重复记录。无需更改 Caddy 路由。
 

@@ -26,9 +26,6 @@ export function MealTypeField({ value, onChange, disabled = false }: {
         <ToggleButton value="dinner">晚餐</ToggleButton>
         <ToggleButton value="snack">加餐</ToggleButton>
       </ToggleButtonGroup>
-      <Typography variant="caption" color="text.secondary">
-        按当前时间可自动选择；补记时请选择实际餐次。
-      </Typography>
     </Stack>
   )
 }

@@ -148,26 +148,20 @@ export default function MealAnalysisFlow({ date, onDone, onClose, onManual }: {
     slotProps={{ paper: { className: 'app-overlay' } }}>
     <DialogTitle id="food-flow-title" component="div" sx={{ px: 3, pt: 2.5 }}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box><Typography variant="overline" color="primary">ONE MEAL AT A TIME</Typography>
-          <Typography variant="h2">记录这一餐</Typography></Box>
+        <Typography variant="h2">{step === 'review' ? '确认这一餐' : '记录这一餐'}</Typography>
         <IconButton onClick={onClose} disabled={saving} aria-label="关闭"><CloseRounded /></IconButton>
       </Stack>
     </DialogTitle>
     <ConnectionNotice />
     <DialogContent sx={{ px: { xs: 2, sm: 3 }, pb: 4 }}>
-      <Stack spacing={2.5} sx={{ maxWidth: 640, mx: 'auto' }}>
-        <Box><Typography variant="caption" color="text.secondary">记录日期 · {date}</Typography>
+      <Stack spacing={2} sx={{ maxWidth: 640, mx: 'auto' }}>
+        <Box><Typography variant="caption" color="text.secondary">{date}</Typography>
           <MealTypeField value={mealType} onChange={setMealType} disabled={submitted} /></Box>
         {error && <Alert severity="error">{error}</Alert>}
         {preview && <Box component="img" src={preview} alt="本次记录的食物照片"
           sx={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 4, bgcolor: '#EAF0E4' }} />}
         {step === 'camera' && <>
-          {!preview && <Box sx={{ bgcolor: '#EAF0E4', p: 5, borderRadius: 5, textAlign: 'center' }}>
-            <CameraAltRounded sx={{ fontSize: 64, color: 'primary.main' }} /></Box>}
-          <Box><Typography variant="h3">拍一张你的食物照片</Typography>
-            <Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>
-              {isPreviewBuild() ? '离线体验仅预览照片，不会上传或识别。' : '照片将发送给 DeepSeek 分析食物、份量和营养。结果可修改，确认后才会记入日记。'}
-            </Typography></Box>
+          {isPreviewBuild() && <Typography variant="caption" color="text.secondary">离线体验 · 仅本机预览</Typography>}
           {imageId > 0 && error && <Button variant="contained" onClick={() => void start()}>重试分析这张照片</Button>}
           <Button variant="contained" size="large" startIcon={<CameraAltRounded />} onClick={() => cameraRef.current?.click()}>拍照</Button>
           <Button variant="outlined" startIcon={<PhotoLibraryRounded />} onClick={() => fileRef.current?.click()}>从相册选择</Button>
@@ -176,14 +170,10 @@ export default function MealAnalysisFlow({ date, onDone, onClose, onManual }: {
           <Button onClick={() => onManual(mealType)}>手动记录这一餐</Button>
         </>}
         {(step === 'analyzing' || saving) && <Stack spacing={2} sx={{ alignItems: 'center', py: 3 }}>
-          <CircularProgress size={34} /><Typography variant="h3">{saving ? '正在保存...' : '正在分析这一餐...'}</Typography>
-          <Typography variant="body2" color="text.secondary">{saving ? '正在一起保存本餐食物' : '估算食物、克重和营养，通常需要数十秒。'}</Typography>
+          <CircularProgress size={34} /><Typography variant="h3">{saving ? '正在保存...' : '正在识别...'}</Typography>
         </Stack>}
         {step === 'review' && <>
-          <Box><Typography variant="h3">确认这一餐</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{analysis?.note}</Typography></Box>
-          <Alert severity="info">照片无法准确称重，也看不全用油和配料。请将克重改为实际吃下的份量。</Alert>
-          {items.length === 0 && <Alert severity="warning">没有识别到可记录的食物，请重新拍照或手动记录。</Alert>}
+          {items.length === 0 && <Alert severity="warning">{analysis?.note || '未识别到食物，请重新拍照或手动记录。'}</Alert>}
           {items.map(item => <Paper key={item.id} component="section" aria-label={`食物 ${item.id + 1}`} sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
             <Stack spacing={2}>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -192,20 +182,17 @@ export default function MealAnalysisFlow({ date, onDone, onClose, onManual }: {
                   onChange={e => patch(item.id, { name: e.target.value, edited: true })} />
                 <IconButton aria-label={`移除${item.name}`} disabled={submitted} onClick={() => setItems(current => current.filter(i => i.id !== item.id))}><DeleteOutlineRounded /></IconButton>
               </Stack>
-              <TextField label="实际吃下的克数" type="number" value={item.gramsInput} disabled={submitted}
+              <TextField label="份量（g）" type="number" value={item.gramsInput} disabled={submitted}
                 error={!Number.isFinite(Number(item.gramsInput)) || Number(item.gramsInput) < 1 || Number(item.gramsInput) > 3000}
-                helperText={`照片估重 ${item.grams}g，可能范围 ${item.grams_low}–${item.grams_high}g`}
                 slotProps={{ htmlInput: { min: 1, max: 3000, step: 'any', inputMode: 'decimal' } }}
                 onChange={e => patch(item.id, { gramsInput: e.target.value })} />
-              <Button size="small" disabled={submitted || Number(item.gramsInput) < 2} onClick={() => patch(item.id, { gramsInput: String(round(Number(item.gramsInput) / 2)) })}>这份只吃了一半</Button>
-              <Typography variant="body2" color="text.secondary">{item.assumption}</Typography>
               <Typography color="primary" sx={{ fontWeight: 700 }}>{valid(item) ? `预计 ${intake(item).calories} kcal` : '请检查克重和营养数值'}</Typography>
               <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent', '&:before': { display: 'none' } }}>
                 <AccordionSummary expandIcon={<ExpandMoreRounded />} sx={{ px: 0 }}>
                   <Typography variant="body2">营养详情 · {item.edited ? '用户修正' : item.nutrition_source === 'database' ? '营养库参考值' : 'AI 估算'}</Typography>
                 </AccordionSummary>
                 <AccordionDetails sx={{ p: 0 }}>
-                  <Typography variant="caption" color="text.secondary">以下均为每 100g 的数值。更换食物种类时，请同时核对营养。</Typography>
+                  <Typography variant="caption" color="text.secondary">估重范围 {item.grams_low}–{item.grams_high}g · {item.assumption}</Typography>
                   <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                     {nutrients.map(([key, label, unit]) => <TextField key={key} label={`${label} (${unit}/100g)`} type="number" value={item.nutrientsInput[key]} disabled={submitted}
                       slotProps={{ htmlInput: { min: 0, max: key === 'calories' ? 900 : 100, step: 'any', inputMode: 'decimal' } }}
@@ -221,8 +208,10 @@ export default function MealAnalysisFlow({ date, onDone, onClose, onManual }: {
             <Typography variant="body2" color="text.secondary">蛋白质 {totals.protein_g}g · 脂肪 {totals.fat_g}g · 碳水 {totals.carbs_g}g</Typography>
           </Paper>}
           <Button disabled={!canSave} variant="contained" size="large" onClick={() => void save()}>{submitted ? '重试保存' : `确认记录 · ${mealNames[mealType]}`}</Button>
-          {!submitted && <><Button onClick={() => { setError(''); setStep('camera') }}>重新拍照</Button>
-            <Button variant="outlined" onClick={() => onManual(mealType)}>改为手动记录</Button></>}
+          {!submitted && <Stack direction="row" spacing={1}>
+            <Button fullWidth onClick={() => { setError(''); setStep('camera') }}>重新拍照</Button>
+            <Button fullWidth onClick={() => onManual(mealType)}>改为手动记录</Button>
+          </Stack>}
         </>}
       </Stack>
     </DialogContent>

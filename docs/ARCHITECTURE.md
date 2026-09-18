@@ -1,6 +1,6 @@
 # NutriGo — 架构设计文档
 
-更新日期：2026-09-18。本文描述 Android 0.1.3 的 DeepSeek 照片分析实现；发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
+更新日期：2026-09-18。本文描述 Android 0.1.4 的 DeepSeek 照片分析实现；发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
 
 移动端运行与签名见 [MOBILE.md](MOBILE.md)，云端部署、模型准备和恢复操作见 [部署说明](../deploy/cloud/README.md)。具体配置和接口以本文链接的源码为准。
 
@@ -132,7 +132,7 @@ Agent 默认限制单条提问长度、工具执行时间、循环轮数、上�
 2. 选图后前端压缩为 JPEG，最长边 1600px；上传至 `POST /api/images/upload`。Go 验证格式与大小、生成 UUID 文件名，保存文件和图片元信息，返回 `{id, filename, mime_type, size}`。
 3. 新版 App 调用 `POST /agent-api/analyze-meal`，提交 `image_id`。Agent 实时校验登录、向 Go 核验图片归属，再读取缓存或图片。照片通过内联 base64 发往 DeepSeek 官方端点，不公开图片 URL。
 4. DeepSeek V4.1 Flash（API 名称 `deepseek-flash`）返回最多 12 项食物的菜名、估重及范围、每 100g 营养和估算假设。后端验证完整 JSON、有限非负营养数值、重量范围和上限；截断或不合规输出返回错误，无食物照片返回空清单。精确菜名命中营养库时采用库中参考值，否则标为 AI 估算。
-5. 用户可逐项调整实际食用克数、减半、移除误识别项、修改名称及每 100g 营养；前端即时按克数重算，选择餐次后确认。结果只是一份草稿，不自动写入日记。
+5. 用户可逐项调整实际食用克数、移除误识别项、修改名称及每 100g 营养；前端即时按克数重算，选择餐次后确认。估重范围及假设收纳在可展开的营养详情中。结果只是一份草稿，不自动写入日记。
 6. App 调用 `POST /api/diet/logs/batch`，提交 UUID 和 1–12 条记录。Go 校验全部输入及每张照片归属，用一个事务创建记录和提交回执。同一用户、同一编号和相同内容重试返回原回执，不重复插入；编号相同但内容不同返回 409。超时后 App 保留原提交并锁定编辑，允许重试；关闭后刷新日记。回执随数据库备份，目前未自动清理。
 
 前端见 [MealAnalysisFlow.tsx](../frontend/src/components/diary/MealAnalysisFlow.tsx)，压缩见 [foodImage.ts](../frontend/src/lib/foodImage.ts)，Agent 见 [meal_analysis.py](../agent/app/meal_analysis.py) 与 [meal.py](../agent/recognition/meal.py)，原子保存见 [diet_batch.go](../backend/internal/handler/diet_batch.go)。
