@@ -1,15 +1,19 @@
 # NutriGo 手机 App
 
-NutriGo 使用 **Tauri 2 + React 19 + MUI 9** 构建 Android 和 iOS 安装包。React 页面随安装包分发，手机通过 HTTPS 访问云端 Go / Python 服务；AI 模型、LLM 密钥和数据库保留在服务器。浏览器与 Vite 仅用于开发预览，不需要部署前端站点。
+NutriGo 使用 **Tauri 2 + React 19 + MUI 9** 构建 Android 和 iOS App。React 页面随安装包分发，手机通过 HTTPS 访问云端 Go / Python 服务；模型 API 由服务器调用，本地检索模型、密钥和数据库留在云端。浏览器与 Vite 用于开发预览。
+
+当前已发布 [Android 0.1.5 ARM64 测试版](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.5)，约 16.1 MiB；可覆盖此前同签名的 Release 版本。iOS 已有原生工程和 CI 检查，尚未发布 IPA / TestFlight。
 
 ```mermaid
 flowchart LR
-    App[Android / iOS\nTauri 2 + React] -->|原生 HTTP · JWT · SSE| Gateway[Caddy HTTPS 网关]
-    Gateway -->|/api/*| Go[Go 业务服务]
-    Gateway -->|/agent-api/* → /api/*| Agent[Python Agent]
-    Agent -->|内部令牌| Go
-    Go --> Data[(用户 / 饮食 / 图片)]
-    Agent --> AI[DeepSeek Vision / RAG / LLM API]
+    App["Android / iOS<br/>Tauri 2 + React + MUI"] -->|"原生 HTTP · JWT · SSE"| Gateway["Caddy HTTPS 网关"]
+    Gateway -->|"/api/*"| Go["Go 业务服务"]
+    Gateway -->|"/agent-api/* → /api/*"| Agent["Python Agent"]
+    Agent -->|"内部令牌 · 归属校验"| Go
+    Go --> Data[("用户 / 饮食 / 图片 / 提交回执")]
+    Agent -->|"照片分析"| Vision["DeepSeek V4.1 Flash API"]
+    Agent -->|"对话"| LLM["聊天模型 API"]
+    Agent --> RAG["云端 BGE + ChromaDB"]
 ```
 
 ## 开发环境
@@ -96,8 +100,8 @@ VITE_API_BASE_URL=https://你的API地址 npm run android:compact -- --ci
 
 工作流入口：[Actions → Android Release](https://github.com/Green-hats/NutriGo/actions/workflows/android-release.yml)。
 
-1. 更新 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中 NutriGo 的版本号，提交到 `main`。例如 `0.1.2` 对应 Android versionCode `1002`。
-2. 在该工作流页面点击 **Run workflow**，选择 **main**；或推送与版本一致的标签，例如 `git tag android-v0.1.2 && git push origin android-v0.1.2`。两种方式选择一种即可。
+1. 更新 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中 NutriGo 的版本号，提交到 `main`。当前 `0.1.5` 对应 Android versionCode `1005`，下一次发版须使用新版本号。
+2. 在该工作流页面点击 **Run workflow**，选择 **main**；或推送与新版本一致的 `android-v<版本号>` 标签。两种方式选择一种即可。
 3. 工作流复用完整 CI，通过后下载同一次运行的联网 APK，使用固定签名签署，并校验包名、版本、ARM64 架构、签名指纹、ZIP 完整性、16 KB 对齐和 20 MiB 体积上限。
 4. 自动创建 `android-v<版本号>` 的预发布 Release，上传 APK、`SHA256SUMS.txt`、`release-manifest.json`。先上传到草稿并核对 GitHub 返回的校验值，全部一致后才公开。说明包含源码提交、安装要求和 CI 链接。
 
@@ -145,11 +149,11 @@ VITE_API_BASE_URL=https://api.example.com npm run build:app
 cargo check --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-发布前在 Android / iOS 真机检查：注册登录和刷新令牌、拍照与相册上传、识别后保存日记、对话停止与重试、软键盘遮挡、刘海安全区、退出登录后切换账号。识别与 RAG 验收需要服务器上的对应模型和数据；此次迁移不补充尚未上传的 RAG 数据。
+发布前在 Android / iOS 真机检查：注册登录和刷新令牌、拍照与相册上传、识别后保存日记、对话停止与重试、软键盘遮挡、刘海安全区、退出登录后切换账号。照片分析需要服务端 DeepSeek 配置；RAG 需要部署仓库中的向量库快照及匹配的 BGE 模型，准备步骤见 [云端部署](../deploy/cloud/README.md)。
 
 若 Xcode 报 `iOS ... is not installed` 或 `Found no destinations`，在 **Xcode → Settings → Components** 安装对应 iOS 平台及模拟器运行时后再运行。工程生成或 Rust 检查通过不等于已完成真机验收。
 
-### 本次迁移验证（2026-09-16）
+### 早期迁移记录（2026-09-16，非当前交付状态）
 
 - 53 个前端测试、TypeScript 生产构建和 oxlint 通过。
 - macOS 原生检查、iOS ARM64 `cargo check` 通过。
@@ -158,7 +162,7 @@ cargo check --locked --manifest-path src-tauri/Cargo.toml
 - 云端 Compose 校验、Caddy 路由／内部接口阻断／SSE 首包测试通过；未运行完整云端容器或部署服务器。
 - iOS 完整打包受本机未安装 iOS 26.5 平台影响，未生成 IPA。双端真机验收和发布签名尚未完成。
 
-本地测试 APK 使用 `https://api.example.com` 占位地址，只用于打包检查。连接真实服务前请填写自己的 API 地址并重新打包。
+上述早期本地测试 APK 使用 `https://api.example.com` 占位地址，只用于打包检查；当前 Release 已配置实际云端 HTTPS 地址。
 
 ## MUI 界面更新（2026-09-16）
 
@@ -186,10 +190,12 @@ npm run android:preview -- --ci
 - 服务器不可达、超时、服务临时故障分别提示，不误报为没有记录。
 - 普通请求连接及响应体等待最长 20 秒，AI 请求和流式回复空闲等待最长 60 秒；连续收到回复会重置计时。
 - 刷新令牌遇断网、超时、503 或限流会保留登录态，凭证确实失效才要求重新登录。
-- 保存失败保留当前表单；不会显示保存成功。网络中断时服务器可能已经收到请求，应重新查看记录后再决定是否提交。本版本不提供离线缓存、离线 AI 或自动同步。
+- 保存失败保留当前表单；不会显示保存成功。照片整餐提交通过 UUID 防重，超时后锁定原提交并允许重试；手动记录等其他写操作需先核对服务器是否已保存。当前不提供离线缓存、离线 AI 或自动同步。
 
 云端 API 部署完成后，可以设置 GitHub 仓库 Actions 变量 `NUTRIGO_API_BASE_URL` 为实际 HTTPS 源地址。CI 会额外保留 `NutriGo-online-arm64.apk`，供连接云端服务的实机测试；未配置时仅上传离线预览包。两者都是调试签名，不能作为商店发布包。
 
-## 0.1.3 照片分析
+## 0.1.5 照片分析与餐次选择
 
 拍照后用 DeepSeek V4.1 Flash（`deepseek-flash`）生成多项食物草稿，克重和热量均可修正；确认才写入日记。服务端必须先上线 `/agent-api/analyze-meal` 和 `/api/diet/logs/batch`，再安装新 APK。旧 APK 仍使用 CLIP 候选流程。API Key 只在服务器，照片会由服务器提交至 DeepSeek 官方；离线体验包不会上传。
+
+记录入口按手机本地时间预选餐次，用户直接点击早餐、午餐、晚餐或加餐修改；选择会贯穿识别、确认和转手动录入，不因时间变化而重置。界面统一为“记录这一餐”，移除重新按时间选择按钮、半份按钮及重复说明；估重范围、假设和每 100g 营养收纳在“营养详情”。整餐通过一个事务保存，相同提交重试返回原结果。

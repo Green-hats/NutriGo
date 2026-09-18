@@ -23,7 +23,7 @@
 [![License](https://img.shields.io/github/license/Green-hats/NutriGo?logo=gnu)](LICENSE)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Green-hats/NutriGo/ci.yml?branch=main&logo=github&label=CI)](https://github.com/Green-hats/NutriGo/actions)
-[![Release](https://img.shields.io/github/v/release/Green-hats/NutriGo?logo=github&label=Release)](https://github.com/Green-hats/NutriGo/releases)
+[![Release](https://img.shields.io/github/v/release/Green-hats/NutriGo?include_prereleases&logo=github&label=Release)](https://github.com/Green-hats/NutriGo/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/Green-hats/NutriGo?logo=git&label=最近提交)](https://github.com/Green-hats/NutriGo)
 
 </div>
@@ -38,10 +38,6 @@
 
 <img src="docs/screenshots/demo.gif" alt="NutriGo AI 聊天：输入问题、查看回复和展开工具详情" width="390" />
 
-AI 聊天演示：输入问题、查看回复，以及展开健康档案和饮食记录的工具详情。
-
-动图与截图使用演示数据，对话内容为示例回复。
-
 | 登录 | AI 对话 | 饮食日记 | 营养趋势 | 健康档案 |
 | :---: | :---: | :---: | :---: | :---: |
 | <img src="docs/screenshots/login.png" alt="登录" width="150" /> | <img src="docs/screenshots/chat.png" alt="AI 对话（含工具卡片）" width="150" /> | <img src="docs/screenshots/diary.png" alt="饮食日记" width="150" /> | <img src="docs/screenshots/chart.png" alt="营养趋势图" width="150" /> | <img src="docs/screenshots/profile.png" alt="健康档案" width="150" /> |
@@ -52,17 +48,23 @@ AI 聊天演示：输入问题、查看回复，以及展开健康档案和饮�
 
 ## ✨ 功能特性
 
-- **📷 拍照分析** — DeepSeek V4.1 Flash 估算多种食物、克重范围及营养，支持修改后统一确认保存
+- **📷 拍照分析** — DeepSeek V4.1 Flash 估算多种食物、份量及营养，修改克重或营养值后整餐保存，重试不会重复记录
 - **🤖 AI 对话** — Agent Loop + 5 个工具，SSE 流式实况输出，Markdown + 思维链展示
 - **📚 RAG 知识库** — ChromaDB 2277 条《营养学》教材文档，回答专业营养问题
 - **📊 营养分析** — 8407 条真实营养数据，按克数精确换算，多日趋势洞察
-- **🗓️ 饮食日记** — 按日期记录三餐，recharts 柱状图展示营养趋势
+- **🗓️ 饮食日记** — 按日期拍照或手动录入，按手机本地时间默认选中餐次并允许修改，展示每日合计与营养趋势
 - **👤 个性化档案** — 身高体重/目标/过敏原/基础病，AI 定制饮食建议
-- **🛡️ 企业级安全** — JWT + 刷新令牌轮换与登出黑名单、认证接口 IP 限流、内部服务鉴权、生产环境密钥强制校验
+- **🛡️ 认证与访问控制** — JWT + 刷新令牌轮换与登出黑名单、认证接口 IP 限流、内部服务鉴权、生产环境密钥强制校验
 
 ---
 
 ## 🚀 快速开始
+
+### Android 下载
+
+[下载 Android 0.1.5 APK](https://github.com/Green-hats/NutriGo/releases/download/android-v0.1.5/NutriGo-Android-arm64-0.1.5.apk) · [更新说明与校验文件](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.5)
+
+ARM64 测试包约 **16.1 MiB**，要求 Android 8.0+、Android System WebView 117+。安装包连接已配置的云端 API，沿用同一签名，可覆盖此前 Release 版本。iOS 已有源码和原生检查，尚未发布 IPA / TestFlight。
 
 ### 环境要求
 
@@ -82,6 +84,8 @@ cd NutriGo
 # 配置 LLM API Key（支持 OpenAI/Gemini/DeepSeek/Ollama 等，通过 litellm）
 cp agent/.env.example agent/.env
 # 编辑 agent/.env 填入 LLM_API_KEY
+# 拍照分析使用 DeepSeek 官方：配置 FOOD_VISION_API_KEY
+# 聊天已配置为 DeepSeek 官方时，也可复用 LLM_API_KEY
 
 # 一键启动全部服务
 ./start.sh
@@ -111,16 +115,31 @@ npm run android:dev
 
 ```mermaid
 flowchart LR
-    App[Android / iOS · Tauri 2 + React] -->|HTTPS · JWT| Caddy
-    Caddy -->|/api/*| Go[Go + SQLite]
-    Caddy -->|/agent-api/*| Agent[FastAPI · Vision API · RAG · LLM]
-    Agent -->|Internal Token| Go
+    App["Android / iOS App<br/>Tauri 2 + React + MUI"]
+    subgraph Cloud["云服务器 · Docker Compose"]
+        Caddy["Caddy · HTTPS 网关"]
+        Go["Go + SQLite<br/>账号、日记、照片"]
+        Agent["FastAPI<br/>对话、照片分析、工具"]
+        Nutrition[("食物营养库")]
+        RAG["BGE + ChromaDB<br/>营养知识库"]
+        Caddy -->|"/api/*"| Go
+        Caddy -->|"/agent-api/*"| Agent
+        Agent -->|"内部令牌 · 归属校验"| Go
+        Agent --> Nutrition
+        Agent --> RAG
+    end
+    App -->|"HTTPS · JWT · REST / SSE"| Caddy
+    Agent -->|"照片 + 服务端 API Key"| Vision["DeepSeek V4.1 Flash<br/>deepseek-flash"]
+    Agent -->|"LiteLLM · 服务端 API Key"| LLM["聊天模型 API"]
 ```
 
 - **Agent Loop** — LLM 自主决定调用工具，支持思维链（reasoning_content）流式推送
 - **5 个工具** — 查营养 / 查档案 / 查饮食记录 / 查营养趋势 / 搜知识库
 - **RAG** — BGE-small-zh 嵌入 + ChromaDB 向量检索
 - **多模态** — DeepSeek V4.1 Flash 图片分析与营养库参考值；保留旧 APK 的 Chinese-CLIP 接口
+- **整餐记录** — 上传照片 → 核验归属 → 分析食物与营养 → 在 App 修改草稿 → Go 事务统一保存；同一批次重试不会重复入账。
+
+App 按本地时间默认选中早餐、午餐、晚餐或加餐，用户可直接切换；估重范围和假设收进可展开的营养详情。API Key 仅保留在服务器，React 页面随安装包分发。
 
 详细设计见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
@@ -144,12 +163,12 @@ flowchart LR
 
 ```bash
 # 单元测试（无需启动服务，适合 CI）
-make test-go-unit        # Go：83 用例
+make test-go-unit        # Go 单元测试
 make test-frontend       # 前端 vitest：store / 组件 / 移动端网络层
 make test-agent-unit     # Agent pytest：不联网、不加载模型
 
 # 集成测试（需服务运行）
-make test-backend        # Go 后端：67 用例
+make test-backend        # Go HTTP API 集成测试
 make test-agent          # Agent 基础：20 用例
 make test-identify       # 图片识别：13 用例
 make test-prompts        # 全面提示词：--quick 核心 9 例
@@ -166,8 +185,8 @@ make test
 
 | 层 | 技术 |
 |----|------|
-| 手机 App | Tauri 2 · Rust · React 19 · TypeScript (strict) · TailwindCSS · Zustand · Vite · vitest |
-| Agent | Python 3.13 · FastAPI · litellm · Chinese-CLIP · ChromaDB · SSE |
+| 手机 App | Tauri 2 · Rust · React 19 · TypeScript (strict) · MUI 9 + Emotion · Zustand · Vite · vitest |
+| Agent | Python 3.13 · FastAPI · LiteLLM · httpx / DeepSeek 视觉 API · BGE + ChromaDB · SSE |
 | 后端 | Go 1.26 · Gin · GORM · SQLite · JWT · bcrypt |
 | 质量 | Go test · pytest · ruff · mypy · oxlint · vitest · GitHub Actions CI |
 

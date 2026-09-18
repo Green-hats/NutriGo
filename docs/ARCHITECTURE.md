@@ -10,7 +10,7 @@ NutriGo 是 **Tauri 2 手机 App + 单机云端服务**。React 页面、样式�
 
 | 部分 | 当前实现与交付状态 |
 |---|---|
-| Android | 已发布 ARM64 测试 APK；0.1.2 约 16.1 MiB，要求 Android 8.0+；GitHub Actions 已跑通自动签名和 Release 发布 |
+| Android | 已发布 [0.1.5 ARM64 测试 APK](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.5)，约 16.1 MiB；要求 Android 8.0+、WebView 117+；GitHub Actions 自动签名和 Release 发布已跑通 |
 | iOS | 已有原生工程，最低 iOS 17；CI 检查 iOS Rust 目标，尚无自动签名、IPA / TestFlight 发布流程 |
 | 数据服务 | Go 管理账号、健康档案、饮食记录、汇总、图片和令牌状态 |
 | AI 服务 | Python 管理用户会话和工具编排；调用外部 LLM，执行云端照片识别和 RAG 检索 |
@@ -24,18 +24,19 @@ Android Release 使用现有测试签名和 `com.greenhats.nutrigo.debug` 包名
 flowchart TB
     App["Android / iOS App<br/>Tauri 2 + React + MUI"]
     LLM["外部 LLM API<br/>由服务端配置供应商和模型"]
+    Vision["DeepSeek 官方视觉 API<br/>V4.1 Flash · deepseek-flash"]
     subgraph Cloud["云服务器：Docker Compose"]
         Gateway["Caddy<br/>公网 HTTPS 入口"]
         Go["Go / Gin<br/>数据与认证服务 :3333"]
         Agent["Python / FastAPI<br/>AI 服务 :8000"]
-        UserData[("backend-data<br/>data.db + uploads")]
+        UserData[("backend-data<br/>data.db：用户、日记、提交回执<br/>uploads：照片")]
         ChatData[("agent-data<br/>agent.db 用户会话")]
         Nutrition[("nutrition.db<br/>预置食物营养数据")]
         Knowledge[("chroma-data<br/>教材段落及向量索引")]
-        Models["model-data<br/>Chinese-CLIP + BGE 权重"]
+        Models["model-data<br/>BGE + 旧版兼容 Chinese-CLIP 权重"]
         TLS[("caddy-data / caddy-config<br/>证书与运行状态")]
-        Gateway --> Go
-        Gateway --> Agent
+        Gateway -->|"/api/*"| Go
+        Gateway -->|"/agent-api/* → /api/*"| Agent
         Gateway --> TLS
         Agent -->|"内部鉴权与数据读取"| Go
         Go --> UserData
@@ -45,7 +46,8 @@ flowchart TB
         Agent --> Models
     end
     App -->|"HTTPS / JWT / REST / SSE"| Gateway
-    Agent -->|"服务端 API Key"| LLM
+    Agent -->|"LiteLLM / 服务端 API Key"| LLM
+    Agent -->|"httpx / base64 照片 / 服务端 API Key"| Vision
 ```
 
 只有网关公开 80 / 443；Go 和 Agent 在 Compose 内网通信。图片、用户数据库、会话、向量库、模型与证书分别持久化；重建容器不等于重建这些卷。配置见 [compose.yml](../deploy/cloud/compose.yml)。
@@ -74,6 +76,7 @@ Python **保存用户聊天会话及工具结果**，但不直接写 Go 的账�
 | App → Agent | `HTTPS_ORIGIN/agent-api/*` | Caddy 改写为 Agent 的 `/api/*`；用户接口携带同一访问令牌 |
 | Agent → Go | `http://backend:3333/api/*` | `X-Internal-Token`；令牌校验接口另外携带用户 Bearer 令牌 |
 | Agent → LLM | 服务端配置的模型 API 地址 | 服务端 `LLM_API_KEY`，不经手机中转 |
+| Agent → 视觉模型 | `https://api.deepseek.com/chat/completions` | `FOOD_VISION_API_KEY`；符合官方端点条件时可复用 `LLM_API_KEY` |
 
 App 的 API 源由构建时 `VITE_API_BASE_URL` 决定，正式构建要求 HTTPS；修改地址需要重新打包。当前原生 HTTP capability 允许 HTTPS 请求，具体请求源由 API 封装决定。源码见 [config.ts](../frontend/src/api/config.ts)、[http.ts](../frontend/src/api/http.ts) 和 [capabilities](../frontend/src-tauri/capabilities/default.json)。
 
@@ -81,7 +84,7 @@ App 的 API 源由构建时 `VITE_API_BASE_URL` 决定，正式构建要求 HTTP
 
 ### 4.2 REST 与 SSE
 
-对话使用 **fetch + ReadableStream 解析 SSE**，并非浏览器 `EventSource`。因此可以携带 Authorization 请求头，并通过 `AbortController` 取消请求。普通请求默认 20 秒、对话默认 60 秒超时；超时覆盖连接和每次响应体读取，流式数据到达后重新计算读取等待时间。
+对话使用 **fetch + ReadableStream 解析 SSE**，并非浏览器 `EventSource`。因此可以携带 Authorization 请求头，并通过 `AbortController` 取消请求。Go 请求默认 20 秒，Agent 请求及对话默认 60 秒超时；超时覆盖连接和每次响应体读取，流式数据到达后重新计算读取等待时间。
 
 SSE 事件包括 `session_id`、`chunk`、`thinking`、`tool_call`、`tool_result`、`done`、`error`。是否出现 thinking 内容取决于模型及服务端配置。前端保留 Markdown 空白，单波浪号数值范围不作为删除线解析。实现见 [sse.ts](../frontend/src/api/sse.ts) 和 [Chat.tsx](../frontend/src/pages/Chat.tsx)。
 
@@ -89,7 +92,7 @@ SSE 事件包括 `session_id`、`chunk`、`thinking`、`tool_call`、`tool_resul
 - 切换账号会使旧请求失效，避免旧响应写入新账号界面。
 - 离开聊天页面会取消当前流；服务端检测连接断开后取消本次 Agent 任务并释放并发名额。
 - 未收到 `done` / `error` 就结束的流提示回复可能不完整。当前没有 SSE 自动重连或跨连接续传。
-- 保存失败保留当前表单，恢复网络后由用户重试；尚无服务端请求去重或持久化待同步队列。
+- 保存失败保留当前表单，恢复网络后由用户重试；照片整餐保存使用提交 UUID 防重，其余写接口没有通用去重机制。尚无持久化待同步队列。
 
 ## 五、核心数据流
 
@@ -128,12 +131,49 @@ Agent 默认限制单条提问长度、工具执行时间、循环轮数、上�
 
 ### 5.2 拍照识别与记账
 
+```mermaid
+sequenceDiagram
+    actor User as 用户
+    participant App as 手机 App
+    participant Go as Go 数据服务
+    participant Agent as Python Agent
+    participant Vision as DeepSeek 视觉 API
+    Note over App,Agent: 手机请求经 Caddy HTTPS 网关转发
+    App->>App: 按本地时间预选餐次，允许手动修改
+    User->>App: 拍照或从相册选图
+    App->>Go: POST /api/images/upload，压缩后的照片
+    Go-->>App: image_id
+    App->>Agent: POST /agent-api/analyze-meal，image_id
+    Agent->>Go: 验证令牌与图片归属
+    Go-->>Agent: 用户与图片元信息
+    alt 用户与图片的缓存有效
+        Agent-->>App: 返回已校验的多食物草稿
+    else 需要分析
+        Agent->>Go: 内部接口读取照片
+        Go-->>Agent: 图片二进制
+        Agent->>Vision: base64 照片 + 服务端 API Key
+        Vision-->>Agent: 食物、估重范围、每 100g 营养
+        Agent->>Agent: 校验 JSON，精确菜名匹配营养库参考值
+        Agent-->>App: 返回多食物草稿
+    end
+    User->>App: 修改份量、营养或餐次，确认记录
+    App->>Go: POST /api/diet/logs/batch，UUID + 全部记录
+    Go->>Go: 校验归属，事务保存日记与提交回执
+    Go-->>App: 已保存的整餐记录
+    opt 响应丢失后用户重试
+        App->>Go: 相同 UUID + 原提交内容
+        Go-->>App: 返回原回执，不重复插入
+    end
+```
+
 1. 用户先选择记录日期；手机按当前本地时间默认选中餐次，用户可手动修改，后续时钟变化不会覆盖选择。
 2. 选图后前端压缩为 JPEG，最长边 1600px；上传至 `POST /api/images/upload`。Go 验证格式与大小、生成 UUID 文件名，保存文件和图片元信息，返回 `{id, filename, mime_type, size}`。
 3. 新版 App 调用 `POST /agent-api/analyze-meal`，提交 `image_id`。Agent 实时校验登录、向 Go 核验图片归属，再读取缓存或图片。照片通过内联 base64 发往 DeepSeek 官方端点，不公开图片 URL。
 4. DeepSeek V4.1 Flash（API 名称 `deepseek-flash`）返回最多 12 项食物的菜名、估重及范围、每 100g 营养和估算假设。后端验证完整 JSON、有限非负营养数值、重量范围和上限；截断或不合规输出返回错误，无食物照片返回空清单。精确菜名命中营养库时采用库中参考值，否则标为 AI 估算。
 5. 用户可逐项调整实际食用克数、移除误识别项、修改名称及每 100g 营养；前端即时按克数重算，选择餐次后确认。估重范围及假设收纳在可展开的营养详情中。结果只是一份草稿，不自动写入日记。
 6. App 调用 `POST /api/diet/logs/batch`，提交 UUID 和 1–12 条记录。Go 校验全部输入及每张照片归属，用一个事务创建记录和提交回执。同一用户、同一编号和相同内容重试返回原回执，不重复插入；编号相同但内容不同返回 409。超时后 App 保留原提交并锁定编辑，允许重试；关闭后刷新日记。回执随数据库备份，目前未自动清理。
+
+餐次按手机本地小时预选：05:00–09:59 早餐，10:00–14:59 午餐，15:00–20:59 晚餐，其余为加餐。拍照、识别、确认及转手动录入均保留用户选择；编辑已有记录时沿用原餐次。界面保留四个餐次选项，已移除“按当前时间选择”按钮及重复说明，照片流程统一使用“记录这一餐”标题。
 
 前端见 [MealAnalysisFlow.tsx](../frontend/src/components/diary/MealAnalysisFlow.tsx)，压缩见 [foodImage.ts](../frontend/src/lib/foodImage.ts)，Agent 见 [meal_analysis.py](../agent/app/meal_analysis.py) 与 [meal.py](../agent/recognition/meal.py)，原子保存见 [diet_batch.go](../backend/internal/handler/diet_batch.go)。
 
