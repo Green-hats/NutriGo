@@ -1,94 +1,47 @@
-# NutriGo — 开发路线图
+# 开发路线图与交付状态
 
-## 总览
+核对日期：2026-09-18。功能基线 `f72677b`，公开安装包为 [Android 0.1.6 测试版](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)。源码提交、云端部署和 APK 是独立交付物，文档或纯服务端更新不意味着必须重新发布 APK。
 
-| 阶段 | 名称 | 状态 |
-|------|------|------|
-| 1 | Go 基础搭建 + 用户系统 | ✅ 完成 |
-| 2 | Go CRUD 完善 | ✅ 完成 |
-| 3 | Python Agent 重构 | ✅ 完成 |
-| 4 | 食物识别 + RAG 接入 | ✅ 完成 |
-| 5 | Go + Python 联调 | ✅ 完成 |
-| 6 | 前端开发 | ✅ 完成 |
-| 7 | 端到端联调 + 优化 | ✅ 完成 |
-| 8 | 文档 + 发布 | ✅ 完成 |
+## 当前可用能力
 
----
+| 领域 | 已实现 | 交付边界 |
+|---|---|---|
+| 手机界面 | Tauri 2 + React + MUI；对话、日记、档案；安全区和键盘适配 | Android 已发布；iOS 有工程及原生检查，尚无 IPA / TestFlight |
+| 认证 | 注册、登录、刷新轮换、登出吊销、认证限流、用户隔离 | 手机令牌仍使用 localStorage |
+| 饮食 | 手动 / 照片录入、餐次默认与修改、补记、编辑、删除、实时汇总和趋势 | 历史明细保留；单条新增尚无通用幂等机制 |
+| 照片 | DeepSeek 多项草稿、可改克重 / 营养、批量事务与 UUID 防重 | 估重是参考；CLIP 兼容旧客户端 |
+| AI | 流式对话、停止和重试、会话管理、5 个工具、展开工具详情 | `thinking` 取决于模型返回；无后台生成 / 推送 |
+| RAG | 2,277 条《营养学》教材片段，BGE + ChromaDB，维生素匹配保护 | 已部署；尚无完整章节页码溯源与系统评测 |
+| 图片一致性 | 引用保护、持久化删除任务、失败重试、超期孤儿文件对账 | 无引用照片按上传时间默认保留 7 天；详见数据文档 |
+| 备份 | SQLite 在线快照、图片复制、哈希 / 完整性检查、每次隔离恢复 | 服务器已启用每日任务和每小时检测，仍是本机备份 |
+| CI / 发布 | Lint、Test、Build、Tauri、Android、Gateway；固定签名 Release | Android 手动触发 / 标签发布；没有自动部署云端后端 |
 
-## 已完成功能清单
+[基线 CI](https://github.com/Green-hats/NutriGo/actions/runs/35299400942) 六个任务全部通过。该记录对应具体提交，不代表后续提交自动通过，也不代替真机体验和模型效果评估。检查命令见[贡献指南](../CONTRIBUTING.zh-CN.md)。
 
-### Go 后端 (:3333)
+## 优先完善
 
-| 功能 | 接口数 | 表数 |
-|------|--------|------|
-| 用户认证（注册/登录/刷新/登出） | 4 | 2（refresh_tokens / blacklisted_tokens） |
-| 健康档案 | 2 | 1 |
-| 图片管理（上传/删除/内部获取） | 5 | 1 |
-| 饮食记录（CRUD + 按日期查询） | 5 | 1 |
-| 每日汇总（7天聚合 + 查询） | 2 | 1 |
-| 可观测性（health/ready/metrics） | 3 | — |
-| 后台任务（图片清理 + 记录聚合 + 令牌清理） | — | — |
+优先级是建议顺序，并非已承诺工期。
 
-### Python Agent (:8000)
+| 优先级 | 工作 | 当前状态 | 完成标准 |
+|---|---|---|---|
+| P0 | 接通异地备份 | rclone 配置、复制和读回校验已实现；暂无独立存储 | 独立目标成功接收并验证快照，从另一环境恢复数据库和照片 |
+| P0 | 故障通知与外部监控 | 本机检测已运行；webhook 未配置，外部监控未接入 | 验证备份失败、恢复、磁盘不足与整机不可达的通知 |
+| P1 | 账号导出与注销 | 未实现 | 导出范围完整；删除账号相关数据并明确回执、会话、照片和备份残留期限 |
+| P1 | 统一保留策略 | 照片与令牌已有规则；会话 / 整餐回执无自动期限 | 文档化保留期、批次清理、用户可见删除语义及对应验证 |
+| P1 | 版本化数据库迁移 | Go 使用 AutoMigrate | 可预检、备份、升级和按版本恢复；失败不破坏原库 |
+| P1 | 用户存储与调用配额 | 有认证限流及单进程 AI 并发限制 | 按用户限制照片总量、请求频率与费用，并提供明确错误 |
+| P1 | 原生凭据存储 | localStorage | Keychain / Keystore 接入、迁移旧凭据、退出与账号切换验证 |
+| P1 | 照片与 RAG 评测 | 有单测和手工验收 | 代表性数据集、误差 / 相关性指标、失败样本、版本对比和来源定位 |
+| P1 | iOS 分发 | 原生工程和 CI 检查 | 签名、真机权限 / 网络 / 键盘验收、TestFlight 分发 |
+| P2 | 通用写入幂等与离线草稿 | 整餐保存已防重 | 其他写入明确重试语义；离线草稿、同步状态和冲突处理 |
+| P2 | 多时区与个性化目标 | 服务端统一业务时区、手机本地餐次 | 用户时区一致性、跨天测试；目标设置与进度计算 |
+| P2 | 周 / 月报告与食谱模块 | 已有趋势图和聊天参考 | 独立产品需求、计算与可核对的数据来源 |
 
-| 功能 | 路由数 | 工具数 |
-|------|--------|--------|
-| SSE 流式对话 + 重新生成 | 2 | — |
-| 会话管理（列表/详情/删除/重命名） | 4 | — |
-| 食物图片识别 | 1 | — |
-| 营养计算 | 1 | — |
-| Agent 工具（查营养/查档案/查记录/查汇总/搜知识） | — | 5 |
-| ChromaDB RAG（2277 条教材文档） | — | — |
-| 营养数据库（8407 条食物） | — | — |
+## 发布与维护原则
 
-### 前端 (:5173)
+- 后端和 Agent 接口需先兼容新客户端，再发布 APK；旧接口的移除应另设迁移计划。
+- 服务更新保留持久卷，先备份并准备恢复方式；禁止用删除卷来代替升级。
+- 维护 README、架构、API、数据生命周期和部署说明；历史部署文件须明确其适用边界。
+- 不用固定单测数量衡量当前质量，以 CI 输出、实际案例和对应提交为准。
 
-| 功能 | 页面数 |
-|------|--------|
-| 登录/注册（Loading/Error 状态） | 2 |
-| AI 对话（SSE 流式 + 工具卡片 + 历史会话） | 1 |
-| 饮食日记（5 步拍照流程 + 营养图表） | 1 |
-| 健康档案（骨架屏 + 表单） | 1 |
-| 交互规范（Toast/ErrorBlock/Skeleton/ChatErrorBoundary） | — |
-
----
-
-## 数据流
-
-```
-用户拍照 → Go 存图 → Python CLIP 识别(510道家常菜) → 用户选菜 + 填克数
-  → Python 计算营养 → Go 存饮食记录 → 用户 AI 对话
-    → Agent Loop → 查 nutrition.db / 调 Go / 搜 ChromaDB → SSE 流式回复
-
-数据生命周期：
-  Day 1~7: 原始记录（food_diaries）
-  Day 8+:  每日汇总（daily_summaries）+ 原记录删除 + 图片清理
-```
-
-## 数据库
-
-| 数据库 | 位置 | 内容 |
-|--------|------|------|
-| `data.db` | backend/ | users, user_profiles, food_diaries, food_images, daily_summaries, refresh_tokens, blacklisted_tokens |
-| `agent.db` | agent/ | sessions（对话历史） |
-| `nutrition.db` | agent/ | 8407 条食物营养数据 |
-| `chroma_db/` | agent/ | 2277 条向量化教材文档 |
-
-## 技术栈
-
-| 层 | 技术 |
-|----|------|
-| 前端 | React 19 / TypeScript / Vite / MUI 9 + Emotion / Zustand / recharts |
-| Go 后端 | Gin / GORM / golang-jwt / SQLite |
-| Python Agent | FastAPI / litellm / Chinese-CLIP / ChromaDB / BGE |
-
-## 测试
-
-| 层 | 用例数 | 命令 |
-|----|--------|------|
-| Go 后端单元测试 | 83 | `cd backend && go test ./internal/...` |
-| Go 后端集成测试 | 67 | `cd backend && python3 tests/test_api.py` |
-| Agent 单元测试 | 69 | `cd agent && uv run pytest` |
-| Agent 基础集成测试 | 20 | `cd agent && uv run python tests/integration/test_agent.py` |
-| Agent 全面提示词 | 26+ | `cd agent && uv run python tests/integration/test_agent_prompts.py --quick` |
-| 前端 | 38 | `cd frontend && npx vitest run` |
+参阅：[架构](ARCHITECTURE.md) · [数据管理](DATA_MANAGEMENT.md) · [手机发布](MOBILE.md) · [云端运维](../deploy/cloud/README.md) · [产品方案](PROPOSAL.md)。

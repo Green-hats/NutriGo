@@ -1,202 +1,149 @@
-# Python Agent 文档
+# Python Agent
 
-## 概述
+核对日期：2026-09-18。FastAPI 服务运行于 `8000`，负责聊天工具编排、照片营养草稿和 RAG 检索。生产通过 Caddy 的 `/agent-api/*` 进入，转发为 Agent 的 `/api/*`。用户数据由 Go 管理，聊天历史由 Agent 的 SQLite 保存。
 
-AI 服务层，负责 LLM 对话（Agent Loop）、食物图片识别、营养计算、RAG 知识库检索。端口 **8000**。
-
-技术栈：FastAPI + litellm + Chinese-CLIP + ChromaDB
-
-## 启动
+## 启动与配置
 
 ```bash
-cd agent && LITELLM_LOCAL_MODEL_COST_MAP=true uv run uvicorn app.main:app --port 8000
-# 或
-cd NutriGo && ./start.sh
+cd agent
+cp .env.example .env
+# 编辑 .env，填入所选聊天供应商的模型、地址和密钥
+uv sync --group dev
+LITELLM_LOCAL_MODEL_COST_MAP=true uv run uvicorn app.main:app --port 8000
 ```
 
-首次启动需下载两个模型（自动）：
-- Chinese-CLIP ViT-B-16 (~400MB)
-- BGE-small-zh-v1.5 (~100MB)
+配置优先以实际环境变量和 [config.py](../agent/app/config.py) 为准；本地 [.env.example](../agent/.env.example) 与[云端模板](../deploy/cloud/.env.example)提供不同聊天供应商示例，不能混用它们的 Key、模型名和地址。代码缺省值不是已验证的供应商可用模型清单。
 
-## 配置
+| 配置 | 作用 |
+|---|---|
+| `LLM_MODEL`、`LLM_API_KEY`、`LLM_BASE_URL` | LiteLLM 聊天供应商、模型及服务端凭据；自定义地址按供应商配置 |
+| `FOOD_VISION_MODEL` | 当前照片流程配置为 `deepseek-flash`，项目中称 DeepSeek V4.1 Flash |
+| `FOOD_VISION_API_KEY` | DeepSeek 官方照片分析 Key；留空时仅允许复用 DeepSeek 官方聊天配置的 Key |
+| `GO_BACKEND_URL`、`INTERNAL_TOKEN`、`JWT_SECRET` | Go 地址、内部鉴权和双方一致的 JWT 密钥 |
+| `APP_TIMEZONE` | AI 相对日期的业务时区，默认 `Asia/Shanghai` |
+| `AI_ENABLED`、`RAG_ENABLED`、`FOOD_RECOGNITION_ENABLED` | AI、知识库、照片相关功能开关 |
+| `RAG_MODEL_PATH` | BGE 模型标识或已准备的绝对目录；本地目录只从磁盘加载 |
+| `FOOD_MODEL_PATH`、`FOOD_MODEL_PRELOAD`、`FOOD_MODEL_INT8` | 旧版 CLIP 兼容接口的模型与预热 / 量化选项 |
+| `DATABASE_PATH` | 会话数据库路径，默认 `agent.db` |
 
-复制 `.env.example` 为 `.env`，填入 LLM API Key：
+当前照片请求在 [meal.py](../agent/recognition/meal.py) 中固定发往 `https://api.deepseek.com/chat/completions`，不会把第三方聊天代理 Key 自动发送到该地址。模型是否可用应以实际供应商响应验收，配置字符串本身不能证明开通了相应能力。
+
+生产应先准备并校验模型和知识库快照，避免依赖首次启动自动下载；流程见[云端部署](../deploy/cloud/README.md)。没有 AI Key 时可以关闭 AI，保留账号、日记等基础功能。`health` / `ready` 正常不代表 RAG 或模型推理已经通过验收。
+
+## 源码分工
+
+| 文件 | 职责 |
+|---|---|
+| [app/main.py](../agent/app/main.py) | 服务初始化、聊天、会话、旧识别接口与探针 |
+| [app/auth.py](../agent/app/auth.py) | 本地 JWT 验签并请求 Go 检查令牌状态 |
+| [app/llm_client.py](../agent/app/llm_client.py) | Agent Loop、流式输出、工具执行、超时和重试 |
+| [app/conversation.py](../agent/app/conversation.py)、[app/db.py](../agent/app/db.py) | 上下文裁剪和按用户隔离的会话持久化 |
+| [app/tools.py](../agent/app/tools.py) | 工具注册、身份绑定与结果处理 |
+| [app/meal_analysis.py](../agent/app/meal_analysis.py) | 照片归属、并发限制和短期缓存 |
+| [recognition/meal.py](../agent/recognition/meal.py) | DeepSeek 请求、JSON 草稿校验与营养库精确匹配 |
+| [recognition/go_client.py](../agent/recognition/go_client.py) | 内部 Go HTTP 客户端 |
+| [recognition/nutrition.py](../agent/recognition/nutrition.py)、[recognition/db.py](../agent/recognition/db.py) | 营养查询、摄入计算及用户数据工具 |
+| [recognition/rag.py](../agent/recognition/rag.py) | BGE + ChromaDB 检索 |
+| [recognition/multimodal.py](../agent/recognition/multimodal.py) | Chinese-CLIP 兼容流程 |
+
+## HTTP 接口
+
+下表为 Agent 服务内路径；App 将 `/api/` 前缀换成 `/agent-api/`。除两个探针外都要求 `Authorization: Bearer <JWT>`。
+
+| 方法 | 路径 | 行为 |
+|---|---|---|
+| GET | `/api/health` | 进程健康 |
+| GET | `/api/ready` | 会话数据库连接检查 |
+| GET | `/api/chat?message=&session_id=` | SSE；不传会话 ID 时创建会话 |
+| POST | `/api/sessions/:id/regenerate` | 重新生成最后一条回复，SSE |
+| GET | `/api/sessions?limit=&offset=` | 分页会话列表，`items/total/limit/offset` |
+| GET | `/api/sessions/:id` | 会话详情，仅本人 |
+| PATCH | `/api/sessions/:id` | 重命名，JSON `{"name":"新名称"}` |
+| DELETE | `/api/sessions/:id` | 删除会话 |
+| POST | `/api/sessions/batch-delete` | JSON `{"ids":[1,2]}`，删除本人会话并返回 `deleted` |
+| POST | `/api/analyze-meal` | JSON `{"image_id":42}`，返回可编辑的整餐草稿 |
+| POST | `/api/identify-food` | 旧 APK 的 CLIP 候选识别 |
+| POST | `/api/calculate-intake` | 旧流程按食物及克重计算摄入 |
+
+Agent HTTP 错误沿用 FastAPI 的 `detail` 格式，与 Go 的 `{code,message}` 不同。SSE 已建立后还可能通过 `error` 事件报告错误。未授权返回 `401`；他人会话返回 `404`；Go 无法确认令牌状态时返回 `503`，不绕过鉴权。
+
+照片接口示例响应：
+
+```json
+{
+  "items": [{
+    "name": "米饭",
+    "grams": 150,
+    "grams_low": 100,
+    "grams_high": 220,
+    "nutrition_per_100g": {"calories": 116, "protein_g": 2.6, "fat_g": 0.3, "carbs_g": 25.9},
+    "assumption": "按普通饭碗估算，缺少尺寸参照",
+    "nutrition_source": "database"
+  }],
+  "note": "请按实际吃下的份量调整克重。",
+  "model": "deepseek-flash"
+}
+```
+
+这是结构示例，不表示图片称重准确。模型可返回空 `items`，由 `note` 说明未识别到食物。重量限定 1–3000g 且落在给定范围内；每 100g 热量不超过 900kcal，宏量营养素各不超过 100g、合计不超过 105g；禁止非有限数值和额外字段。只有精确菜名命中且库值通过校验时才使用 `database`，其余标记 `model`。
+
+照片读取前及缓存命中前均校验 Go 元数据归属。缓存 1 小时、最多 500 项，每用户同时 1 个分析、每进程最多 4 个。模型 HTTP 超时 45 秒，外部调用整体限定 48 秒；上游读取、归属核验和后续数据库处理还可能增加总接口耗时。超时返回 `504`，分析失败 `502`，并发超限 `429`，未配置 `409`。这些限制目前是单进程状态，不是分布式配额。
+
+## 工具与对话
+
+| 工具 | 数据源 | 用途 |
+|---|---|---|
+| `lookup_food_nutrition` | 8,407 条食物参考库 | 查询每 100g 营养 |
+| `get_user_profile` | Go | 获取本人健康档案 |
+| `get_diet_history` | Go | 获取指定日期饮食 |
+| `get_diet_summary` | Go | 获取日期区间汇总和趋势 |
+| `search_nutrition_knowledge` | ChromaDB | 检索《营养学》教材段落 |
+
+用户身份来自 JWT，工具 schema 不要求模型提供用户 ID；执行时丢弃模型传入的身份字段，绑定经过认证的会话用户。Agent 本地验签之后还会请求 Go `/api/internal/auth/verify`，使登出吊销对 AI 接口生效。
+
+系统提示词每次请求 LLM 前按 `APP_TIMEZONE` 刷新日期，旧会话和重新生成也使用当前业务日期；不修改历史消息原文。App 的餐次预选使用手机本地时间；目前尚未保存每用户业务时区，跨时区旅行时两者可能不同。
+
+```mermaid
+sequenceDiagram
+    participant App as App
+    participant Agent as Agent
+    participant Go as Go 数据服务
+    participant LLM as 聊天模型
+    App->>Agent: JWT + 消息
+    Agent->>Go: 内部令牌 + JWT 校验
+    Go-->>Agent: 令牌身份
+    Agent->>LLM: 当前日期、上下文、工具定义
+    LLM-->>Agent: 正文或工具调用
+    Agent->>Go: 按认证身份查询档案 / 饮食
+    Go-->>Agent: 工具数据或错误
+    Agent->>LLM: 工具结果
+    LLM-->>Agent: 最终回复
+    Agent-->>App: SSE 并保存会话
+```
+
+SSE 事件包括 `session_id`、`thinking`、`chunk`、`tool_call`、`tool_result`、`done`、`error`。`thinking` 只转发配置模型实际返回的 `reasoning_content`；没有该字段时正文和工具仍可正常运行，不能把缺少思考面板当作失败。
+
+默认最多 15 轮 Agent 循环，单条消息最多 2,000 字符，上下文最多 40 条 / 8,000 token 预算，单次 LLM 超时 120 秒、工具超时 30 秒，同用户最多一个活跃对话。具体重试和上下文处理以配置及源码为准；用户停止或离开对话页面会取消流。
+
+## 知识库与兼容模型
+
+仓库的 `agent/chroma_db/` 包含 `nutrition_textbook` 集合的 2,277 条教材文档；BGE-small-zh-v1.5 生成 512 维嵌入。工具取相关片段，默认检索 3 条并限制片段长度；针对明确的维生素名称增加正文匹配，减少维生素 C / D 等混淆。无匹配返回未找到，不能伪造出处。
+
+目前返回片段与编号，尚无完整章节 / 页码溯源和系统化相关性评测；知识库载入不等于逐条专业审校或所有回答可靠。缺失、损坏或空知识库会降级；需要实际检索验证能力。
+
+Docker 构建排除知识库快照，部署时须停 Agent 并完整复制 SQLite 与向量索引到 `chroma-data` 卷。模型版本必须匹配，不能只复制一个 SQLite 文件。参考数据与模型不包含在用户数据每日快照中，恢复边界见[数据管理](DATA_MANAGEMENT.md)。
+
+Chinese-CLIP 继续支持调用旧识别接口的客户端；它输出菜名候选，不负责新流程的多食物估重。是否量化及预热由配置控制，不承诺固定识别延迟或准确率。
+
+## 验证
 
 ```bash
-LLM_MODEL=deepseek/deepseek-v4-flash    # litellm 格式，需支持 reasoning_content
-LLM_API_KEY=sk-xxx
-LLM_BASE_URL=https://opencode.ai/zen/go/v1
-GO_BACKEND_URL=http://localhost:3333
-INTERNAL_TOKEN=nutri-go-internal-token-dev
-JWT_SECRET=nutri-go-secret-key-change-in-production   # 与 Go 后端一致
+cd agent
+uv run pytest
+uv run ruff check app/ recognition/ tests/
+uv run mypy app/ recognition/
 ```
 
-> **模型选择**：Agent 的"思考过程"面板依赖模型返回 `reasoning_content`（思维链）。
-> 实测 opencode-go 上：`deepseek-v4-flash`（默认）**不返回**思维链；`deepseek-v4-pro`/`glm-5.2`
-> 有思维链但正文易被截断；**`qwen3.7-max` 思维链与正文均正常**，如需要思考过程展示可切换它。
-> 模型名需用 `openai/` 前缀（litellm 不识别 `opencode-go/` 前缀）。
+pytest 排除 `tests/integration/`，使用替身验证鉴权、工具身份、日期、流式输出、会话隔离、模型结果校验、缓存和失败处理，不以付费模型调用作为单测前提。
 
-## 目录结构
-
-```
-agent/
-├── app/                         # 对话层
-│   ├── main.py                  # FastAPI 入口 + 9 条路由
-│   ├── config.py                # 环境变量 + 系统提示词
-│   ├── models.py                # Pydantic 模型
-│   ├── db.py                    # agent.db (会话持久化，按 user_id 过滤)
-│   ├── auth.py                  # JWT 验签（HS256，纯标准库，兼容 Go）
-│   ├── tools.py                 # ToolRegistry + 5 个工具注册
-│   ├── conversation.py          # 对话状态 + 持久化（含 thinking 字段）
-│   ├── chat_io.py               # SSE 实时流式（asyncio.Queue）
-│   ├── rate_limit.py            # 会话锁 + 用户级并发上限
-│   ├── logging_setup.py         # contextvars 请求 ID 日志
-│   └── llm_client.py            # Agent Loop（流式工具调用 + 思维链推送）
-├── recognition/                 # 识别层
-│   ├── db.py                    # nutrition.db (8407 条食物)
-│   ├── multimodal.py            # Chinese-CLIP 识别（int8 量化）
-│   ├── go_client.py             # httpx → Go 后端
-│   ├── nutrition.py             # 营养计算 + Agent 工具函数
-│   └── rag.py                   # ChromaDB RAG 知识库
-├── tests/                       # pytest 单元测试（69 用例，不联网）
-├── chroma_db/                   # 向量数据库（2277 条教材文档）
-├── nutrition.db                 # 食物营养数据库（8407 条）
-├── .env.example
-└── pyproject.toml
-```
-
-## 路由
-
-| 方法 | 路径 | 认证 | 说明 |
-|------|------|------|------|
-| GET | `/api/health` | 无 | 健康检查 |
-| GET | `/api/ready` | 无 | 就绪探针（校验 agent.db 可连接） |
-| GET | `/api/chat?message=&session_id=` | JWT | SSE 流式对话（含 thinking + 工具调用事件） |
-| GET | `/api/sessions?limit=&offset=` | JWT | 会话列表（分页信封：items/total/limit/offset） |
-| GET | `/api/sessions/:id` | JWT | 会话详情（校验归属，越权 404） |
-| POST | `/api/sessions/:id/regenerate` | JWT | 重新生成最后一条回复 |
-| DELETE | `/api/sessions/:id` | JWT | 删除会话（校验归属） |
-| POST | `/api/sessions/batch-delete` | JWT | 批量删除会话（body `{ ids: [...] }`，仅本人，返回 `{ deleted }`） |
-| PATCH | `/api/sessions/:id` | JWT | 重命名会话 |
-| POST | `/api/identify-food` | JWT | CLIP 食物识别（家常菜分类） |
-| POST | `/api/calculate-intake` | JWT | 按克数算实际摄入营养 |
-
-> 所有业务路由（除 `/api/health`）均要求请求头 `Authorization: Bearer <JWT>`。
-> `user_id` **不再**通过 URL 参数传入，而是从 JWT 中解出（`app/auth.py`）。
-> 未带 token / token 无效 → `401`；越权访问他人会话 → `404`。
-
-## Agent 工具（5 个）
-
-| 工具 | 数据源 | 功能 |
-|------|--------|------|
-| `lookup_food_nutrition` | nutrition.db | 查食物每 100g 营养 |
-| `get_user_profile` | Go 后端 | 查用户档案（过敏原、目标、基础病等） |
-| `get_diet_history` | Go 后端 | 查某天饮食记录 |
-| `get_diet_summary` | Go 后端 | 查最近多日营养汇总与趋势 |
-| `search_nutrition_knowledge` | ChromaDB | 搜索《营养学》教材知识库 |
-
-## Agent Loop 流程
-
-日期由 `APP_TIMEZONE`（默认 `Asia/Shanghai`）确定。系统提示词每次发给模型时刷新日期，近 7 天汇总与其共用业务日历，不依赖服务器的本地时区。旧会话继续提问或重新生成时使用当前日期，历史消息原文不会被改写。
-
-```
-JWT 校验（提取 user_id） → 服务端绑定会话用户
-→ 用户消息 → LLM 流式推理
-  ├── reasoning_content → thinking 事件（思维链，前端折叠展示）
-  ├── chunk token       → 实时 SSE 推送
-  ├── tool_call → 执行工具（查 DB / 调 Go / 搜 ChromaDB）
-  │             → 结果追加到对话
-  │             → 继续 LLM
-  └── done → 对话保存到 agent.db
-```
-
-### SSE 事件类型
-
-| 事件 | 触发时机 | 前端处理 |
-|------|---------|---------|
-| `thinking` | 模型思维链逐段返回 | 折叠面板「🤔 思考过程」流式展示 |
-| `chunk` | 正文逐 token | 打字机渲染 |
-| `tool_call` | Agent 决定调用工具 | 展示工具卡片 |
-| `tool_result` | 工具执行完成 | 展示结果 |
-| `done` / `error` | 结束 / 出错 | 收尾 |
-
-> 思维链仅在模型返回 `reasoning_content` 时出现。无思维链的模型（如 deepseek-v4-flash）
-> 会自动跳过 thinking 事件，不影响正文流式输出。
-
-### 用户身份识别
-
-- `user_id` 从 `Authorization` 头中的 JWT 解出，**不信任 URL 参数**
-- 工具 schema 不向 LLM 暴露 `user_id`，系统提示词说明身份由服务端绑定
-- `llm_client.py` 通过独立参数 `user_id=conv.user_id` 传入会话身份；工具执行层丢弃模型提供的 `user_id`，缺少有效认证身份时拒绝执行用户数据工具
-- 图片识别先通过 Go 图片元信息校验归属，再读取缓存或图片内容；他人的图片返回 403，图片不存在返回 404，无法验证归属时返回 502
-
-### 健壮性
-
-- **重试退避**：LLM 调用失败/超时最多重试 2 次，指数退避 + 随机抖动
-- **Go 客户端**：共享连接池、统一超时（连接 5s/读写 30s），网络错误与 502/503/504 自动重试
-- **RAG 容错**：`chroma_db/` 缺失/损坏时降级为"知识库未初始化"，不阻塞启动
-- **会话锁清理**：空闲 30 分钟的会话锁被后台任务定期清除，防内存泄漏
-- **可观测性**：请求日志中间件（method/path/status/耗时/IP）+ `/api/ready` 就绪探针
-
-## 数据库
-
-| 文件 | 表/集合 | 说明 |
-|------|--------|------|
-| `agent.db` | sessions | 对话历史持久化（含 user_id 归属） |
-| `nutrition.db` | foods | 8407 条食物，按 category 推断份量 |
-| `chroma_db/` | nutrition_textbook | 2277 条教材文档，BGE 嵌入 |
-
-## Chinese-CLIP
-
-模型：OFA-Sys/chinese-clip-vit-base-patch16 (~400MB)
-
-```python
-from recognition.multimodal import identify
-results = identify(image_bytes, labels=["宫保鸡丁", "红烧肉", ...], top_k=5)
-# → [{"name":"宫保鸡丁","confidence":0.73}, ...]
-```
-
-当前使用"家常菜"分类（510 条），可通过 `list_names(category="四川菜")` 切换。
-
-## ChromaDB RAG
-
-`agent/chroma_db/` 已随 Git 仓库提供，包含 SQLite 数据库和向量索引，共 2277 条教材文档。拉取后从 `agent/` 目录启动服务即可加载；嵌入模型仍需下载或提前缓存。云端可用 `RAG_MODEL_PATH` 指定已校验的模型绝对路径，只从本地加载；空集合会明确降级为知识库不可用。更新知识库后，应停止写入，再将整个目录中的数据库和索引一起提交。
-
-Docker 构建仍排除此目录，已有部署需将数据复制到 Agent 的 `/app/agent/chroma_db` 持久卷中，并在复制期间停止 Agent 服务。
-
-嵌入模型：BAAI/bge-small-zh-v1.5（免费，中文优化）
-文档来源：《营养学》教材 8 篇（基础营养、食物营养、人群营养等）
-
-```python
-from recognition.rag import search
-docs = search("糖尿病饮食建议", top_k=3)
-# → [教材段落1, 教材段落2, 教材段落3]
-```
-
-查询延迟 < 1 秒，无需 API Key。
-
-## 测试
-
-### 单元测试（pytest，不联网、不加载模型）
-
-```bash
-cd agent && uv run pytest
-```
-
-69 个用例，覆盖：Agent Loop（流式/工具调用/重试/取消）、工具注册/执行/超时/截断、会话上下文裁剪、JWT 验签、会话 CRUD（归属/回滚/越权）、Go 客户端（MockTransport + 重试）、会话锁清理。
-
-### 集成测试
-
-测试文件位于 `agent/tests/integration/`（需在 agent 目录用其 venv 运行，见 `docs/agent-test-prompts.md`）：
-
-```bash
-# 基础功能测试（自启动服务，20 用例）
-cd agent && uv run python tests/integration/test_agent.py
-
-# 全面提示词测试（需 Agent 服务已启动，26+ 用例）
-cd agent && uv run python tests/integration/test_agent_prompts.py --quick
-```
-
-基础测试覆盖：JWT 鉴权（无 token/坏 token → 401）、会话 CRUD、SSE 对话、营养计算（含无 token → 401）。
-测试脚本内置 JWT 生成工具（`make_token` / `auth_headers`），无需真实登录。
-完整 Agent 工具链测试需 Go 后端运行；用干净数据库跑最准（`DATABASE_PATH=/tmp/test.db`）。
+`tests/integration/` 脚本是开发联调辅助，部分使用固定测试用户和开发签名密钥，依赖独立 Go / Agent、模型或外部 LLM；运行前检查脚本配置，不能直接对生产执行。真实云端验收应注册测试账号并经 Go 登录取得令牌。提示词和人工判定标准见[测试清单](agent-test-prompts.md)，CI 与本地完整命令见[贡献指南](../CONTRIBUTING.zh-CN.md)。

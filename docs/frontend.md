@@ -1,189 +1,105 @@
-# 前端文档
+# 手机端界面与交互
 
-## 概述
+核对日期：2026-09-18。前端使用 **Tauri 2 + Rust + React 19 + TypeScript + Vite + MUI 9 + Emotion + Zustand**。页面和样式随安装包分发，浏览器 `:5173` 用于开发预览；Android / iOS 工具链、签名与 Release 见 [MOBILE.md](MOBILE.md)。
 
-Tauri 2 手机 App 的 React 界面，提供拍照识别、AI 对话、饮食日记和健康档案。Android / iOS 工程位于 `frontend/src-tauri`，运行方式见 [手机 App 文档](MOBILE.md)。**5173** 仅为开发预览端口。
-
-技术栈：Tauri 2 + Rust + React 19 + TypeScript + Vite + MUI 9 + Emotion + Zustand
-
-## 界面规范
-
-采用森林绿主色、暖白背景、统一的圆角和间距；样式通过 `theme.ts` 与 MUI `sx` 管理。三个底部导航保留对话、日记和档案结构，拍照识别与趋势使用全屏 Dialog，会话历史使用 Drawer。日记只展示真实记录合计；趋势分别显示热量与克数，不混用单位。图表和主页面按需加载。
-
-输入框保持 16px 字号、图标操作至少 44px 触控范围，弹窗使用 MUI 焦点管理；支持安全区、可视窗口高度调整和减少动画偏好。最低要求为 iOS 17 / Chromium WebView 117。
-
-## 启动
+## 开发与结构
 
 ```bash
-export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh"
-cd frontend && npm run dev
-# 或
-cd NutriGo && ./start.sh
+cd frontend
+npm ci
+npm run dev
+# 配好原生工具链后可用 npm run android:dev 或 npm run ios:dev
 ```
 
-## 目录结构
+Node.js 需 22.12+，CI 使用 Node.js 24。开发时 Vite 代理 Go 与 Agent，正式 App 通过 `VITE_API_BASE_URL` 访问 HTTPS 网关。该变量随包分发，只能放公开地址；服务器地址变更需要重新构建。
 
-```
-frontend/src/
-├── main.tsx                    # React 入口
-├── App.tsx                     # 路由 + Toast
-├── theme.ts                    # MUI 主题、配色、圆角、触控尺寸
-├── index.css                   # 安全区、键盘适配与 Markdown 样式
-├── types/index.ts              # TypeScript 类型定义
-├── stores/
-│   ├── auth.ts                 # Zustand: token, refreshToken, user 持久化；profile 仅内存
-│   └── chat.ts                 # Zustand: messages, sessionId, isStreaming
-├── api/
-│   ├── config.ts               # 云端 API 地址校验与路径拼接
-│   ├── http.ts                 # 原生 HTTP 插件 / 浏览器 fetch 适配
-│   ├── go.ts                   # Go REST (自动带 JWT + 401 自动刷新)
-│   ├── agent.ts                # Python REST (自动带 JWT + 401 自动刷新)
-│   ├── authSession.ts          # 刷新令牌换取新令牌（并发护栏）+ 登出
-│   └── sse.ts                  # fetch + ReadableStream 解析 SSE（带 JWT）
-├── components/
-│   ├── ui/
-│   │   ├── LoadingButton.tsx   # 按钮 + spinner
-│   │   ├── Toast.tsx           # MUI Alert 通知（error/success）
-│   │   ├── ErrorBlock.tsx      # 错误 + 重试
-│   │   ├── Skeleton.tsx        # 灰色占位块
-│   │   └── ChatErrorBoundary.tsx # 崩溃边界
-│   ├── layout/
-│   │   ├── AppLayout.tsx       # 底部导航壳
-│   │   ├── BottomNav.tsx       # 3 个 Tab（对话/日记/我的）
-│   │   └── ProtectedRoute.tsx  # 路由守卫
-│   ├── chat/
-│   │   └── HistorySidebar.tsx  # 会话历史列表
-│   └── diary/
-│       ├── DietRecordEditor.tsx # 手动录入与编辑，共用校验和保存流程
-│       ├── MealTypeField.tsx    # 早餐/午餐/晚餐/加餐选择
-│       └── NutritionChart.tsx  # recharts 柱状图（7/14/30天）
-├── pages/
-│   ├── Login.tsx               # 登录（LoadingButton）
-│   ├── Register.tsx            # 注册（LoadingButton）
-│   ├── Chat.tsx                # SSE 流式对话 + 思考面板 + 工具展示 + 历史
-│   ├── Diary.tsx               # 日期选择 + 5步拍照流程 + 图表
-│   └── Profile.tsx             # 档案表单 + 骨架屏
-└── test/
-    └── setup.ts                # vitest 环境配置（jsdom + jest-dom）
+| 源码 | 职责 |
+|---|---|
+| [App.tsx](../frontend/src/App.tsx) | HashRouter、页面装配和通知 |
+| [theme.ts](../frontend/src/theme.ts)、[index.css](../frontend/src/index.css) | MUI 主题、Markdown、移动端安全区 |
+| [api/config.ts](../frontend/src/api/config.ts)、[api/http.ts](../frontend/src/api/http.ts) | API 地址、原生 HTTP / 浏览器 fetch 适配、超时与取消 |
+| [api/authSession.ts](../frontend/src/api/authSession.ts) | 并发刷新、登录会话隔离、登出 |
+| [api/sse.ts](../frontend/src/api/sse.ts) | 通过统一网络层解析流式事件 |
+| [stores](../frontend/src/stores/) | 认证状态、会话和流式消息 |
+| [components/chat](../frontend/src/components/chat/) | 历史抽屉、可展开工具详情 |
+| [components/diary/MealAnalysisFlow.tsx](../frontend/src/components/diary/MealAnalysisFlow.tsx) | 照片分析、多项食物编辑和整餐提交 |
+| [components/diary/DietRecordEditor.tsx](../frontend/src/components/diary/DietRecordEditor.tsx) | 手动记录和编辑 |
+| [lib/meal.ts](../frontend/src/lib/meal.ts)、[lib/foodImage.ts](../frontend/src/lib/foodImage.ts) | 餐次默认值、照片预处理 |
+| [lib/mobile.ts](../frontend/src/lib/mobile.ts) | 系统栏、键盘与可视窗口适配 |
+
+## 页面与状态
+
+| HashRouter 路径 | 功能 |
+|---|---|
+| `/login`、`/register` | 注册、登录 |
+| `/chat` | SSE 对话、停止、重新生成、会话历史、工具详情 |
+| `/diary` | 日期切换、照片或手动记录、编辑、删除、营养趋势 |
+| `/profile` | 健康档案、目标、过敏原、基础病、登出 |
+
+受保护页面需要登录。令牌、刷新令牌和用户信息按 API 地址隔离保存在 localStorage；档案仅放内存，尚未接入 Keychain / Keystore。账号切换会清理会话状态；旧请求的迟到响应不得写入新账号。
+
+普通 API 和 SSE 都通过同一网络适配层：Tauri 环境使用原生 HTTP 插件，浏览器使用 fetch。并发 `401` 共用一次刷新，原请求最多自动重试一次；只有明确凭证失效才清除登录态，断网、限流或服务故障保留登录信息。
+
+## 当前照片记录流程
+
+```mermaid
+flowchart LR
+    Pick["拍照 / 相册"] --> Upload["压缩并上传 Go"]
+    Upload --> Analyze["Agent 调用 DeepSeek"]
+    Analyze --> Draft["多项食物草稿"]
+    Draft --> Edit["修改克重、营养和餐次"]
+    Edit --> Save["UUID 批量保存"]
+    Save --> Diary["刷新对应日期日记"]
+    Analyze -->|"失败或无食物"| Manual["重试 / 手动记录"]
 ```
 
-## 页面路由
+当前入口是多模态整餐分析；旧版“CLIP 候选 → 选择菜名 → 调克数”的流程仅保留服务端兼容接口。
 
-使用 HashRouter，安装包中的地址形如 `#/chat`，不依赖服务器页面回退。
+- 系统文件选择器负责拍照 / 相册入口。App 解码、转 JPEG、将长边缩至 1600px，并限制上传大小；无法解码时提示换用 JPG、PNG 或 WebP。
+- 模型可返回最多 12 项食物。克重和营养可修改，估重范围、假设与每 100g 营养放在可展开详情中；照片分析结果不会自动写入日记。
+- 餐次按手机本地时间预选：05:00–09:59 早餐，10:00–14:59 午餐，15:00–20:59 晚餐，其余为加餐。用户可直接修改，选择贯穿分析、确认及转手动录入。
+- 保存使用单次 UUID 和完整草稿快照。结果不确定时保留原提交、锁定编辑并允许重试；同一提交由后端防重。明确修改为新的一餐应使用新提交。
+- 日期使用日记当前选中日期；“记录这一餐”不会强制改回今天。照片清理和日记删除的关系见[数据管理](DATA_MANAGEMENT.md)。
 
-| 路径 | 页面 | 认证 | 功能 |
-|------|------|------|------|
-| `/login` | 登录 | 无 | 用户名密码登录 |
-| `/register` | 注册 | 无 | 注册新账号 |
-| `/chat` | AI 对话 | JWT | SSE 流式对话 + 工具调用 + 历史会话 |
-| `/diary` | 饮食日记 | JWT | 日期选择 + 拍照/手动记录 + 编辑/删除确认 + 营养趋势图 |
-| `/profile` | 健康档案 | JWT | 身高/体重/目标/过敏原/基础病表单 |
+## 日记与档案
 
-## 状态管理
+手动记录填写日期、餐次、名称、份量及实际摄入总量的营养值，不依赖 AI。编辑采用完整字段更新；保存失败保留表单，删除需要确认。成功后重新查询对应日期；快速切换日期时忽略过期响应。
 
-### authStore
+每日合计和趋势读取后端实时汇总。界面区分加载、空数据与错误，不把连接失败渲染成“没有记录”。趋势分别标示热量与克数，图表按需加载。
 
-仅 token、refreshToken、user 按 API 地址隔离后持久化到 localStorage，profile 留在内存；登录与登出均清空会话状态。目前尚未接入 Keychain / Keystore。
+年龄输入接受 0–150 的整数，非法小数在输入处提示并阻止提交，留空可保存其他字段；身高体重允许小数。后端读取错误必须显示失败，不能用空档案覆盖已有信息。
 
-```typescript
-{ token: string, refreshToken: string, user: { id, username }, profile: UserProfile }
-```
+## 对话与 Markdown
 
-API 层自动注入：
-- `go.ts` / `agent.ts` 自动从 authStore 取 token 加 `Authorization` 头
-- `go.ts` 自动从 authStore 取 userId 拼到 profile 路径
-- **401 自动刷新**：请求遇 401 时，`authSession.ts` 用 `refresh_token` 换新令牌并重试一次；
-  并发 401 共享同一个刷新请求；凭证无效才清登录态，断网或服务临时故障保留登录态
-- `Chat.tsx` 自动从 authStore 取 token 传给 SSE（`user_id` 由后端从 JWT 解出，不再传 URL 参数）
-- 登出会先调用后端 `/api/auth/logout` 吊销令牌，再清理本地状态
+| SSE 事件 | 界面行为 |
+|---|---|
+| `session_id` | 绑定服务端会话 |
+| `thinking` | 仅模型返回 `reasoning_content` 时显示折叠分析过程 |
+| `chunk` | 追加正文，渲染 Markdown |
+| `tool_call` | 展示工具处理中状态 |
+| `tool_result` | 更新工具卡片并允许展开详情 |
+| `done`、`error` | 结束流或显示错误 |
 
-### chatStore
+SSE 使用携带 Authorization 的请求流，不依赖浏览器 EventSource。用户可以停止生成，离开页面会取消当前流；目前没有后台持续生成或系统推送。
 
-```typescript
-{ messages: ChatMessage[], sessionId: number, isStreaming: boolean }
-```
+饮食记录、档案和趋势工具卡片可展开查看具体数据。Markdown 禁用单个 `~` 的删除线识别，避免 `2200~2400` 这样的区间把中间文字划掉；标准 `~~删除线~~` 仍按 Markdown 渲染。模型分析面板是可选输出，不保证每个模型都会返回。
 
-`appendToLast` 处理流式场景：最后一条是 `assistant` 则追加，否则新建。
-`appendThinkingToLast` 把思维链流式追加到最后一条 assistant 消息的 `thinking` 字段。
-`updateToolResult` 按 toolName 匹配更新对应工具消息卡片。
+## 手机布局与网络体验
 
-`ChatMessage` 结构：
-```typescript
-{ role: 'user' | 'assistant' | 'tool', content: string,
-  toolName?: string, toolResult?: string, thinking?: string }
-```
+界面采用森林绿、暖白和统一圆角；底部保留对话、日记、我的三个入口，主要表单支持键盘和安全区。Android 原生层向 WebView 提供系统栏 / 刘海尺寸，背景铺满窗口，内容避让系统区域；iOS 使用 CSS 安全区。最低运行要求和真机验收边界见 [MOBILE.md](MOBILE.md)。
 
-## 拍照识别流程（5 步进度条）
+普通请求及响应体等待最长 20 秒，AI 请求和流式空闲等待最长 60 秒。持续收到流式内容会刷新空闲计时。系统报告断网时持续提示，网络恢复后让用户重试，不自动重发写操作。服务不可达、超时、暂时故障和凭证失效分别处理。
 
-```
-📷 拍/选图 → 🔍 识别(510道菜) → 📋 选候选 → ⚖️ 调克数 → ✅ 保存
-```
+整餐照片保存已防重；其他写入超时仍需核对是否已保存。正常产品没有离线数据同步或离线 AI；独立 preview 包仅用于不联网的界面体验。
 
-特色：
-- 5 步进度条，每步有视觉反馈
-- 克数输入 500ms debounce 防抖
-- 营养估算 Loading 骨架屏
-- 保存中旋转动画 + 摘要卡片
-- 失败 Toast 提示 + 可重新拍照
-
-## 饮食记录编辑
-
-手动记录填写日期、餐次、食物、份量和实际食用总量对应的热量及三大营养素，不依赖 AI。拍照记录也可选择餐次；默认值按当前时间建议，不再固定为加餐。候选都不准确时可转手动记录。
-
-每条记录可编辑；失败时保留表单，保存中阻止重复提交。删除需要二次确认。保存或删除完成后重新查询当前日期；快速切换日期时忽略过期响应，避免显示错日数据。汇总与趋势由后端实时计算。
-
-## SSE 流式对话
-
-- `sse.ts` 用 `fetch` + `ReadableStream` 解析 SSE，连接 Python `/agent-api/chat`（经 Vite 代理到 :8000）
-- 使用 fetch 而非 `EventSource` 的原因：`EventSource` 无法自定义 `Authorization` 头，而对话接口要求 JWT
-- 返回 `{ cancel }` 句柄，可手动中断连接
-- 监听 5 类事件：
-
-| 事件 | 处理 |
-|------|------|
-| `thinking` | 折叠面板「分析过程」展示模型返回的推理摘要 |
-| `chunk` | ReactMarkdown 渲染，流式输出时追加光标 |
-| `tool_call` / `tool_result` | 自然语言状态提示，展示处理中或完成状态 |
-| `done` / `error` | 收尾 / 错误提示 |
-
-- 思维链仅在模型返回 `reasoning_content` 时出现，无思维链时面板自动隐藏
-- `ChatErrorBoundary` 捕获崩溃，显示错误+重试
-
-## 交互规范
-
-| 场景 | 方案 | 组件 |
-|------|------|------|
-| API 等待 | 按钮旋转 + 禁用 | `LoadingButton` |
-| API 错误 | 顶部提示，3.5 秒消失 | `Toast` |
-| 网络错误 | 图标 + 消息 + 重试按钮 | `ErrorBlock` |
-| 数据加载 | 灰色占位块 | `Skeleton` |
-| 数据为空 | 图标 + 引导文案 + 行动按钮 | 页面内嵌 |
-| 组件崩溃 | 错误信息 + 重试 | `ChatErrorBoundary` |
-
-## 依赖
-
-| 生产依赖 | 用途 |
-|----------|------|
-| react + react-dom | 框架 |
-| react-router-dom | 路由 |
-| zustand | 状态管理 |
-| @mui/material + @emotion/react + @emotion/styled | 组件、主题与样式 |
-| @mui/icons-material | Material Rounded 图标 |
-| react-markdown | Markdown 渲染 |
-| recharts | 营养趋势图表 |
-
-| 开发依赖 | 用途 |
-|----------|------|
-| typescript | 类型检查 |
-| vite | 构建工具 |
-| vitest + jsdom | 单元测试 |
-| @testing-library/react + user-event + jest-dom | 组件测试 |
-| oxlint | 代码检查 |
-
-## 测试
+## 验证
 
 ```bash
-cd frontend && npx vitest run
+cd frontend
+npm run lint
+npm test
+npm run build
+VITE_API_BASE_URL=https://api.example.com npm run build:app
 ```
 
-116 个用例（`*.test.ts/tsx`），覆盖：chat store 逻辑、Login 登录流程、Chat 流式渲染（SSE mock）、Diary 日记页、拍照识别流程（FoodFlow）、Profile 档案页、NutritionChart 图表、HistorySidebar 批量删除、刷新令牌逻辑、Android 安全区换算与键盘／旋转状态。
+单测覆盖认证隔离与刷新、网络超时、SSE、聊天、日记和整餐重试、档案校验、趋势、餐次以及安全区。原生工程由 CI 检查并构建 Android APK；浏览器测试不能替代 Android / iOS 的拍照、权限、返回键和软键盘真机验收。完整入口见[贡献指南](../CONTRIBUTING.zh-CN.md)。

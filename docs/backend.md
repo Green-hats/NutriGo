@@ -1,136 +1,86 @@
-# Go 后端文档
+# Go 数据服务
 
-## 概述
+核对日期：2026-09-18。Go + Gin + GORM + SQLite 提供账号、档案、饮食、汇总、图片及令牌管理；开发端口为 `3333`。生产由 Caddy 转发 `/api/*`，Go 端口不直接公开。字段、状态码与完整路由见 [API 文档](../backend/API.md)。
 
-数据服务层，负责用户认证、健康档案、饮食记录、图片存储、每日汇总聚合。端口 **3333**。
-
-技术栈：Gin + GORM + SQLite + golang-jwt + golang.org/x/time
-
-## 启动
+## 启动与配置
 
 ```bash
-cd backend && go run ./cmd/server
-# 或
-cd NutriGo && ./start.sh
+cd backend
+go run ./cmd/server
 ```
 
-## 目录结构
+也可在仓库根目录运行 `./start.sh`。Go 直接读取环境变量，配置样例见 [backend/.env.example](../backend/.env.example)，不会自动加载该样例。生产由 [Compose](../deploy/cloud/compose.yml) 注入；生产模式缺失或使用开发密钥会拒绝启动。数据库迁移目前使用 GORM `AutoMigrate`，尚无版本化迁移及自动降级流程。
 
-```
-backend/
-├── cmd/server/main.go          # 程序入口（优雅关闭、后台任务、路由）
-├── internal/
-│   ├── config/
-│   │   ├── db.go               # SQLite 连接
-│   │   ├── jwt.go              # JWT 签发/刷新令牌生成/哈希
-│   │   └── rate_limit.go       # 认证接口限流配置
-│   ├── handler/
-│   │   ├── auth.go             # 注册/登录/刷新令牌/登出
-│   │   ├── profile.go          # 健康档案（用户+内部）
-│   │   ├── image.go            # 图片上传/删除/元信息/二进制
-│   │   ├── diet.go             # 饮食记录 CRUD + 内部查询
-│   │   ├── summary.go          # 每日汇总查询（合并实时+聚合表）
-│   │   └── validate.go         # 日期参数校验
-│   ├── middleware/
-│   │   ├── jwt.go              # JWT 认证 + 黑名单校验
-│   │   ├── internal_auth.go    # 内部服务鉴权
-│   │   ├── rate_limit.go       # IP 令牌桶限流
-│   │   └── observability.go    # 请求日志 + /metrics 指标
-│   ├── model/
-│   │   ├── user.go             # User + UserProfile
-│   │   ├── food_image.go       # FoodImage
-│   │   ├── food_diary.go       # FoodDiary
-│   │   ├── daily_summary.go    # DailySummary
-│   │   └── token.go            # RefreshToken + BlacklistedToken
-│   └── service/
-│       ├── cleanup.go          # 图片定时清理（每 1h）
-│       └── token_cleanup.go    # 过期令牌清理（每 6h）
-├── uploads/                    # 图片存储目录（.gitignore）
-└── API.md                      # API 文档
-```
+## 源码分工
 
-## 路由
+| 文件 / 目录 | 职责 |
+|---|---|
+| [cmd/server/main.go](../backend/cmd/server/main.go) | 初始化、建表、路由、后台任务、优雅关闭 |
+| [internal/config](../backend/internal/config/) | SQLite、密钥、令牌和认证限流配置 |
+| [handler/auth.go](../backend/internal/handler/auth.go) | 注册、登录、刷新轮换、登出、令牌校验 |
+| [handler/profile.go](../backend/internal/handler/profile.go) | 个人档案读写与内部查询 |
+| [handler/diet.go](../backend/internal/handler/diet.go) | 单条饮食 CRUD、字段校验与归属检查 |
+| [handler/diet_batch.go](../backend/internal/handler/diet_batch.go) | 1–12 条记录事务保存与 UUID 防重 |
+| [handler/summary.go](../backend/internal/handler/summary.go) | 实时明细与历史基数合并汇总 |
+| [handler/image.go](../backend/internal/handler/image.go) | 上传、归属、元信息、二进制及删除入口 |
+| [middleware](../backend/internal/middleware/) | JWT、内部令牌、限流、请求日志和指标 |
+| [service/image_deletion.go](../backend/internal/service/image_deletion.go) | 持久化文件删除任务 |
+| [service/cleanup.go](../backend/internal/service/cleanup.go) | 图片过期清理、删除重试、磁盘对账 |
+| [service/token_cleanup.go](../backend/internal/service/token_cleanup.go) | 令牌清理 |
 
-### 公共路由（无需认证）
+## 路由与信任边界
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/health` | 健康检查 |
-| GET | `/api/ready` | 就绪探针（校验 DB 连接） |
-| GET | `/api/metrics` | Prometheus 格式指标 |
-| POST | `/api/auth/register` | 注册（IP 限流） |
-| POST | `/api/auth/login` | 登录，签发访问+刷新令牌（IP 限流） |
-| POST | `/api/auth/refresh` | 刷新令牌轮换（IP 限流） |
+| 分组 | 路由 |
+|---|---|
+| 无用户认证 | `/api/health`、`/api/ready`、`/api/metrics`；注册、登录、刷新 |
+| 用户 JWT | 登出；本人档案；图片上传/删除；饮食新增、批量新增、列表、修改、删除；营养汇总 |
+| `X-Internal-Token` | 图片元信息/文件；内部档案、饮食、汇总查询 |
+| 内部令牌 + 用户 JWT | `/api/internal/auth/verify` |
 
-### 受保护路由（JWT）
+`/api/metrics` 在 Go 服务内无用户认证，公网 Caddy 会阻断它与内部接口。内部令牌授权服务间访问，不应发给 App；Agent 必须先根据用户 JWT 检查数据归属。JWT 中间件校验签名、到期及吊销状态，不等于每次重新查询账号状态。
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/auth/logout` | 登出，吊销访问+刷新令牌 |
-| GET | `/api/users/:id/profile` | 查看档案 |
-| PUT | `/api/users/:id/profile` | 更新/创建档案 |
-| POST | `/api/images/upload` | 上传图片 |
-| DELETE | `/api/images/:id` | 删除图片 |
-| POST | `/api/diet/logs` | 创建饮食记录 |
-| GET | `/api/diet/logs?date=` | 按日期查询 |
-| PUT | `/api/diet/logs/:id` | 编辑自己的记录（完整替换） |
-| DELETE | `/api/diet/logs/:id` | 删除记录 |
-| GET | `/api/diet/summaries?start=&end=` | 每日汇总 |
+业务错误使用 `{code,message}`，图片成功读取返回二进制，指标返回 Prometheus 文本。`health` 只证明进程可响应，`ready` 检查数据库连接；它们都不能替代照片、AI 或 RAG 端到端验证。
 
-### 内部路由（InternalAuth）
+## 数据和写入规则
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/images/:id` | Python 取图片元信息 |
-| GET | `/api/images/:id/data` | Python 取图片二进制 |
-| GET | `/api/internal/users/:id/profile` | Python 查档案 |
-| GET | `/api/internal/diet/logs?user_id=&date=` | Python 查记录 |
-| GET | `/api/internal/diet/summaries?user_id=&start=&end=` | Python 查汇总 |
+| 表 | 作用 |
+|---|---|
+| `users`、`user_profiles` | 账号、bcrypt 密码、健康档案 |
+| `food_diaries` | 按用户和日期保存完整饮食明细 |
+| `daily_summaries` | 旧版聚合基数；当前汇总合并实时明细，不再删明细 |
+| `diet_batches` | 用户 + UUID 唯一约束、规范化请求哈希、原始保存回执 |
+| `food_images` | 照片归属、路径、上传时间等元数据 |
+| `image_deletions` | 已移除元数据但待完成文件清理的持久化任务 |
+| `refresh_tokens`、`blacklisted_tokens` | 刷新令牌哈希、令牌家族与访问令牌吊销记录 |
 
-## 数据库表
+整餐首次提交返回 `201`；相同 UUID 和内容重试返回 `200`，内容冲突返回 `409`。所有记录和回执一起提交；回执不随之后的编辑、删除而变化。单条新增尚无相同的通用防重机制。
 
-| 表 | 说明 | 生命周期 |
-|----|------|---------|
-| `users` | 用户账号（bcrypt 密码） | 永久 |
-| `user_profiles` | 健康档案（1:1） | 永久 |
-| `food_images` | 食物图片记录 | 有日记引用则保留；未关联照片默认 7 天后清理 |
-| `food_diaries` | 每日饮食明细 | 保留，直到用户主动删除 |
-| `daily_summaries` | 旧版本已聚合的历史基数 | 保留，不再新增 |
-| `refresh_tokens` | 刷新令牌（SHA-256 哈希 + 家族 ID） | 14 天/轮换后清除 |
-| `blacklisted_tokens` | 登出吊销的访问令牌（jti） | 到期清除 |
+档案年龄接受 0–150 的整数，身高体重可为小数。档案不存在时返回空档案；读取失败返回 `500`，保存前查询故障也不会错误地走创建分支。其他档案字段仍有校验待补全，不能把 UI 选项视为完整的服务端枚举约束。
 
-## 后台任务
+## 图片与后台任务
 
-| 任务 | 频率 | 功能 |
-|------|------|------|
-| ImageCleanup | 每 1h | 仅清理超期且没有日记引用的图片，支持 `UNATTACHED_IMAGE_RETENTION_DAYS`（默认 7，0 关闭） |
-| TokenCleanup | 每 6h | 清理过期黑名单与过期/已吊销刷新令牌 |
+图片实际类型限定为 JPEG / PNG / WebP，单图最多 10 MiB，完整 multipart 最多 11 MiB；使用 UUID 文件名，文件完成写入后登记元数据。删除时事务检查日记引用：有关联返回 `409`；无关联时移除元数据并持久化删除任务，再处理文件。完成返回 `200`，需要后台重试返回 `202`。
 
-每日汇总实时读取所有日期的明细，并叠加旧版本已删明细对应的历史汇总基数。补记、编辑与删除会立即反映到趋势；不会再为了汇总删除明细。旧版本已经删除的明细不能凭汇总重建。自动备份与隔离恢复见 [云端部署文档](../deploy/cloud/README.md#自动备份与恢复验证)。
+| 任务 | 调度 | 行为 |
+|---|---|---|
+| 图片任务 | 启动及每小时 | 重试删除任务；对账超过 24 小时的未登记应用文件；清理上传满保留期且无引用的照片 |
+| 令牌任务 | 启动及每 6 小时 | 清理过期黑名单和过期 / 已吊销刷新令牌 |
 
-## 安全
+`UNATTACHED_IMAGE_RETENTION_DAYS` 默认 7；`0` 仅关闭未关联照片的到期清理。照片仍有任何日记引用就保留；删除日记不会立即删照片。账号、会话、回执、照片和备份的详细保留与删除边界见[数据管理](DATA_MANAGEMENT.md)。
 
-- JWT（HS256，2h）携带唯一 `jti`；登录签发访问+刷新令牌对
-- 刷新令牌只存 SHA-256 哈希；每次刷新轮换旧令牌，重放检测吊销整个令牌家族
-- 登出将 jti 加入黑名单立即失效（与 refresh 吊销在同一事务）
-- 登录/注册/刷新接口 IP 级令牌桶限流（默认 5 次/分，超限 429；可用环境变量
-  `AUTH_RATE_LIMIT_PER_MIN` / `AUTH_RATE_LIMIT_BURST` 覆盖，便于部署与集成测试调参）
-- 图片上传：类型嗅探（仅 jpg/png/webp）+ 10MB 上限 + UUID 文件名
+## 认证与运维
 
-## 测试
+访问令牌为 HS256 JWT，当前签发有效期 2 小时并带唯一 `jti`；刷新令牌有效期 14 天，每次刷新轮换，重放会吊销同家族令牌。登出将当前访问令牌加入黑名单，并按请求吊销刷新令牌。认证接口默认每分钟 5 次，参数由 `AUTH_RATE_LIMIT_PER_MIN` / `AUTH_RATE_LIMIT_BURST` 控制。
 
-### 单元测试（无需启动服务）
+SQLite 数据、uploads 和备份均需使用持久卷；更新服务保留原 Compose 项目和卷名。自动备份、恢复、磁盘检测及可选异地存储见[部署说明](../deploy/cloud/README.md)。
+
+## 验证
+
+在仓库根目录运行：
 
 ```bash
-cd backend && go test ./...
+(cd backend && go test ./internal/... && go vet ./...)
+python3 -m unittest discover -s deploy/cloud/backup -p 'test_*.py'
 ```
 
-覆盖：JWT 签发/过期/黑名单、auth（注册/登录/刷新/登出）、diet、image、middleware（JWT/内部鉴权/限流/指标）、service（保留历史照片/清理未关联照片/令牌清理）、限流配置。
-
-### 集成测试（需 Go 服务运行）
-
-```bash
-cd backend && python3 tests/test_api.py
-```
-
-覆盖全部路由与鉴权逻辑。
+Go 单测覆盖认证、归属、饮食与批量事务、汇总、图片删除失败和重试、文件对账、档案故障处理及中间件。HTTP 集成测试 `backend/tests/test_api.py` 需要独立测试服务和干净数据库，会创建和修改测试数据；CI 会自行构建并启动该服务，不应对生产地址执行。完整检查步骤见[贡献指南](../CONTRIBUTING.zh-CN.md)。

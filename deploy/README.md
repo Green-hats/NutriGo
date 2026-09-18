@@ -1,178 +1,50 @@
-# NutriGo 部署
+# NutriGo 部署入口
 
-当前产品为 **Tauri 2 Android / iOS App + 云端 API**，请使用 [cloud/README.md](cloud/README.md) 和 [手机端文档](../docs/MOBILE.md)。云端只运行 Caddy、Go 和 Agent，前端资源随安装包分发。
+更新日期：2026-09-18。当前产品为 **Tauri 2 Android / iOS App + 单机云端 API**。新部署使用 [cloud/README.md](cloud/README.md)：Caddy 提供 HTTPS，Go / Agent 仅在 Compose 内网运行。前端资源随 App 安装包分发，无需单独的静态网页节点。
 
-## 旧版网页部署参考
-
-下文保留原网页部署流程供已有部署迁移时参考；新手机 App 不需要静态站点节点。
-
-> **说明**：本目录是作者个人的一套部署示例（前端节点 + 后端节点），供参考而非通用推荐。
-> 实际部署请按自己的服务器数量、地域、资源配置调整，不一定需要两台机器——
-> 单机跑全部服务、或用 K8s/云托管等完全不同的方案都可行。
-
-本方案为：**后端节点跑 backend + agent（Docker Compose）**，**前端节点跑静态站点 + Caddy 反代（自动 HTTPS）**。两个节点可以是同一台或不同的服务器。
-
-```
-前端节点 (Caddy 自动 HTTPS)              后端节点 (Docker)
-<your-domain>                            backend :3333 (Go+SQLite)
- ├── /          静态前端                  agent   :8000 (FastAPI+CLIP)
- ├── /api       → <backend-ip>:3333
- └── /agent-api → <backend-ip>:8000
-```
-
-架构细节见 [docs/architecture.md](docs/architecture.md)。
-
-## 目录结构
-
-```
-deploy/
-├── compose/
-│   ├── docker-compose.yml        # 后端节点编排 (backend + agent)
-│   ├── Dockerfile.backend        # Go 多阶段构建
-│   ├── Dockerfile.agent          # Python + torch-cpu + CLIP + bge
-│   └── .env.production.example   # 生产环境变量模板
-├── caddy/
-│   └── Caddyfile                 # 前端节点反代配置（模板）
-├── scripts/
-│   ├── setup-server.sh           # 后端节点: 装 Docker + swap
-│   ├── build-frontend.sh         # 本地: 构建前端 dist
-│   └── deploy-frontend.sh              # 本地: 部署前端到前端节点 + reload Caddy
-└── docs/
-    └── architecture.md           # 架构与请求闭环
-```
-
-## 一、后端节点（backend + agent）
-
-### 1. 初始化
-
-```bash
-sudo bash deploy/scripts/setup-server.sh
-```
-
-脚本会安装 Docker Engine + compose 插件并创建 swap（低配机器防 OOM）。
-
-### 2. 开放端口
-
-安全组/防火墙放行 **3333** 与 **8000**（供前端节点 Caddy 反代）。
-
-### 3. 配置环境变量
-
-```bash
-cd deploy/compose
-cp .env.production.example .env
-# 编辑 .env：
-#   JWT_SECRET / INTERNAL_TOKEN  → openssl rand -hex 32 生成
-#   LLM_API_KEY                  → 你的 DeepSeek/OpenAI key
-#   CORS_ORIGINS                 → https://<your-domain>
-```
-
-### 4. 启动
-
-```bash
-cd <NutriGo仓库根目录>
-docker compose -f deploy/compose/docker-compose.yml up -d --build
-```
-
-### 5. 验证
-
-```bash
-curl http://localhost:3333/api/health        # {"status":"healthy"}
-curl http://localhost:8000/api/health
-```
-
-> 首次构建会预下载模型（CLIP ~400MB + bge ~100MB），需等待几分钟。
-
-## 二、前端节点（静态站点 + Caddy）
-
-### 1. 安装 Caddy
-
-```bash
-# Debian/Ubuntu
-apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-apt update && apt install caddy
-```
-
-### 2. 配置 Caddy
-
-编辑 `/etc/caddy/Caddyfile`，参考 `deploy/caddy/Caddyfile`：把 `<your-domain>` 换成你的域名、`<backend-ip>` 换成后端节点公网 IP：
-
-```
-<your-domain> {
-	encode gzip
-
-	handle /api/* {
-		reverse_proxy <backend-ip>:3333
-	}
-	handle_path /agent-api/* {
-		rewrite * /api{uri}
-		reverse_proxy <backend-ip>:8000 {
-			flush_interval -1
-		}
-	}
-	handle {
-		root * /srv/nutrigo
-		try_files {path} /index.html
-		file_server
-	}
-}
-```
-
-`/agent-api/*` 会转换为 Agent 的 `/api/*`，查询参数保持不变；前端页面回退仅处理非 API 请求。
-
-```bash
-sudo systemctl reload caddy
-```
-
-### 3. 部署前端
-
-在**开发机**上执行（会自动构建 + scp 到前端节点）：
-
-```bash
-# 先编辑 deploy/scripts/deploy-frontend.sh 配置主机 IP 等变量
-bash deploy/scripts/deploy-frontend.sh
-```
-
-或手动：
-
-```bash
-bash deploy/scripts/build-frontend.sh        # 产出 deploy/dist
-scp -r deploy/dist/* root@<frontend-ip>:/srv/nutrigo/
-```
-
-## 三、端到端验证
-
-| 检查项 | 命令 |
+| 工作 | 文档 |
 |---|---|
-| 前端可访问 | `curl -I https://<your-domain>` |
-| backend 反代 | `curl https://<your-domain>/api/health` |
-| agent 反代 | `curl https://<your-domain>/agent-api/health` |
-| 注册 | `curl -X POST https://<your-domain>/api/auth/register ...` |
+| 首次部署、域名 / IP HTTPS、模型和知识库准备 | [云端部署](cloud/README.md) |
+| 更新服务、备份、恢复、检测与异地接入 | [云端运维](cloud/README.md#自动备份与恢复验证) |
+| 数据保留、照片删除和备份范围 | [数据管理](../docs/DATA_MANAGEMENT.md) |
+| 手机开发、API 地址、签名和 GitHub Release | [手机端](../docs/MOBILE.md) |
+| 服务请求、卷与恢复拓扑 | [部署架构](docs/architecture.md) |
+| 端到端设计、API 和扩展限制 | [系统架构](../docs/ARCHITECTURE.md) |
 
-浏览器打开 `https://<your-domain>`：注册 → 登录 → 上传食物图识别 → AI 对话 → 饮食统计。
+## 部署文件地图
 
-## 开发工具
+| 文件 / 目录 | 当前用途 |
+|---|---|
+| [cloud/compose.yml](cloud/compose.yml) | 当前云端编排：Caddy、Go、Agent、按需 backup |
+| [cloud/.env.example](cloud/.env.example) | 生产配置模板；真实 `.env` 仅保存在服务器 |
+| [cloud/Caddyfile](cloud/Caddyfile)、[cloud/Caddyfile.ip](cloud/Caddyfile.ip) | 域名 / IP HTTPS 网关，阻断内部接口并支持 SSE |
+| [cloud/backup](cloud/backup/) | 快照、校验、隔离恢复、异地接入、检测和 systemd 模板 |
+| [cloud/tests/verify_gateway.py](cloud/tests/verify_gateway.py) | 路由、访问边界与流式传输验证 |
+| [compose/Dockerfile.backend](compose/Dockerfile.backend)、[compose/Dockerfile.agent](compose/Dockerfile.agent) | 当前 cloud Compose 复用的镜像构建文件 |
+| [compose/docker-compose.yml](compose/docker-compose.yml) | 旧版独立后端编排；不是当前手机云端部署入口 |
+| [caddy/Caddyfile](caddy/Caddyfile) | 旧网页网关模板 |
+| [scripts/build-frontend.sh](scripts/build-frontend.sh)、[scripts/deploy-frontend.sh](scripts/deploy-frontend.sh) | 旧静态网页构建 / 分发辅助脚本，手机发版不使用 |
+| [scripts/setup-server.sh](scripts/setup-server.sh) | 服务器初始化辅助脚本；使用前审阅其主机修改和环境假设 |
+| [scripts/capture-demo.mjs](scripts/capture-demo.mjs) | 本地演示截图 / GIF 工具，依赖和运行条件见脚本注释 |
 
-| 脚本 | 用途 |
-|------|------|
-| `scripts/capture-demo.mjs` | 用 Playwright 自动生成 README 演示截图与 GIF（`docs/screenshots/`） |
+## 从旧网页部署迁移
 
-```bash
-node deploy/scripts/capture-demo.mjs
-# 需先启动三端，并安装 playwright + firefox + ffmpeg；详见脚本头部注释
-```
+旧方案曾将静态网页网关与后端分在不同节点。相关文件保留供迁移核对，不应把旧端口开放或性能估算当作当前部署要求。
 
-## 常见问题
+| 旧方案 | 当前方案 |
+|---|---|
+| 浏览器从服务器下载 React 静态站点 | React 打进 Tauri 安装包 |
+| 网页节点跨主机访问 3333 / 8000 | 单机 Caddy 通过 Compose 网络访问服务 |
+| CLIP 菜名候选为拍照主入口 | DeepSeek 多食物草稿；CLIP 仅兼容旧接口 |
+| 随部署脚本复制数据库文件 | SQLite 在线快照、校验及隔离恢复 |
+| 依赖默认模型下载和量化估算 | 固定模型 / 知识库快照，实际检索与识别验收 |
 
-**Q: 模型下载超时？**
-构建时预下载依赖外网，可设置镜像：`export HF_ENDPOINT=https://hf-mirror.com` 后重新构建。
+迁移前先盘点原 Compose 项目名、数据库路径、上传目录和卷，备份并验证可恢复，再调整挂载及入口。不要直接切换项目名导致创建空卷，不要执行 `down -v` 来升级。公网业务入口只需 80 / 443；管理 SSH 按服务器管理策略保留，Go / Agent 端口无需公网开放。
 
-**Q: 识别很慢？**
-`agent/recognition/multimodal.py` 已做文本向量预计算 + int8 量化 + 线程限制。低配 CPU（如 2C4G）下单张约 2-3s。
+## 发版与检查
 
-**Q: 内存不足？**
-确认 `setup-server.sh` 已创建 swap：`swapon --show`。
+服务端更新和 App 发版分别进行。接口先兼容客户端，再发布新 APK；GitHub Actions 当前不会自动部署云端。纯文档更新不需要重建服务或发布 APK。
 
-**Q: 想用本地 Ollama 替代外部 API？**
-加 ollama 服务，`LLM_MODEL=ollama/qwen2.5`、`LLM_BASE_URL=http://ollama:11434`。需 4G+ 内存，CPU 推理会变慢。
+上线检查应覆盖 HTTPS、Go / Agent 就绪、真实账号登录、照片分析、聊天工具、RAG 实际检索和备份恢复。健康探针只证明相应进程 / 数据库可响应，不代表整个业务链路或模型质量通过。
+
+截至本次核对，生产已启用本机每日备份与每小时检测；独立异地存储和 webhook 尚未配置。接入完成须经实际复制和读回校验，详细边界见[数据管理](../docs/DATA_MANAGEMENT.md)。

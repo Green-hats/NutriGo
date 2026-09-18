@@ -1,12 +1,14 @@
 # NutriGo Go 后端 API 文档
 
-> 服务端口：**3333** | 所有响应格式均为 JSON
+核对日期：2026-09-18，服务端基线 `f72677b`。开发地址为 `http://localhost:3333`，云端经 HTTPS 网关访问 `/api/*`。业务响应主要为 JSON；图片读取返回二进制，指标返回文本。Agent 接口另见 [Agent 文档](../docs/agent.md)。
+
+内部接口只供受信服务使用，公网网关阻断内部查询、图片读取及指标。数据保留与删除的完整规则见[数据管理](../docs/DATA_MANAGEMENT.md)。
 
 ---
 
 ## 统一错误响应契约
 
-所有非 2xx 响应使用统一格式：
+Go 业务处理器及认证中间件通过统一错误函数返回：
 
 ```json
 { "code": "VALIDATION_ERROR", "message": "参数无效: ..." }
@@ -20,9 +22,9 @@
 | `NOT_FOUND` | 资源不存在 | 404 |
 | `CONFLICT` | 冲突（如用户名已存在） | 409 |
 | `RATE_LIMITED` | 请求过于频繁 | 429 |
-| `INTERNAL_ERROR` | 服务内部错误 | 500 |
+| `INTERNAL_ERROR` | 服务内部错误 / 数据库暂不可用 | 500 / 503 |
 
-前端按 `code` 分支处理，不依赖 `message` 文案。
+前端按 `code` 分支处理，不依赖 `message` 文案。网关错误、未匹配路由或框架异常不保证使用该 JSON；客户端还需处理非 JSON 和连接失败。
 
 > 认证接口限流默认 5 次/分，可通过环境变量 `AUTH_RATE_LIMIT_PER_MIN` / `AUTH_RATE_LIMIT_BURST` 覆盖（部署或集成测试调参）。
 
@@ -31,12 +33,12 @@
 分页列表返回统一信封：
 
 ```json
-{ "items": [...], "total": 42, "limit": 30, "offset": 0 }
+{ "items": [], "total": 0, "limit": 30, "offset": 0 }
 ```
 
 - 查询参数：`limit`（默认 30，最大 100）、`offset`（默认 0）
 - `total` 为满足过滤条件的总条数，`items` 为当前页数据
-- 已应用分页的接口：`GET /api/diet/summaries`、`GET /api/sessions`（Agent）
+- Go 的 `GET /api/diet/summaries` 使用此信封；饮食明细和内部汇总仍为数组。Agent 会话分页见独立文档。
 
 ---
 
@@ -46,7 +48,9 @@
 - [2. 用户认证](#2-用户认证)
   - [2.1 注册](#21-注册)
   - [2.2 登录](#22-登录)
-  - [2.3 JWT 使用说明](#23-jwt-使用说明)
+  - [2.3 刷新令牌](#23-刷新令牌)
+  - [2.4 登出](#24-登出吊销令牌)
+  - [2.5 JWT 使用说明](#25-jwt-使用说明)
 - [3. 健康档案](#3-健康档案)
   - [3.1 查看档案](#31-查看档案)
   - [3.2 更新档案](#32-更新档案)
@@ -60,10 +64,13 @@
   - [5.2 按日期查询](#52-按日期查询)
   - [5.3 删除记录](#53-删除记录)
   - [5.4 编辑记录](#54-编辑记录)
+  - [5.5 整餐批量保存](#55-整餐批量保存)
 - [6. 每日汇总](#6-每日汇总)
 - [7. 开发调试接口](#7-开发调试接口)
+- [8. 内部业务查询](#8-内部业务查询)
+- [接口总览](#接口总览)
 - [附录 A：HTTP 状态码速查](#附录-ahttp-状态码速查)
-- [附录 B：curl 全流程测试](#附录-bcurl-全流程测试)
+- [附录 B：本地调用示例](#附录-b本地调用示例)
 
 ---
 
@@ -87,6 +94,12 @@ curl http://localhost:3333/api/health
 ```
 
 ---
+
+### 就绪与指标
+
+`GET /api/ready` 成功返回 `200` 和 `{"status":"ready"}`；数据库连接检查失败返回 `503` / `INTERNAL_ERROR`。`GET /api/metrics` 返回 Prometheus 文本，在 Go 内无用户认证，但公网 Caddy 阻断此路径。
+
+`health` 不访问外部 AI，`ready` 不验证图片、RAG、模型或备份；业务能力需单独验收。
 
 ## 2. 用户认证
 
@@ -115,19 +128,19 @@ POST /api/auth/register
 **`400`** — 参数格式不满足约束
 
 ```json
-{ "error": "参数无效: Key: 'Username' Error:Field validation for 'Username' failed on the 'min' tag" }
+{ "code": "VALIDATION_ERROR", "message": "参数无效: Key: 'Username' Error:Field validation for 'Username' failed on the 'min' tag" }
 ```
 
 **`409`** — 用户名已被注册
 
 ```json
-{ "error": "用户名已存在" }
+{ "code": "CONFLICT", "message": "用户名已存在" }
 ```
 
 **`500`** — 服务端异常
 
 ```json
-{ "error": "密码加密失败" }
+{ "code": "INTERNAL_ERROR", "message": "密码加密失败" }
 ```
 
 ```bash
@@ -177,7 +190,7 @@ POST /api/auth/login
 **`401`** — 用户名不存在或密码错误（始终返回相同提示，防用户枚举）
 
 ```json
-{ "error": "用户名或密码错误" }
+{ "code": "UNAUTHORIZED", "message": "用户名或密码错误" }
 ```
 
 ```bash
@@ -291,8 +304,8 @@ GET /api/users/:id/profile
 | `height_cm` | float | 身高（厘米） |
 | `weight_kg` | float | 体重（公斤） |
 | `age` | int | 年龄，0–150；0 也表示未填写 |
-| `gender` | string | `male` / `female` / `other` |
-| `goal` | string | `lose_weight` / `maintain` / `gain_muscle` |
+| `gender` | string | 客户端选项：`male` / `female` / `other` |
+| `goal` | string | 客户端选项：`lose_weight` / `maintain` / `gain_muscle` |
 | `allergies` | string[] | 过敏原 |
 | `dietary_habits` | string[] | 饮食偏好 |
 | `chronic_diseases` | string[] | 基础病（多选） |
@@ -321,7 +334,7 @@ PUT /api/users/:id/profile
 }
 ```
 
-**`200 OK`** — 返回更新后的完整档案
+**`200 OK`** — 返回更新后的完整档案。当前服务端对年龄做范围与整数校验，尚未完整约束身高体重范围及性别、目标等枚举；上表客户端选项不等于服务端枚举验证。
 
 **`400`** — 年龄为小数、字符串、负数或超过 150 时，返回 `VALIDATION_ERROR` 和“年龄请输入 0–150 之间的整数”；其他 JSON 格式错误返回“档案格式不正确，请检查填写内容”。校验失败不写入任何档案字段。身高、体重支持小数，年龄不会自动取整。
 
@@ -344,7 +357,7 @@ curl -X PUT http://localhost:3333/api/users/1/profile \
 
 ## 4. 图片管理
 
-> 流程：前端上传图片到 Go → Python 通过内部接口获取图片二进制做 AI 识别 → 识别结果写入饮食记录 → 用户/前端可删除已解除全部日记关联的图片以释放磁盘空间。
+> 流程：前端上传图片到 Go → Python 通过内部接口获取图片二进制做 AI 识别 → 返回草稿供用户修正确认 → 整餐写入饮食记录 → 用户/前端可删除已解除全部日记关联的图片以释放磁盘空间。
 
 ### 4.1 上传图片
 
@@ -357,7 +370,7 @@ POST /api/images/upload
 | Content-Type | `multipart/form-data` |
 | 字段名 | `image` |
 
-**安全限制**：仅允许 jpg/png/webp，最大 10MB。文件名自动 UUID 化。
+**安全限制**：嗅探实际 MIME，仅允许 JPEG / PNG / WebP；单图最多 10 MiB，完整 multipart 请求最多 11 MiB。文件名使用 UUID，扩展名根据实际 MIME 确定；文件同步、关闭后登记元数据。
 
 **`201 Created`**
 
@@ -377,10 +390,10 @@ POST /api/images/upload
 | `mime_type` | string | 检测到的真实 MIME 类型 |
 | `size` | int | 文件字节数 |
 
-**`400`** — 非图片格式或超过 10MB
+**`400`** — 非支持的图片格式、文件过大或 multipart 无效
 
 ```json
-{ "error": "只支持 jpg/png/webp 格式" }
+{ "code": "VALIDATION_ERROR", "message": "只支持 jpg/png/webp 格式" }
 ```
 
 ```bash
@@ -408,7 +421,7 @@ DELETE /api/images/:id
 { "message": "删除成功" }
 ```
 
-**`202 Accepted`** — 删除已受理，文件清理将自动重试；图片已不能重新关联或访问。
+**`202 Accepted`** — 删除已受理，文件清理将自动重试；图片已不能重新关联或访问。再次 DELETE 可能返回 `404`，任务仍由后台处理。
 
 **`409 Conflict`** — 图片仍被饮食记录引用，需先解除全部关联；不修改记录或文件。
 
@@ -573,7 +586,7 @@ DELETE /api/diet/logs/:id
 | 认证 | JWT |
 |------|-----|
 
-只能删除自己的记录。
+只能删除自己的记录。删除立即影响实时汇总，但不会同步删除照片、整餐原始回执或历史备份；照片无引用后按独立保留规则处理。
 
 **`200 OK`**
 
@@ -602,6 +615,53 @@ PUT /api/diet/logs/:id
 
 ---
 
+### 5.5 整餐批量保存
+
+```http
+POST /api/diet/logs/batch
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| `request_id` | string | 小写十六进制 UUID 格式 `8-4-4-4-12`，每次新提交生成；结果不确定时重用原值 |
+| `records` | object[] | 1–12 项；每项字段及校验与单条创建相同 |
+
+```json
+{
+  "request_id": "11111111-1111-4111-8111-111111111111",
+  "records": [{
+    "date": "2026-09-18",
+    "meal_type": "lunch",
+    "food_name": "米饭",
+    "portion": "150g",
+    "calories": 174,
+    "protein_g": 3.9,
+    "fat_g": 0.45,
+    "carbs_g": 38.85,
+    "notes": "",
+    "image_id": 42
+  }]
+}
+```
+
+`image_id` 要替换为当前用户已上传的图片 ID，或置为 `null`。所有记录、图片关联检查与提交回执在一个事务中完成，任意一项失败则全部回滚。
+
+| HTTP | 返回 / 行为 |
+|---|---|
+| `201` | 首次成功：记录对象数组，结构与单条创建返回对象相同，顺序对应提交数组 |
+| `200` | 同一用户、同一 `request_id`、相同规范化内容：原始响应数组，不再次插入 |
+| `400` | UUID / 数量 / 字段无效，或图片不存在 / 不属于当前用户 |
+| `409` | 同一 `request_id` 的内容变化，`CONFLICT` |
+| `500` | 数据库写入失败，事务回滚 |
+
+名称、份量和备注先去首尾空白，再计算请求摘要。重试须保留同一 UUID、记录顺序和内容；不能在超时后生成新 UUID 盲目再提交。回执按用户隔离；其他用户使用相同 UUID 不会取得本人的回执。
+
+回执保留首次响应，之后编辑 / 删除日记不会重写它；再次重放不会重建已删除记录，也不能用回执判断当前日记状态。回执目前无自动过期清理，随用户数据库备份。普通 `POST /api/diet/logs` 尚无这一防重机制。
+
+---
+
 ## 6. 每日汇总
 
 ```
@@ -620,14 +680,14 @@ GET /api/diet/summaries?start=2026-01-01&end=2026-08-01&limit=30&offset=0
 {
   "items": [
     {
-      "id": 1, "user_id": 1,
+      "id": 0, "user_id": 1,
       "date": "2026-08-01",
       "total_calories": 1850, "total_protein_g": 72,
       "total_fat_g": 55, "total_carbs_g": 210,
-      "meal_count": 3
+      "meal_count": 3, "source": "live"
     }
   ],
-  "total": 31, "limit": 30, "offset": 0
+  "total": 1, "limit": 30, "offset": 0
 }
 ```
 
@@ -638,9 +698,11 @@ curl "http://localhost:3333/api/diet/summaries?start=2026-01-01&end=2026-08-31" 
 
 ---
 
+`source` 为 `live`（现存明细）、`aggregated`（旧历史基数）或 `mixed`（合并）。`meal_count` 对现存明细计的是记录条数，并非早餐 / 午餐等去重后的餐数。聚合结果没有可供编辑的稳定汇总 ID，当前 `id` 为零值；客户端按日期使用结果。
+
 ## 7. 开发调试接口
 
-以下接口仅用于开发阶段调试中间件，后续可移除。
+以下示例路由仍由 Go 注册，但当前公网网关不放行，不属于 App 业务功能。
 
 ### JWT 测试
 
@@ -679,6 +741,36 @@ curl http://localhost:3333/api/internal/example \
 
 ---
 
+## 8. 内部业务查询
+
+以下接口只在受信网络中调用，要求 `X-Internal-Token`。此令牌授权服务级查询；Agent 必须先绑定已认证用户，不能接受模型指定任意用户 ID。App 不得持有此令牌。
+
+### 8.1 访问令牌校验
+
+```http
+GET /api/internal/auth/verify
+X-Internal-Token: <server-internal-token>
+Authorization: Bearer <user-access-token>
+```
+
+成功返回 `200` 和 `{"user_id":1}`。使用与用户 API 相同的 JWT 签名、有效期和黑名单检查；不等于查询账号当前是否存在。内部令牌错误返回 `403`，JWT 无效 / 被吊销返回 `401`，无法查询吊销状态返回 `503`。
+
+### 8.2 档案
+
+`GET /api/internal/users/:id/profile` 返回指定用户档案，结构与公开档案查询相同；尚无档案时返回默认空值，数据库失败返回 `500`。此查询不以调用方 JWT 约束 `:id`，身份边界由 Agent 保证。
+
+### 8.3 饮食明细
+
+`GET /api/internal/diet/logs?user_id=1&date=2026-09-18` 返回指定用户、日期的记录数组，按创建时间倒序，无记录返回 `[]`。`user_id` 须为有效正数，日期须有效；参数错误 `400`，数据库失败 `500`。
+
+### 8.4 每日汇总
+
+`GET /api/internal/diet/summaries?user_id=1&start=2026-09-12&end=2026-09-18` 返回与公开汇总相同的条目结构及 `source`，但为**日期升序的普通数组，不分页**。无结果返回 `[]`；参数错误 `400`，数据库失败 `500`。
+
+图片元信息与二进制的内部契约见第 4 节。
+
+---
+
 ## 接口总览
 
 | 方法 | 路径 | 认证 | 说明 |
@@ -695,13 +787,19 @@ curl http://localhost:3333/api/internal/example \
 | `POST` | `/api/images/upload` | JWT | 上传食物图片 |
 | `DELETE` | `/api/images/:id` | JWT | 删除图片 |
 | `POST` | `/api/diet/logs` | JWT | 创建饮食记录 |
+| `POST` | `/api/diet/logs/batch` | JWT | 事务批量保存，UUID 防重 |
 | `GET` | `/api/diet/logs` | JWT | 按日期查询记录 |
+| `PUT` | `/api/diet/logs/:id` | JWT | 完整替换本人记录 |
 | `DELETE` | `/api/diet/logs/:id` | JWT | 删除记录 |
 | `GET` | `/api/diet/summaries?start=&end=` | JWT | 每日营养汇总 |
 | `GET` | `/api/images/:id` | Internal | Python 取图片元信息 |
 | `GET` | `/api/images/:id/data` | Internal | Python 取图片二进制 |
 | `GET` | `/api/internal/users/:id/profile` | Internal | Python 查档案 |
 | `GET` | `/api/internal/diet/logs?user_id=&date=` | Internal | Python 查记录 |
+| `GET` | `/api/internal/diet/summaries?user_id=&start=&end=` | Internal | Python 查汇总，升序数组 |
+| `GET` | `/api/internal/auth/verify` | Internal + JWT | 校验访问令牌 |
+| `GET` | `/api/protected/example` | JWT | 开发示例，网关阻断 |
+| `GET` | `/api/internal/example` | Internal | 开发示例，网关阻断 |
 
 ---
 
@@ -711,83 +809,48 @@ curl http://localhost:3333/api/internal/example \
 |--------|------|--------|---------|
 | `200` | OK | — | 正常响应 |
 | `201` | Created | — | 注册、创建资源成功 |
+| `202` | Accepted | — | 图片元数据删除已提交，文件清理待重试 |
 | `400` | Bad Request | `VALIDATION_ERROR` | 参数不满足约束、缺必填字段 |
 | `401` | Unauthorized | `UNAUTHORIZED` | JWT 缺失 / 无效 / 过期 |
 | `403` | Forbidden | `FORBIDDEN` | 越权操作（操作他人数据）、内部鉴权失败 |
 | `404` | Not Found | `NOT_FOUND` | 资源不存在或已被删除 |
-| `409` | Conflict | `CONFLICT` | 注册时用户名已存在 |
+| `409` | Conflict | `CONFLICT` | 用户名已存在、照片仍被引用、批次内容冲突 |
 | `429` | Too Many Requests | `RATE_LIMITED` | 认证接口超限 |
 | `500` | Internal Server Error | `INTERNAL_ERROR` | 服务端异常 |
+| `503` | Service Unavailable | `INTERNAL_ERROR` | 数据库就绪或令牌吊销查询不可用 |
 
 ---
 
-## 附录 B：curl 全流程测试
+## 附录 B：本地调用示例
 
-以下脚本从头走通完整业务流程：
+以下 Bash 示例仅用于已运行 Go 服务的独立开发环境，会创建测试账号和一条饮食记录。需要 curl 与 Python 3；不要启用 `set -x` 输出令牌。完整 HTTP 验证使用 `backend/tests/test_api.py`，运行条件见[贡献指南](../CONTRIBUTING.zh-CN.md)。
 
 ```bash
-BASE="http://localhost:3333"
+set -euo pipefail
+NUTRIGO_BASE="http://localhost:3333"
+NUTRIGO_LOGIN_BODY=$(python3 -c 'import json,uuid; print(json.dumps({"username":"demo_"+uuid.uuid4().hex[:12],"password":uuid.uuid4().hex}))')
 
-# === 认证 ===
-curl -s $BASE/api/health
+curl -fsS "$NUTRIGO_BASE/api/ready"
+curl -fsS -X POST "$NUTRIGO_BASE/api/auth/register" \
+  -H 'Content-Type: application/json' -d "$NUTRIGO_LOGIN_BODY"
+NUTRIGO_LOGIN=$(curl -fsS -X POST "$NUTRIGO_BASE/api/auth/login" \
+  -H 'Content-Type: application/json' -d "$NUTRIGO_LOGIN_BODY")
+NUTRIGO_TOKEN=$(printf '%s' "$NUTRIGO_LOGIN" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+NUTRIGO_USER_ID=$(printf '%s' "$NUTRIGO_LOGIN" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 
-curl -s -X POST $BASE/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"demo","password":"pass123"}'
+curl -fsS "$NUTRIGO_BASE/api/users/$NUTRIGO_USER_ID/profile" \
+  -H "Authorization: Bearer $NUTRIGO_TOKEN"
+curl -fsS -X POST "$NUTRIGO_BASE/api/diet/logs" \
+  -H "Authorization: Bearer $NUTRIGO_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"date":"2026-09-18","meal_type":"breakfast","food_name":"燕麦粥","portion":"1碗","calories":350,"protein_g":12,"fat_g":6,"carbs_g":60}'
+curl -fsS "$NUTRIGO_BASE/api/diet/logs?date=2026-09-18" \
+  -H "Authorization: Bearer $NUTRIGO_TOKEN" | python3 -m json.tool
 
-TOKEN=$(curl -s -X POST $BASE/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"demo","password":"pass123"}' | \
-  python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
-
-AUTH="Authorization: Bearer $TOKEN"
-INTERNAL="X-Internal-Token: nutri-go-internal-token-dev"
-
-echo "TOKEN=$TOKEN"
-
-# === 健康档案 ===
-curl -s $BASE/api/users/1/profile -H "$AUTH" | python3 -m json.tool
-
-curl -s -X PUT $BASE/api/users/1/profile \
-  -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"height_cm":172,"weight_kg":68,"age":28,"gender":"male","goal":"gain_muscle","allergies":[],"dietary_habits":[]}'
-
-# === 图片 ===
-# 先生成一张测试图
-python3 -c "
-import struct,zlib
-w=h=1
-raw=b''
-for y in range(h): raw+=b'\x00'+struct.pack('>B',0)+b'\x00\x00'
-ihdr=struct.pack('>IIBBBBB',w,h,8,2,0,0,0)
-ihdr_crc=struct.pack('>I',zlib.crc32(b'IHDR'+ihdr)&0xffffffff)
-idat=struct.pack('>I',zlib.crc32(b'IDAT'+zlib.compress(raw))&0xffffffff)
-iend=struct.pack('>I',zlib.crc32(b'IEND')&0xffffffff)
-with open('test.png','wb') as f:
-    f.write(b'\x89PNG\r\n\x1a\n')
-    f.write(struct.pack('>I',13)+b'IHDR'+ihdr+ihdr_crc)
-    f.write(struct.pack('>I',len(zlib.compress(raw)))+b'IDAT'+zlib.compress(raw)+idat)
-    f.write(struct.pack('>I',0)+b'IEND'+iend)
-"
-
-curl -s -X POST $BASE/api/images/upload -H "$AUTH" -F "image=@test.png"
-rm test.png
-
-# === 饮食记录 ===
-curl -s -X POST $BASE/api/diet/logs \
-  -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"date":"2026-08-01","meal_type":"breakfast","food_name":"燕麦粥","portion":"1碗","calories":350,"protein_g":12,"fat_g":6,"carbs_g":60}'
-
-curl -s -X POST $BASE/api/diet/logs \
-  -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"date":"2026-08-01","meal_type":"lunch","food_name":"宫保鸡丁","portion":"1份","calories":450,"protein_g":30,"fat_g":22,"carbs_g":35}'
-
-# 查询当日全部记录
-curl -s "$BASE/api/diet/logs?date=2026-08-01" -H "$AUTH" | python3 -m json.tool
-
-# === 内部接口 ===
-curl -s $BASE/api/internal/example -H "$INTERNAL"
-
-# 查图片元信息（把 ID 换成实际值）
-curl -s $BASE/api/images/1 -H "$INTERNAL" | python3 -m json.tool
+NUTRIGO_LOGOUT_BODY=$(printf '%s' "$NUTRIGO_LOGIN" | python3 -c 'import json,sys; print(json.dumps({"refresh_token":json.load(sys.stdin)["refresh_token"]}))')
+curl -fsS -X POST "$NUTRIGO_BASE/api/auth/logout" \
+  -H "Authorization: Bearer $NUTRIGO_TOKEN" -H 'Content-Type: application/json' \
+  -d "$NUTRIGO_LOGOUT_BODY"
+unset NUTRIGO_LOGIN_BODY NUTRIGO_LOGIN NUTRIGO_TOKEN NUTRIGO_USER_ID NUTRIGO_LOGOUT_BODY
 ```
+
+示例只演示认证、本人档案读取与手动记录；不会测试模型、照片、RAG 或生产恢复。测试数据留在独立开发库中，当前没有账号注销接口。

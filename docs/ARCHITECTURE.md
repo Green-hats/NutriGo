@@ -1,8 +1,8 @@
 # NutriGo — 架构设计文档
 
-更新日期：2026-09-18。本文描述 Android 0.1.6 的 DeepSeek 照片分析实现；发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
+更新日期：2026-09-18。本文核对服务端 `f72677b` 与 Android 0.1.6，覆盖照片分析、数据一致性与备份编排；安装包发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
 
-移动端运行与签名见 [MOBILE.md](MOBILE.md)，云端部署、模型准备和恢复操作见 [部署说明](../deploy/cloud/README.md)。具体配置和接口以本文链接的源码为准。
+移动端运行与签名见 [MOBILE.md](MOBILE.md)，云端部署、模型准备和恢复操作见 [部署说明](../deploy/cloud/README.md)。数据保留和删除边界见[数据管理](DATA_MANAGEMENT.md)，后续优先级见[路线图](ROADMAP.md)。具体配置和接口以本文链接的源码为准。
 
 ## 一、系统形态与交付边界
 
@@ -184,7 +184,7 @@ sequenceDiagram
 
 前端见 [MealAnalysisFlow.tsx](../frontend/src/components/diary/MealAnalysisFlow.tsx)，压缩见 [foodImage.ts](../frontend/src/lib/foodImage.ts)，Agent 见 [meal_analysis.py](../agent/app/meal_analysis.py) 与 [meal.py](../agent/recognition/meal.py)，原子保存见 [diet_batch.go](../backend/internal/handler/diet_batch.go)。
 
-新版视觉请求固定发送至 `https://api.deepseek.com/chat/completions`，`FOOD_VISION_API_KEY` 可单独配置；聊天配置指向 DeepSeek 官方时可复用 `LLM_API_KEY`，不会把其他供应商密钥转发到 DeepSeek。模型别名可能随供应商升级。照片分析单次总时限 48 秒，同一用户最多一个未完成分析，单进程最多四个；结果缓存一小时、最多 500 张，每次命中前仍校验图片归属。这些限制不是跨副本限额。
+新版视觉请求固定发送至 `https://api.deepseek.com/chat/completions`，`FOOD_VISION_API_KEY` 可单独配置；聊天配置指向 DeepSeek 官方时可复用 `LLM_API_KEY`，不会把其他供应商密钥转发到 DeepSeek。模型别名可能随供应商升级。视觉模型调用整体时限 48 秒（不包含前置 Go 图片读取等步骤），同一用户最多一个未完成分析，单进程最多四个；结果缓存一小时、最多 500 张，每次命中前仍校验图片归属。这些限制不是跨副本限额。
 
 旧 APK 继续调用 `/identify-food` 的 Chinese-CLIP Top-5 接口及 `/calculate-intake`，默认克重仍来自食物分类。新流程需要升级 APK。照片估重、隐藏配料和用油均存在误差；范围由模型估计，不是统计置信区间，尚无称重样本集准确率评测。
 
@@ -213,7 +213,7 @@ sequenceDiagram
 | POST | `/api/diet/logs/batch` | 原子保存多项食物、提交编号防重 | JWT + 图片归属 |
 | PUT / DELETE | `/api/diet/logs/:id` | 编辑、删除自己的明细 | JWT + 用户归属 |
 | GET | `/api/diet/summaries` | 日期区间汇总、分页 | JWT |
-| GET | `/api/internal/auth/verify` | 实时检查访问令牌与用户状态 | 内部令牌 + JWT，网关阻断 |
+| GET | `/api/internal/auth/verify` | 实时检查访问令牌有效性与吊销状态 | 内部令牌 + JWT，网关阻断 |
 | GET | `/api/internal/users/:id/profile` | Agent 查询档案 | 内部令牌，网关阻断 |
 | GET | `/api/internal/diet/logs`、`/api/internal/diet/summaries` | Agent 查询明细、汇总 | 内部令牌，网关阻断 |
 | GET | `/api/images/:id`、`/api/images/:id/data` | 图片归属元信息、二进制 | 内部令牌，网关阻断 |
@@ -229,6 +229,7 @@ sequenceDiagram
 | GET | `/api/sessions`、`/api/sessions/:id` | 会话列表、历史 | JWT + 会话归属 |
 | POST | `/api/sessions/:id/regenerate` | 重新生成最后回复，返回 SSE | JWT + 会话归属 |
 | DELETE / PATCH | `/api/sessions/:id` | 删除、重命名会话 | JWT + 会话归属 |
+| POST | `/api/sessions/batch-delete` | 批量删除本人会话 | JWT + 会话归属 |
 | POST | `/api/analyze-meal` | DeepSeek 多食物与克重营养估算 | JWT + 图片归属 |
 | POST | `/api/identify-food` | 旧版 CLIP 兼容接口 | JWT + 图片归属 |
 | POST | `/api/calculate-intake` | 按食物和克数计算营养 | JWT |
@@ -259,6 +260,8 @@ GORM 启动时通过 `AutoMigrate` 建表；模型定义是结构来源，目前
 
 手动删除检查所有日记引用，有引用时返回 409；日记关联检查与写入在 SQLite 事务内，删除使用条件写入并在同一事务登记 `image_deletions`。文件删除失败返回 202，启动时及每小时重试；保留期为 0 也继续完成已受理删除。上传失败回收文件；上传进程崩溃遗留的未登记 UUID 文件，超过 24 小时后核对清理，只处理 uploads 顶层普通文件。队列文件不属于可访问图片，备份只复制 `food_images` 引用的文件；恢复后队列遇到已不存在的文件视为完成。
 
+删除日记不会立即删除照片，也不会重写 `diet_batches` 的原始回执或清除历史备份。回执暂无自动保留期，可能仍包含后来已编辑或删除记录的原值；用户数据导出、账号注销和统一擦除政策尚未实现。详细规则见[数据管理](DATA_MANAGEMENT.md)。
+
 档案接口只有 `ErrRecordNotFound` 返回空档案；数据库查询故障返回 500，更新前读取失败时不进入创建分支，避免把故障显示成档案被清空。
 
 ### 7.2 Agent 数据与资源
@@ -276,7 +279,7 @@ GORM 启动时通过 `AutoMigrate` 建表；模型定义是结构来源，目前
 ## 八、安全与故障边界
 
 - App 仅加载打包资源，CSP 与 Tauri capabilities 限制页面和原生能力；不在 App 中保存 LLM API Key。
-- Go 校验 JWT、访问令牌黑名单与用户状态。Agent 先验签，再调用内部 verify 接口实时确认，避免已退出的令牌继续访问 AI；图片缓存也不能绕过归属校验。
+- Go 校验 JWT 和访问令牌黑名单；这不等于每次重新查询账号状态。Agent 先验签，再调用内部 verify 接口实时确认，避免已退出的令牌继续访问 AI；图片缓存也不能绕过归属校验。
 - 档案年龄由 App 和 Go 双重校验为 0–150 的整数，0 兼容未填写状态；无效输入不会保存或自动取整。接口只返回可读的校验提示，不向用户展示 JSON 解析细节。
 - 刷新令牌轮换、家族重放检测和登出吊销由 Go 管理；生产环境拒绝缺失或默认服务密钥。
 - 登录、注册和刷新使用 IP 令牌桶限流；业务对象查询和修改按当前用户隔离。
@@ -388,6 +391,7 @@ NutriGo/
 | 知识可信度 | 需要结构化来源、相关度判断、资料版本审校与固定问答质量评测 |
 | 手机凭证 | 将现有 localStorage 凭证迁移到系统安全存储，并保持退出与账号隔离 |
 | 运维恢复 | 异地存储与通知接收端待配置；外部服务异常监控、整机恢复演练待补 |
+| 数据治理 | 账号导出 / 注销、会话与回执保留期、版本化迁移和用户存储配额待补 |
 | 移动端交付 | App 内检查更新、完整手机 UI 回归、iOS 真机验收与签名发布 |
 
 后续修改路由、数据归属、持久卷、鉴权、日期规则或发布流程时，应同步更新本文对应章节；运行参数和操作命令集中维护在移动端与部署文档中。

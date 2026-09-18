@@ -1,5 +1,7 @@
 # 手机 App 的云端服务
 
+核对日期：2026-09-18，服务端数据修复基线 `f72677b`。本文是当前生产部署入口；[数据管理](../../docs/DATA_MANAGEMENT.md)说明保留、删除与恢复边界，[部署架构](../docs/architecture.md)说明请求及备份拓扑。
+
 该模板在一台服务器运行 Caddy + Go + Python Agent。手机界面随 Tauri 安装包分发，服务器只提供 API，不托管前端页面。现有 SQLite 与图片目录使用独立持久卷，适合单实例起步。
 
 ## 配置与启动
@@ -9,7 +11,9 @@
 在仓库根目录操作：
 
 ```bash
-cp deploy/cloud/.env.example deploy/cloud/.env
+if [ ! -f deploy/cloud/.env ]; then
+  cp deploy/cloud/.env.example deploy/cloud/.env
+fi
 openssl rand -hex 32
 openssl rand -hex 32
 ```
@@ -35,7 +39,7 @@ AI_ENABLED=false
 PRELOAD_MODELS=0
 ```
 
-此时账号、档案、饮食记录、会话查询与营养计算正常运行；AI 对话、重新生成和照片识别在鉴权后返回 HTTP 409，提示“AI 功能尚未配置”，且不会创建空会话或回滚既有消息。关闭 AI 会跳过 RAG 初始化；`PRELOAD_MODELS=0` 只跳过构建时下载模型权重，仍安装运行依赖。
+此时账号、档案、饮食记录、会话查询与营养计算正常运行；AI 对话、重新生成和照片识别在鉴权后返回 HTTP 409，提示对应功能尚未配置，且不会创建空会话或回滚既有消息。关闭 AI 会跳过 RAG 初始化；`PRELOAD_MODELS=0` 只跳过构建时下载模型权重，仍安装运行依赖。
 
 ```bash
 docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml config --quiet
@@ -89,15 +93,15 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d ag
 
 新版 App 使用 `/agent-api/analyze-meal`。在服务器配置 `AI_ENABLED=true`、`FOOD_RECOGNITION_ENABLED=true`、`FOOD_VISION_MODEL=deepseek-flash`。`FOOD_VISION_API_KEY` 只填在服务器；若聊天也使用 DeepSeek 官方端点和 `deepseek/` 模型，可留空并复用 `LLM_API_KEY`。如果聊天用其他供应商或代理，必须单独配置视觉密钥。
 
-新接口直接发送照片给 DeepSeek 官方，返回多项食物、估重范围、营养及假设；精确菜名可采用营养库参考值。用户可修改实际份量，确认后才保存记录。模型给出的范围不是称重测量或统计置信区间。
+新接口直接发送照片给 DeepSeek 官方，返回多项食物、估重范围、营养及假设；精确菜名可采用营养库参考值。用户可修改实际份量，确认后才保存记录。模型给出的范围不是称重测量或统计置信区间。`deepseek-flash` 是项目当前配置，供应商模型可用性需通过实际请求验证；健康探针不能验证该能力。
 
-先备份，再同时构建并更新 backend、agent；后端自动迁移新增 `diet_batches` 回执表。新 APK 的批量保存依赖新 Go 接口，不能只更新 Agent。保持全部数据卷；旧版 `/identify-food` 和 `/calculate-intake` 继续可用。检查新版上传→分析→编辑→批量保存→查询，并用同一提交编号重试确认无重复记录。无需更改 Caddy 路由。
+先备份，再构建并更新 backend、agent，验收时先确认 Go 就绪；后端自动迁移新增 `diet_batches` 回执表和 `image_deletions` 删除任务表。新 APK 的批量保存依赖新 Go 接口，不能只更新 Agent。保持全部数据卷；旧版 `/identify-food` 和 `/calculate-intake` 继续可用。检查新版上传→分析→编辑→批量保存→查询，并用同一提交编号重试确认无重复记录。无需更改 Caddy 路由。
 
 不再服务旧 APK 时可关闭 `FOOD_MODEL_PRELOAD`，避免启动时预热 CLIP；旧接口首次调用仍会懒加载，不要在仍需兼容旧版时删除模型卷。
 
 ## 旧版 APK 的 Chinese-CLIP 兼容接口
 
-照片识别使用 Chinese-CLIP，本地 CPU 推理，不需要额外的视觉 API Key。先在持久化的 `model-data` 卷准备模型，确认可加载后再开启服务。RAG 可以继续独立关闭。
+旧接口使用 Chinese-CLIP，本地 CPU 推理，不需要额外的视觉 API Key。先在持久化的 `model-data` 卷准备模型，确认可加载后再开启服务。RAG 可以继续独立关闭。
 
 可以从官方仓库下载固定版本（约 750 MB），避免拉取同仓库的重复权重：
 
@@ -119,7 +123,7 @@ PRELOAD_MODELS=0
 
 执行 `docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d --build --no-deps agent`。服务启动时从本地加载权重并分批预计算 510 个家常菜候选；预热成功后才接受请求，不在用户第一次拍照时下载模型。单实例串行执行模型推理以控制内存，HTTP 事件循环仍可处理其他请求。
 
-已有 App 会直接使用启用后的接口，无需重新打包。上线验证应覆盖登录、上传真实照片、返回五个候选、按克数计算、保存和查询饮食记录，以及他人图片访问被拒绝。模型分数只是当前候选集内的相对分数；用户仍需确认菜名和份量，目前不自动拆分一张照片里的多道菜。
+使用旧识别接口的 App 会直接获得此能力，无需为服务开关重新打包。上线验证应覆盖登录、上传真实照片、返回五个候选、按克数计算、保存和查询饮食记录，以及他人图片访问被拒绝。模型分数只是当前候选集内的相对分数；用户仍需确认菜名和份量，目前该旧接口不自动拆分一张照片里的多道菜；新版整餐分析使用上一节的 DeepSeek 流程。
 
 ## 数据与维护
 
@@ -153,8 +157,10 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml run --rm
 
 ```bash
 sudo install -d -m 700 /etc/nutrigo
-# 首次安装时复制；升级时保留已经填写的配置，不要覆盖。
-sudo install -m 600 deploy/cloud/backup/operations.example.json /etc/nutrigo/backup.json
+# 仅首次安装复制；保留已填写的异地存储和通知配置。
+if ! sudo test -f /etc/nutrigo/backup.json; then
+  sudo install -m 600 deploy/cloud/backup/operations.example.json /etc/nutrigo/backup.json
+fi
 sudo install -m 644 deploy/cloud/backup/nutrigo-backup.service /etc/systemd/system/
 sudo install -m 644 deploy/cloud/backup/nutrigo-backup.timer /etc/systemd/system/
 sudo install -m 644 deploy/cloud/backup/nutrigo-backup-check.service /etc/systemd/system/
@@ -162,7 +168,7 @@ sudo install -m 644 deploy/cloud/backup/nutrigo-backup-check.timer /etc/systemd/
 sudo systemctl daemon-reload
 sudo systemctl enable --now nutrigo-backup.timer nutrigo-backup-check.timer
 sudo systemctl start nutrigo-backup.service
-sudo systemctl list-timers nutrigo-backup.timer
+sudo systemctl list-timers nutrigo-backup.timer nutrigo-backup-check.timer
 sudo journalctl -u nutrigo-backup.service --since today
 ```
 
@@ -188,7 +194,7 @@ python3 deploy/cloud/backup/backup.py restore backups/snapshot-实际备份名 -
 - 异地目标必须实际位于独立设备/存储，脚本无法判断 remote 是否仍指向本机。脚本不删除远端历史，需在存储端另设保留期并关注容量。可使用 rclone crypt remote 加密，恢复密钥另行保管。
 - 手动完整运行：`sudo python3 deploy/cloud/backup/operations.py run --project /opt/nutrigo`；只检查：把 `run` 改为 `check`。已启用异地备份时，应使用编排入口，避免直接执行 Compose 本地备份绕过异地校验与保留策略。
 
-异地复制只有配置真实存储并成功校验后才算启用，目前示例不会创建任何远程资源。远端快照下载后仍须执行 `backup.py verify` 和隔离 `restore`，再按停写恢复流程切换生产。模型、向量库、TLS 状态和部署密钥不包含在此用户数据备份中，需按各自恢复方式管理；整机故障也需要外部监控发现，本机检查不能在主机停机时运行。
+截至本次核对，服务器已启用每日本机备份及每小时检测，`remote` 与 `alert_webhook` 仍为空，尚无异地副本或主动通知。异地复制只有配置真实存储并成功校验后才算启用，模板不会创建任何远程资源。远端快照下载后仍须执行 `backup.py verify` 和隔离 `restore`，再按停写恢复流程切换生产。模型、向量库、TLS 状态和部署密钥不包含在此用户数据备份中，需按各自恢复方式管理；整机故障也需要外部监控发现，本机检查不能在主机停机时运行。
 
 ## 启用已提供的 RAG 资料库
 
@@ -205,3 +211,12 @@ python3 deploy/cloud/backup/backup.py restore backups/snapshot-实际备份名 -
 5. 用原 Compose 项目更新 Agent：`docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d --build --no-deps agent`。确认日志出现 `RAG 知识库已加载` 和正确文档数，再用真实聊天确认 `search_nutrition_knowledge` 返回教材段落；仅健康接口返回正常不代表 RAG 已初始化。
 
 检索会对明确指定的维生素名称增加正文匹配条件，降低 C/D/E 等相近名称混淆；无匹配时返回未找到相关知识，不混用其他维生素的结果。知识库资料用于提供参考，不代表逐条内容已完成专业审校。此操作只更新云端服务，现有 App 即可使用，无需重新安装 APK。Git 快照和固定模型版本是知识库的恢复来源；用户数据库/照片的每日备份不包含模型和向量卷。
+
+## 更新与验收顺序
+
+1. 记录当前源码提交、镜像及 Compose 项目 / 卷名；保存服务器配置，并运行备份验证。已配置异地存储时使用 `operations.py run`，确保复制和读回成功。
+2. 检查新代码对客户端和数据库的兼容性，在原 Compose 项目中更新 Go，再更新依赖它的 Agent。`AutoMigrate` 不是可逆的版本化迁移；回滚镜像前需判断是否同时恢复对应数据快照。
+3. 检查 HTTPS 和两个服务的 ready，再使用专用账号验收登录、档案、日记、照片分析 / 批量保存和聊天工具；RAG 需实际问题检索。
+4. 确认每日备份和每小时检测仍在运行，执行一次检测并查看退出状态和日志。健康探针、CI 和模型效果分别验收。
+
+GitHub Actions 的 Android Release 只负责 APK 构建签名和发布，不自动部署这些服务。修改 API 源地址或客户端交互才需要相应的新 App 构建；文档更新不需要重建服务。

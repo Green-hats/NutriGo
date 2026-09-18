@@ -1,5 +1,7 @@
 # NutriGo 手机 App
 
+核对日期：2026-09-18。开发、安装与发布入口集中在本文；未来交付计划见[路线图](ROADMAP.md)。
+
 NutriGo 使用 **Tauri 2 + React 19 + MUI 9** 构建 Android 和 iOS App。React 页面随安装包分发，手机通过 HTTPS 访问云端 Go / Python 服务；模型 API 由服务器调用，本地检索模型、密钥和数据库留在云端。浏览器与 Vite 用于开发预览。
 
 当前已发布 [Android 0.1.6 ARM64 测试版](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)，约 16.1 MiB；可覆盖此前同签名的 Release 版本。iOS 已有原生工程和 CI 检查，尚未发布 IPA / TestFlight。
@@ -18,7 +20,7 @@ flowchart LR
 
 ## 开发环境
 
-公共依赖：Node.js 22.12+、Rust stable；本地后端仍需 Go 和 Python。Android 需 Android Studio、SDK 36、NDK、JDK 21；iOS 需 macOS、Xcode、XcodeGen、CocoaPods。具体安装步骤见 [Tauri 官方前置要求](https://v2.tauri.app/start/prerequisites/)。
+公共依赖：Node.js 22.12+（CI 使用 24）、Rust stable；本地后端建议 Go 1.26.5+、Python 3.13。Android 需 Android Studio、SDK 36、NDK、JDK 21；iOS 需 macOS、Xcode、XcodeGen、CocoaPods。具体安装步骤见 [Tauri 官方前置要求](https://v2.tauri.app/start/prerequisites/)。
 
 ```bash
 cd frontend
@@ -59,7 +61,7 @@ Tauri 会启动 Vite，不要同时占用 5173 端口。真机和开发机应处
 
 ## 连接云端与打包
 
-尚无域名时，可以先完成本地开发。云端配置参见 [部署说明](../deploy/cloud/README.md)。取得域名后，在 `frontend/.env.production.local` 中填写：
+云端支持域名或有效公网 IP HTTPS 证书，不必等到拥有域名才能连接。配置参见[部署说明](../deploy/cloud/README.md)。在 `frontend/.env.production.local` 填写实际 HTTPS 源地址，例如：
 
 ```dotenv
 VITE_API_BASE_URL=https://api.your-domain.com
@@ -154,23 +156,11 @@ cargo check --locked --manifest-path src-tauri/Cargo.toml
 
 若 Xcode 报 `iOS ... is not installed` 或 `Found no destinations`，在 **Xcode → Settings → Components** 安装对应 iOS 平台及模拟器运行时后再运行。工程生成或 Rust 检查通过不等于已完成真机验收。
 
-### 早期迁移记录（2026-09-16，非当前交付状态）
+### 当前验证边界
 
-- 53 个前端测试、TypeScript 生产构建和 oxlint 通过。
-- macOS 原生检查、iOS ARM64 `cargo check` 通过。
-- Android ARM64 调试 APK 打包通过，产物位于 `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`。
-- 使用本地模拟 API 检查 320px / 390px 布局、注册登录、SSE、JPEG 压缩上传与退出登录。此项不等于真实模型识别验收。
-- 云端 Compose 校验、Caddy 路由／内部接口阻断／SSE 首包测试通过；未运行完整云端容器或部署服务器。
-- iOS 完整打包受本机未安装 iOS 26.5 平台影响，未生成 IPA。双端真机验收和发布签名尚未完成。
+截至 2026-09-18，Android 0.1.6 已作为预发布测试包提供；iOS 只有工程和原生检查，尚无 IPA / TestFlight。CI 会验证前端、Rust、iOS 目标与 Android 构建，不能替代每台设备的权限、键盘和拍照验收。测试数量和依赖审计结果以对应提交的 CI 为准，不沿用早期迁移时的数字。
 
-上述早期本地测试 APK 使用 `https://api.example.com` 占位地址，只用于打包检查；当前 Release 已配置实际云端 HTTPS 地址。
-
-## MUI 界面更新（2026-09-16）
-
-- MUI 9 + Emotion 替换 Tailwind / Lucide，统一登录、对话、日记、档案、趋势、会话抽屉和通知样式。
-- 本地通过前端 82 项测试、类型检查、lint 和生产 App 构建；依赖审计为 0 个漏洞。
-- 使用本地模拟数据验证登录、对话、相册选图→识别→调整份量→保存、趋势切换、档案保存及会话删除确认；检查 320px / 390px 手机布局与缩短可视高度时的输入框位置。仓库截图使用模拟数据。
-- 浏览器预览验证不替代 Android / iOS 真机验收；当前 API 域名仍按部署配置提供。
+服务端 `f72677b` 增加照片删除一致性与备份检测，无需重装 APK 即可生效。删除日记、照片、提交回执及备份有不同保留规则，见[数据管理](DATA_MANAGEMENT.md)。界面资产继续使用 MUI 和本地系统字体，模拟预览只用于验证交互与布局。
 
 ## 离线界面体验 APK
 
@@ -197,6 +187,6 @@ npm run android:preview -- --ci
 
 ## 0.1.6 照片分析与餐次选择
 
-拍照后用 DeepSeek V4.1 Flash（`deepseek-flash`）生成多项食物草稿，克重和热量均可修正；确认才写入日记。服务端必须先上线 `/agent-api/analyze-meal` 和 `/api/diet/logs/batch`，再安装新 APK。旧 APK 仍使用 CLIP 候选流程。API Key 只在服务器，照片会由服务器提交至 DeepSeek 官方；离线体验包不会上传。
+拍照后用 DeepSeek V4.1 Flash（`deepseek-flash`）生成多项食物草稿，克重和热量均可修正；确认才写入日记。服务端必须先上线 `/agent-api/analyze-meal` 和 `/api/diet/logs/batch`，再安装新 APK。仍调用旧识别接口的 APK 使用 CLIP 候选流程。API Key 只在服务器，照片会由服务器提交至 DeepSeek 官方；离线体验包不会上传。
 
 记录入口按手机本地时间预选餐次，用户直接点击早餐、午餐、晚餐或加餐修改；选择会贯穿识别、确认和转手动录入，不因时间变化而重置。界面统一为“记录这一餐”，移除重新按时间选择按钮、半份按钮及重复说明；估重范围、假设和每 100g 营养收纳在“营养详情”。整餐通过一个事务保存，相同提交重试返回原结果。

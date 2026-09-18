@@ -12,7 +12,7 @@
 
 </div>
 
-> Snap a photo of your food, let AI analyze the nutrition, and get personalized dietary advice. A fully-featured full-stack AI nutrition assistant.
+> Snap a photo of your food, let AI analyze the nutrition, and get personalized dietary advice. A Tauri 2 mobile app with cloud-hosted data and AI services.
 
 <div align="center">
 
@@ -49,9 +49,9 @@
 ## ✨ Features
 
 - **📷 Photo Analysis** — DeepSeek V4.1 Flash estimates multiple foods, portions and nutrition; edit grams or nutrients, then save the whole meal with retry deduplication
-- **🤖 AI Chat** — Agent Loop + 5 tools, SSE streaming output, Markdown + chain-of-thought rendering
+- **🤖 AI Chat** — Agent Loop + 5 tools, SSE streaming output, Markdown, expandable tool results and optional model reasoning
 - **📚 RAG Knowledge Base** — ChromaDB with 2,277 entries from a nutrition textbook, answers professional nutrition questions
-- **📊 Nutrition Analysis** — 8,407 real nutrition data points, precise gram-based calculation, multi-day trend insights
+- **📊 Nutrition Analysis** — 8,407 food nutrition references, gram-based conversion, multi-day trend insights
 - **🗓️ Food Diary** — Photo or manual entries by date; meal type defaults to the phone's local time and remains editable, with daily totals and nutrition trends
 - **👤 Personalized Profile** — Height/weight, goals, allergies, pre-existing conditions; AI-tailored dietary advice
 - **🛡️ Authentication & Access Control** — JWT + refresh-token rotation & logout blacklist, IP rate limiting on auth, internal service token, strict key validation in production
@@ -71,9 +71,9 @@ ARM64 test build, about **16.1 MiB**, for Android 8.0+ with Android System WebVi
 
 | Tool | Version |
 |------|---------|
-| Go | 1.26+ |
-| Python | 3.13+ |
-| Node.js | 22+ |
+| Go | 1.26.5+ |
+| Python | 3.13 (CI / Docker) |
+| Node.js | 24 (CI); minimum 22.12 |
 | uv | 0.11+ |
 
 ### Installation
@@ -134,13 +134,15 @@ flowchart LR
     Agent -->|"LiteLLM · server API key"| LLM["Chat model API"]
 ```
 
-- **Agent Loop** — the LLM autonomously decides which tool to call; streams chain-of-thought (`reasoning_content`)
+- **Agent Loop** — the LLM autonomously decides which tool to call; streams model reasoning when the provider returns `reasoning_content`
 - **5 Tools** — look up nutrition / get profile / get diet history / get nutrition trends / search knowledge base
 - **RAG** — BGE-small-zh embeddings + ChromaDB vector retrieval
 - **Multimodal** — DeepSeek V4.1 Flash vision API with nutrition database references; Chinese-CLIP retained for older APKs
 - **Meal workflow** — upload a photo → verify ownership → analyze food and nutrition → edit the draft in the app → save all items in one Go transaction. Retrying the same batch does not create duplicate records.
 
 The app preselects breakfast, lunch, dinner or a snack using local time. Users can change it directly; estimated weight ranges and assumptions are tucked into expandable nutrition details. API keys stay on the server, and React assets ship inside the app.
+
+Diet details remain available; referenced photos are protected, while unattached photos expire seven days after upload by default. Local backups and hourly checks run on the server; offsite storage and notification delivery are not configured yet. See [data management](docs/DATA_MANAGEMENT.md). Account deletion / full export and real-data offline sync remain on the [roadmap](docs/ROADMAP.md).
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 
@@ -153,7 +155,11 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 | [Mobile app](docs/MOBILE.md) | Android / iOS development, native builds and cloud connection |
 | [Cloud deployment](deploy/cloud/README.md) | Caddy HTTPS + Go + Agent on one server |
 | [Architecture](docs/ARCHITECTURE.md) | System architecture, data flow, security design |
-| [API Reference](backend/API.md) | All Go backend endpoints |
+| [API Reference](backend/API.md) | Go routes, errors, image deletion and batch-save contracts |
+| [Backend](docs/backend.md) | Go services, transactions and background tasks |
+| [Data management](docs/DATA_MANAGEMENT.md) | Retention, deletion, backup scope and recovery gaps |
+| [Roadmap](docs/ROADMAP.md) | Delivered capabilities, limitations and priorities |
+| [Product proposal](docs/PROPOSAL.md) | Product goals and acceptance criteria |
 | [Agent Doc](docs/agent.md) | Python Agent design & tool descriptions |
 | [Frontend Doc](docs/frontend.md) | React frontend structure |
 | [Test Prompts](docs/agent-test-prompts.md) | Agent test prompt suites |
@@ -162,23 +168,17 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 
 ## 🧪 Testing
 
+These checks do not require running application services or live models. Install dependencies as described in the [contributing guide](CONTRIBUTING.md) first:
+
 ```bash
-# Unit tests (no services required, CI-friendly)
-make test-go-unit        # Go unit tests
-make test-frontend       # Frontend vitest: store / components / mobile API transport
-make test-agent-unit     # Agent pytest: no LLM / models
-
-# Integration tests (services must be running)
-make test-backend        # Go HTTP API integration tests
-make test-agent          # Agent basics: 20 cases
-make test-identify       # Image recognition: 13 cases
-make test-prompts        # Full prompts: --quick 9 core cases
-
-# Run everything
-make test
+(cd backend && go test ./internal/... && go vet ./...)
+(cd frontend && npm run lint && npm test && npm run build)
+(cd agent && uv run ruff check app/ recognition/ tests/ && uv run mypy app/ recognition/ && uv run pytest)
+python3 -m unittest discover -s deploy/cloud/backup -p 'test_*.py'
+python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 ```
 
-**Static analysis:** `make lint` (ruff + mypy + oxlint) · `make typecheck` (mypy type checking)
+`make test` also invokes development integration scripts that need services, models or a live LLM; it is neither an isolated unit suite nor every CI check. Go HTTP integration uses a dedicated test database, and Agent integration scripts must not target production. CI additionally checks native code, Android and the gateway; see the contributing guide for full commands and device-validation requirements.
 
 ---
 
@@ -195,7 +195,7 @@ make test
 
 ## 🚀 Deployment
 
-See [cloud deployment](deploy/cloud/README.md). Caddy exposes one HTTPS API origin, while Go and Agent run on the private Compose network. React assets are distributed inside the mobile app. No frontend hosting is required.
+See [cloud deployment](deploy/cloud/README.md). Caddy exposes one HTTPS API origin, while Go and Agent run on the private Compose network. React assets are distributed inside the mobile app. No frontend hosting is required. Server updates, Android Releases and documentation changes are delivered separately; Actions does not currently deploy the server.
 
 ---
 
@@ -204,7 +204,7 @@ See [cloud deployment](deploy/cloud/README.md). Caddy exposes one HTTPS API orig
 Contributions are welcome! Please check out:
 
 - [Contributing Guide](CONTRIBUTING.md)
-- Run `make lint && make test` before submitting
+- Run the checks relevant to your change in the contributing guide
 - Follow the Conventional Commits convention
 
 ## 📄 License
