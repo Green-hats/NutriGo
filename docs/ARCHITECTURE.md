@@ -1,6 +1,6 @@
 # NutriGo — 架构设计文档
 
-更新日期：2026-09-18。本文描述 Android 0.1.5 的 DeepSeek 照片分析实现；发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
+更新日期：2026-09-18。本文描述 Android 0.1.6 的 DeepSeek 照片分析实现；发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
 
 移动端运行与签名见 [MOBILE.md](MOBILE.md)，云端部署、模型准备和恢复操作见 [部署说明](../deploy/cloud/README.md)。具体配置和接口以本文链接的源码为准。
 
@@ -10,7 +10,7 @@ NutriGo 是 **Tauri 2 手机 App + 单机云端服务**。React 页面、样式�
 
 | 部分 | 当前实现与交付状态 |
 |---|---|
-| Android | 已发布 [0.1.5 ARM64 测试 APK](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.5)，约 16.1 MiB；要求 Android 8.0+、WebView 117+；GitHub Actions 自动签名和 Release 发布已跑通 |
+| Android | 已发布 [0.1.6 ARM64 测试 APK](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)，约 16.1 MiB；要求 Android 8.0+、WebView 117+；GitHub Actions 自动签名和 Release 发布已跑通 |
 | iOS | 已有原生工程，最低 iOS 17；CI 检查 iOS Rust 目标，尚无自动签名、IPA / TestFlight 发布流程 |
 | 数据服务 | Go 管理账号、健康档案、饮食记录、汇总、图片和令牌状态 |
 | AI 服务 | Python 管理用户会话和工具编排；调用外部 LLM，执行云端照片识别和 RAG 检索 |
@@ -265,6 +265,7 @@ GORM 启动时通过 `AutoMigrate` 建表；模型定义是结构来源，目前
 
 - App 仅加载打包资源，CSP 与 Tauri capabilities 限制页面和原生能力；不在 App 中保存 LLM API Key。
 - Go 校验 JWT、访问令牌黑名单与用户状态。Agent 先验签，再调用内部 verify 接口实时确认，避免已退出的令牌继续访问 AI；图片缓存也不能绕过归属校验。
+- 档案年龄由 App 和 Go 双重校验为 0–150 的整数，0 兼容未填写状态；无效输入不会保存或自动取整。接口只返回可读的校验提示，不向用户展示 JSON 解析细节。
 - 刷新令牌轮换、家族重放检测和登出吊销由 Go 管理；生产环境拒绝缺失或默认服务密钥。
 - 登录、注册和刷新使用 IP 令牌桶限流；业务对象查询和修改按当前用户隔离。
 - 上传限制为 JPEG / PNG / WebP、10 MiB；客户端先压缩，服务端重新检查内容类型、大小并生成文件名。

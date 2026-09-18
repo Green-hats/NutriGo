@@ -2,6 +2,8 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"nutri.go/backend/internal/httperr"
 	"strconv"
@@ -69,7 +71,16 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httperr.Response(c, http.StatusBadRequest, "参数无效: "+err.Error())
+		message := "档案格式不正确，请检查填写内容"
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field == "age" {
+			message = "年龄请输入 0–150 之间的整数"
+		}
+		httperr.Response(c, http.StatusBadRequest, message)
+		return
+	}
+	if req.Age < 0 || req.Age > 150 {
+		httperr.Response(c, http.StatusBadRequest, "年龄请输入 0–150 之间的整数")
 		return
 	}
 

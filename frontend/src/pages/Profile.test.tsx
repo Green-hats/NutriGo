@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Profile from './Profile'
 import { useAuthStore } from '../stores/auth'
@@ -73,6 +73,53 @@ describe('Profile 健康档案页', () => {
     render(<Profile />)
 
     await waitFor(() => expect(screen.getByText(/加载失败/)).toBeInTheDocument())
+  })
+
+  it.each(['10.9', '-1', '151'])('无效年龄 %s 在输入处提示并阻止提交，保留填写内容', async (age) => {
+    getProfileMock.mockResolvedValue(profile)
+    render(<Profile />)
+    const input = await screen.findByLabelText('年龄')
+    fireEvent.change(input, { target: { value: age } })
+    fireEvent.click(screen.getByRole('button', { name: '保存档案' }))
+
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAccessibleDescription('年龄请输入 0–150 之间的整数')
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue(Number(age))
+    expect(updateProfileMock).not.toHaveBeenCalled()
+    expect(toastMock).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().profile?.age).toBe(32)
+  })
+
+  it('修正小数年龄后可保存，身高体重仍支持小数', async () => {
+    getProfileMock.mockResolvedValue(profile)
+    updateProfileMock.mockResolvedValue({ ...profile, age: 11, height_cm: 175.5, weight_kg: 68.2 })
+    render(<Profile />)
+    const input = await screen.findByLabelText('年龄')
+    fireEvent.change(input, { target: { value: '10.9' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存档案' }))
+    expect(updateProfileMock).not.toHaveBeenCalled()
+    fireEvent.change(input, { target: { value: '11' } })
+    fireEvent.change(screen.getByLabelText('身高(cm)'), { target: { value: '175.5' } })
+    fireEvent.change(screen.getByLabelText('体重(kg)'), { target: { value: '68.2' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存档案' }))
+    await waitFor(() => expect(updateProfileMock).toHaveBeenCalledWith(expect.objectContaining({
+      age: 11, height_cm: 175.5, weight_kg: 68.2
+    })))
+    expect(input).toHaveAttribute('inputmode', 'numeric')
+    expect(input).toHaveAttribute('step', '1')
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith('档案已保存', 'success'))
+  })
+
+  it('未填写年龄时仍可保存其他档案信息', async () => {
+    getProfileMock.mockResolvedValue(profile)
+    updateProfileMock.mockResolvedValue({ ...profile, age: 0 })
+    const user = userEvent.setup()
+    render(<Profile />)
+    await user.clear(await screen.findByLabelText('年龄'))
+    await user.click(screen.getByRole('button', { name: '保存档案' }))
+    await waitFor(() => expect(updateProfileMock).toHaveBeenCalledWith(expect.objectContaining({ age: 0 })))
   })
 
   it('退出登录调用远端吊销并跳转登录页', async () => {

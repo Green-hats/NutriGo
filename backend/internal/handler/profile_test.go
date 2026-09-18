@@ -163,3 +163,74 @@ func TestUpdateProfileForbiddenForOtherUser(t *testing.T) {
 		t.Fatalf("状态码 = %d, 期望 403", w.Code)
 	}
 }
+
+func TestUpdateProfileInvalidInputDoesNotChangeProfile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name, body, message string
+	}{
+		{"decimal age", `{"height_cm":180,"age":10.9}`, "年龄请输入 0–150 之间的整数"},
+		{"negative age", `{"height_cm":180,"age":-1}`, "年龄请输入 0–150 之间的整数"},
+		{"age too large", `{"height_cm":180,"age":151}`, "年龄请输入 0–150 之间的整数"},
+		{"age overflow", `{"age":99999999999999999999999}`, "年龄请输入 0–150 之间的整数"},
+		{"string age", `{"age":"10.9"}`, "年龄请输入 0–150 之间的整数"},
+		{"wrong field type", `{"height_cm":"wrong"}`, "档案格式不正确，请检查填写内容"},
+		{"malformed JSON", `{"age":`, "档案格式不正确，请检查填写内容"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTestDB(t)
+			original := model.UserProfile{UserID: 1, Age: 32, HeightCm: 175}
+			if err := db.Create(&original).Error; err != nil {
+				t.Fatal(err)
+			}
+			h := &ProfileHandler{DB: db}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Set("userID", uint(1))
+			c.Params = []gin.Param{{Key: "id", Value: "1"}}
+			c.Request = httptest.NewRequest(http.MethodPut, "/api/users/1/profile", bytes.NewBufferString(tc.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			h.UpdateProfile(c)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+			}
+			body := mustJSONBody(t, w.Body.Bytes())
+			if body["code"] != "VALIDATION_ERROR" || body["message"] != tc.message {
+				t.Fatalf("unexpected error: %v", body)
+			}
+			var saved model.UserProfile
+			if err := db.Where("user_id = ?", 1).First(&saved).Error; err != nil {
+				t.Fatal(err)
+			}
+			if saved.Age != original.Age || saved.HeightCm != original.HeightCm {
+				t.Fatalf("invalid request modified profile: %+v", saved)
+			}
+		})
+	}
+}
+
+func TestUpdateProfileAgeBoundsAndDecimalMeasurements(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, age := range []int{0, 11, 150} {
+		db := setupTestDB(t)
+		h := &ProfileHandler{DB: db}
+		payload, err := json.Marshal(map[string]any{"age": age, "height_cm": 175.5, "weight_kg": 68.2})
+		if err != nil {
+			t.Fatal(err)
+		}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userID", uint(1))
+		c.Params = []gin.Param{{Key: "id", Value: "1"}}
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/users/1/profile", bytes.NewReader(payload))
+		c.Request.Header.Set("Content-Type", "application/json")
+		h.UpdateProfile(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("age %d: status = %d, body = %s", age, w.Code, w.Body.String())
+		}
+		body := mustJSONBody(t, w.Body.Bytes())
+		if body["age"] != float64(age) || body["height_cm"] != 175.5 || body["weight_kg"] != 68.2 {
+			t.Fatalf("unexpected saved values: %v", body)
+		}
+	}
+}

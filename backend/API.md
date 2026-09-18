@@ -290,7 +290,7 @@ GET /api/users/:id/profile
 |------|------|------|
 | `height_cm` | float | 身高（厘米） |
 | `weight_kg` | float | 体重（公斤） |
-| `age` | int | 年龄 |
+| `age` | int | 年龄，0–150；0 也表示未填写 |
 | `gender` | string | `male` / `female` / `other` |
 | `goal` | string | `lose_weight` / `maintain` / `gain_muscle` |
 | `allergies` | string[] | 过敏原 |
@@ -322,6 +322,8 @@ PUT /api/users/:id/profile
 ```
 
 **`200 OK`** — 返回更新后的完整档案
+
+**`400`** — 年龄为小数、字符串、负数或超过 150 时，返回 `VALIDATION_ERROR` 和“年龄请输入 0–150 之间的整数”；其他 JSON 格式错误返回“档案格式不正确，请检查填写内容”。校验失败不写入任何档案字段。身高、体重支持小数，年龄不会自动取整。
 
 **`403`** — 无权修改他人档案
 

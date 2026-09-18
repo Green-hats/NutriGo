@@ -1,5 +1,5 @@
 import { errorMessage } from '../lib/connection'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Avatar,
   Box,
@@ -57,6 +57,9 @@ export default function Profile() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const ageInput = useRef<HTMLInputElement>(null)
+  const ageError = !Number.isInteger(form.age) || form.age < 0 || form.age > 150
+    ? '年龄请输入 0–150 之间的整数' : ''
 
   const loadProfile = () => {
     if (!user) return
@@ -72,6 +75,11 @@ export default function Profile() {
 
   const handleSave = async () => {
     if (!user) return
+    if (ageError) {
+      ageInput.current?.focus()
+      ageInput.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+      return
+    }
     setSaving(true)
     try {
       await goApi.updateProfile(form)
@@ -161,6 +169,10 @@ export default function Profile() {
                   label="年龄"
                   value={form.age}
                   onChange={(v) => setForm({ ...form, age: v })}
+                  integer
+                  max={150}
+                  inputRef={ageInput}
+                  error={ageError}
                 />
                 <TextField
                   label="性别"
@@ -314,20 +326,31 @@ function Section({
 function Field({
   label,
   value,
-  onChange
+  onChange,
+  integer = false,
+  max,
+  inputRef,
+  error = ''
 }: {
   label: string
   value: number
   onChange: (v: number) => void
+  integer?: boolean
+  max?: number
+  inputRef?: React.Ref<HTMLInputElement>
+  error?: string
 }) {
   return (
     <TextField
       label={label}
       type="number"
       value={value || ''}
+      inputRef={inputRef}
+      error={Boolean(error)}
+      helperText={error || undefined}
       onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
       slotProps={{
-        htmlInput: { min: 0, inputMode: 'decimal' },
+        htmlInput: { min: 0, max, step: integer ? 1 : 'any', inputMode: integer ? 'numeric' : 'decimal' },
         inputLabel: { shrink: true }
       }}
     />

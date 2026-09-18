@@ -2,7 +2,7 @@
 
 NutriGo 使用 **Tauri 2 + React 19 + MUI 9** 构建 Android 和 iOS App。React 页面随安装包分发，手机通过 HTTPS 访问云端 Go / Python 服务；模型 API 由服务器调用，本地检索模型、密钥和数据库留在云端。浏览器与 Vite 用于开发预览。
 
-当前已发布 [Android 0.1.5 ARM64 测试版](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.5)，约 16.1 MiB；可覆盖此前同签名的 Release 版本。iOS 已有原生工程和 CI 检查，尚未发布 IPA / TestFlight。
+当前已发布 [Android 0.1.6 ARM64 测试版](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)，约 16.1 MiB；可覆盖此前同签名的 Release 版本。iOS 已有原生工程和 CI 检查，尚未发布 IPA / TestFlight。
 
 ```mermaid
 flowchart LR
@@ -100,7 +100,7 @@ VITE_API_BASE_URL=https://你的API地址 npm run android:compact -- --ci
 
 工作流入口：[Actions → Android Release](https://github.com/Green-hats/NutriGo/actions/workflows/android-release.yml)。
 
-1. 更新 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中 NutriGo 的版本号，提交到 `main`。当前 `0.1.5` 对应 Android versionCode `1005`，下一次发版须使用新版本号。
+1. 更新 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中 NutriGo 的版本号，提交到 `main`。当前 `0.1.6` 对应 Android versionCode `1006`，下一次发版须使用新版本号。
 2. 在该工作流页面点击 **Run workflow**，选择 **main**；或推送与新版本一致的 `android-v<版本号>` 标签。两种方式选择一种即可。
 3. 工作流复用完整 CI，通过后下载同一次运行的联网 APK，使用固定签名签署，并校验包名、版本、ARM64 架构、签名指纹、ZIP 完整性、16 KB 对齐和 20 MiB 体积上限。
 4. 自动创建 `android-v<版本号>` 的预发布 Release，上传 APK、`SHA256SUMS.txt`、`release-manifest.json`。先上传到草稿并核对 GitHub 返回的校验值，全部一致后才公开。说明包含源码提交、安装要求和 CI 链接。
@@ -132,6 +132,7 @@ VITE_API_BASE_URL=https://你的API地址 npm run android:compact -- --ci
 | 手机布局 | 安全区、动态可视高度、键盘弹出时隐藏底部导航；中文输入法回车不会误发送 |
 | 食物照片 | 独立拍照／相册入口；系统文件选择器；JPEG 转换、长边 1600px、上传上限 10MB |
 | 登录状态 | 按服务器地址隔离本地存储；切换账号清空对话；健康档案不持久化到客户端 |
+| 档案输入 | 年龄使用整数键盘，0–150 的整数校验失败时在输入处提示并阻止保存；身高、体重保留小数输入，年龄留空仍可保存其他信息 |
 
 照片由 WebView 解码并压缩；无法解码的 HEIC 等文件会提示改选 JPG、PNG 或 WebP。Android 使用系统相机 Intent 和 FileProvider；iOS 提供相机、相册及局域网权限说明。拍照、系统返回键、键盘和权限拒绝行为仍需在目标真机上验收。
 
@@ -194,7 +195,7 @@ npm run android:preview -- --ci
 
 云端 API 部署完成后，可以设置 GitHub 仓库 Actions 变量 `NUTRIGO_API_BASE_URL` 为实际 HTTPS 源地址。CI 会额外保留 `NutriGo-online-arm64.apk`，供连接云端服务的实机测试；未配置时仅上传离线预览包。两者都是调试签名，不能作为商店发布包。
 
-## 0.1.5 照片分析与餐次选择
+## 0.1.6 照片分析与餐次选择
 
 拍照后用 DeepSeek V4.1 Flash（`deepseek-flash`）生成多项食物草稿，克重和热量均可修正；确认才写入日记。服务端必须先上线 `/agent-api/analyze-meal` 和 `/api/diet/logs/batch`，再安装新 APK。旧 APK 仍使用 CLIP 候选流程。API Key 只在服务器，照片会由服务器提交至 DeepSeek 官方；离线体验包不会上传。
 
