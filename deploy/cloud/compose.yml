@@ -62,6 +62,8 @@ services:
       RAG_ENABLED: ${RAG_ENABLED:-true}
       RAG_MODEL_PATH: ${RAG_MODEL_PATH:-BAAI/bge-small-zh-v1.5}
       FOOD_RECOGNITION_ENABLED: ${FOOD_RECOGNITION_ENABLED:-true}
+      FOOD_VISION_MODEL: ${FOOD_VISION_MODEL:-deepseek-flash}
+      FOOD_VISION_API_KEY: ${FOOD_VISION_API_KEY:-}
       FOOD_MODEL_PATH: ${FOOD_MODEL_PATH:-OFA-Sys/chinese-clip-vit-base-patch16}
       FOOD_MODEL_INT8: ${FOOD_MODEL_INT8:-false}
       FOOD_MODEL_PRELOAD: ${FOOD_MODEL_PRELOAD:-true}

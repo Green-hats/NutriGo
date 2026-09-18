@@ -67,6 +67,9 @@ class Config:
     FOOD_MODEL_PATH: str = os.getenv("FOOD_MODEL_PATH", "OFA-Sys/chinese-clip-vit-base-patch16")
     FOOD_MODEL_INT8: bool = os.getenv("FOOD_MODEL_INT8", "false").lower() == "true"
     FOOD_MODEL_PRELOAD: bool = os.getenv("FOOD_MODEL_PRELOAD", "false").lower() == "true"
+    # 照片分析固定调用 DeepSeek 官方；仅复用属于该官方端点的聊天密钥。
+    FOOD_VISION_MODEL: str = os.getenv("FOOD_VISION_MODEL", "deepseek-flash")
+    FOOD_VISION_API_KEY: str = os.getenv("FOOD_VISION_API_KEY", "")
     LLM_REASONING_EFFORT: str = os.getenv("LLM_REASONING_EFFORT", "")
 
     # --- Go 后端地址 ---

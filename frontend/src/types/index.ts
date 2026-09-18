@@ -147,3 +147,25 @@ export interface IdentifyRequest {
 export interface RenameRequest {
   name: string
 }
+export interface MealNutrients {
+  calories: number
+  protein_g: number
+  fat_g: number
+  carbs_g: number
+}
+
+export interface MealEstimate {
+  name: string
+  grams: number
+  grams_low: number
+  grams_high: number
+  nutrition_per_100g: MealNutrients
+  nutrition_source: 'database' | 'model'
+  assumption: string
+}
+
+export interface MealAnalysis {
+  items: MealEstimate[]
+  note: string
+  model: string
+}

@@ -32,6 +32,7 @@ from app.config import settings
 from app.conversation import Conversation
 from app.llm_client import run_agent_loop
 from app.logging_setup import configure_logging, new_request_id, request_id_var
+from app.meal_analysis import router as meal_router
 from app.models import PagedSessions, SessionDetail
 from app.rate_limit import acquire_user, get_session_lock, prune_session_locks, release_user
 from app.tools import registry as tool_registry
@@ -86,6 +87,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(title="NutriGo Agent", version="0.1.0", lifespan=lifespan)
+app.include_router(meal_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,

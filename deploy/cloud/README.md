@@ -85,7 +85,17 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d ag
 
 如果模型下载网络不可达，保留 `AI_ENABLED=false`，待缓存准备完成后再启用。API Key 仅保存在服务器，不能放进 `VITE_*` 或 APK。
 
-## 在已有服务器启用照片识别
+## DeepSeek V4.1 照片分析（Android 0.1.3 起）
+
+新版 App 使用 `/agent-api/analyze-meal`。在服务器配置 `AI_ENABLED=true`、`FOOD_RECOGNITION_ENABLED=true`、`FOOD_VISION_MODEL=deepseek-flash`。`FOOD_VISION_API_KEY` 只填在服务器；若聊天也使用 DeepSeek 官方端点和 `deepseek/` 模型，可留空并复用 `LLM_API_KEY`。如果聊天用其他供应商或代理，必须单独配置视觉密钥。
+
+新接口直接发送照片给 DeepSeek 官方，返回多项食物、估重范围、营养及假设；精确菜名可采用营养库参考值。前端上传前说明照片去向，并要求用户确认实际份量。模型给出的范围不是称重测量或统计置信区间。
+
+先备份，再同时构建并更新 backend、agent；后端自动迁移新增 `diet_batches` 回执表。新 APK 的批量保存依赖新 Go 接口，不能只更新 Agent。保持全部数据卷；旧版 `/identify-food` 和 `/calculate-intake` 继续可用。检查新版上传→分析→编辑→批量保存→查询，并用同一提交编号重试确认无重复记录。无需更改 Caddy 路由。
+
+不再服务旧 APK 时可关闭 `FOOD_MODEL_PRELOAD`，避免启动时预热 CLIP；旧接口首次调用仍会懒加载，不要在仍需兼容旧版时删除模型卷。
+
+## 旧版 APK 的 Chinese-CLIP 兼容接口
 
 照片识别使用 Chinese-CLIP，本地 CPU 推理，不需要额外的视觉 API Key。先在持久化的 `model-data` 卷准备模型，确认可加载后再开启服务。RAG 可以继续独立关闭。
 

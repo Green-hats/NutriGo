@@ -5,6 +5,7 @@ import { ConnectionError } from '../lib/connection'
 import { apiFetch } from './http'
 import type {
   IdentifyResult,
+  MealAnalysis,
   IntakeResult,
   SessionInfo,
   SessionDetail,
@@ -75,6 +76,11 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const agentApi = {
+  analyzeMeal: (imageId: number, signal?: AbortSignal) =>
+    request<MealAnalysis>('/analyze-meal', {
+      method: 'POST', body: JSON.stringify({ image_id: imageId }), signal
+    }),
+
   identifyFood: (imageId: number) =>
     post<IdentifyResult[]>('/identify-food', { image_id: imageId }),
 

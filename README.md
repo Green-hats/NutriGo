@@ -48,7 +48,7 @@
 
 ## ✨ Features
 
-- **📷 Photo Recognition** — Zero-shot food recognition with Chinese-CLIP, Top-5 candidates, 510+ home-cooked dishes
+- **📷 Photo Analysis** — DeepSeek V4.1 Flash estimates multiple foods, portion ranges and nutrition; edit and confirm before saving
 - **🤖 AI Chat** — Agent Loop + 5 tools, SSE streaming output, Markdown + chain-of-thought rendering
 - **📚 RAG Knowledge Base** — ChromaDB with 2,277 entries from a nutrition textbook, answers professional nutrition questions
 - **📊 Nutrition Analysis** — 8,407 real nutrition data points, precise gram-based calculation, multi-day trend insights
@@ -109,14 +109,14 @@ Stop any existing Vite process first to free port 5173. See the [mobile guide](d
 flowchart LR
     App[Android / iOS · Tauri 2 + React] -->|HTTPS · JWT| Caddy
     Caddy -->|/api/*| Go[Go + SQLite]
-    Caddy -->|/agent-api/*| Agent[FastAPI · CLIP · RAG · LLM]
+    Caddy -->|/agent-api/*| Agent[FastAPI · Vision API · RAG · LLM]
     Agent -->|Internal Token| Go
 ```
 
 - **Agent Loop** — the LLM autonomously decides which tool to call; streams chain-of-thought (`reasoning_content`)
 - **5 Tools** — look up nutrition / get profile / get diet history / get nutrition trends / search knowledge base
 - **RAG** — BGE-small-zh embeddings + ChromaDB vector retrieval
-- **Multimodal** — zero-shot food recognition with Chinese-CLIP
+- **Multimodal** — DeepSeek V4.1 Flash vision API with nutrition database references; Chinese-CLIP retained for older APKs
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 

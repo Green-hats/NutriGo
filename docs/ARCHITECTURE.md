@@ -1,6 +1,6 @@
 # NutriGo — 架构设计文档
 
-更新日期：2026-09-17。本文描述当前实现，对照源码基线 `bb970c2`（Android 0.1.2）。尚未实现的改进单独列于末节。
+更新日期：2026-09-18。本文描述 Android 0.1.3 的 DeepSeek 照片分析实现；发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
 
 移动端运行与签名见 [MOBILE.md](MOBILE.md)，云端部署、模型准备和恢复操作见 [部署说明](../deploy/cloud/README.md)。具体配置和接口以本文链接的源码为准。
 
@@ -58,7 +58,7 @@ flowchart TB
 | 原生通信 | `@tauri-apps/plugin-http` 发起 App 网络请求；浏览器开发预览使用标准 `fetch` 与 Vite 代理 |
 | Go | Gin / GORM / SQLite / JWT / bcrypt；负责业务数据的写入、归属校验、认证与图片生命周期 |
 | Python | FastAPI / LiteLLM / aiosqlite / httpx；负责 Agent Loop、工具调用与用户会话持久化 |
-| 识别与检索 | Chinese-CLIP、BGE-small-zh、ChromaDB、食物营养库；模型在服务器执行，权重不进入 APK |
+| 识别与检索 | DeepSeek V4.1 Flash 远程视觉 API、营养库参考值、BGE-small-zh、ChromaDB；旧版兼容接口保留 Chinese-CLIP，权重不进入 APK |
 | 云端入口 | Caddy HTTPS、路径路由和 SSE 转发；支持域名证书和单独的公网 IP 证书配置 |
 | 交付 | GitHub Actions CI、Android APK 优化构建、固定签名、GitHub 预发布 Release |
 
@@ -130,12 +130,16 @@ Agent 默认限制单条提问长度、工具执行时间、循环轮数、上�
 
 1. 用户先选择记录日期和餐次；手机按当前时间提供默认餐次，也允许手动选择。
 2. 选图后前端压缩为 JPEG，最长边 1600px；上传至 `POST /api/images/upload`。Go 验证格式与大小、生成 UUID 文件名，保存文件和图片元信息，返回 `{id, filename, mime_type, size}`。
-3. 前端自动调用 `POST /agent-api/identify-food`，提交数值型 `image_id`。Agent 校验登录、向 Go 查询图片归属，校验通过后才可读取识别缓存或图片二进制。
-4. Chinese-CLIP 在云端 CPU 上对家常菜标签计算候选排序，返回 Top-5、营养数据和默认份量。当前约 510 个家常菜标签；不是任意食物、多菜品分割或重量识别。
-5. 用户确认候选并调整克数；`POST /agent-api/calculate-intake` 根据食物库计算营养。候选均不正确时可转手动记录。
-6. 用户确认后，App 调用 `POST /api/diet/logs` 保存所选日期、餐次、营养和图片关联，成功后刷新日记。保存操作不会自动发起 AI 对话。
+3. 新版 App 调用 `POST /agent-api/analyze-meal`，提交 `image_id`。Agent 实时校验登录、向 Go 核验图片归属，再读取缓存或图片。照片通过内联 base64 发往 DeepSeek 官方端点，不公开图片 URL。
+4. DeepSeek V4.1 Flash（API 名称 `deepseek-flash`）返回最多 12 项食物的菜名、估重及范围、每 100g 营养和估算假设。后端验证完整 JSON、有限非负营养数值、重量范围和上限；截断或不合规输出返回错误，无食物照片返回空清单。精确菜名命中营养库时采用库中参考值，否则标为 AI 估算。
+5. 用户可逐项调整实际食用克数、减半、移除误识别项、修改名称及每 100g 营养；前端即时按克数重算，选择餐次后确认。结果只是一份草稿，不自动写入日记。
+6. App 调用 `POST /api/diet/logs/batch`，提交 UUID 和 1–12 条记录。Go 校验全部输入及每张照片归属，用一个事务创建记录和提交回执。同一用户、同一编号和相同内容重试返回原回执，不重复插入；编号相同但内容不同返回 409。超时后 App 保留原提交并锁定编辑，允许重试；关闭后刷新日记。回执随数据库备份，目前未自动清理。
 
-前端流程见 [Diary.tsx](../frontend/src/pages/Diary.tsx)，压缩见 [foodImage.ts](../frontend/src/lib/foodImage.ts)，服务端见 [identify_food](../agent/app/main.py) 和 [multimodal.py](../agent/recognition/multimodal.py)。候选分数是标签集合内的相对分数，不是经评测校准的准确率；用户确认是当前流程的一部分。
+前端见 [MealAnalysisFlow.tsx](../frontend/src/components/diary/MealAnalysisFlow.tsx)，压缩见 [foodImage.ts](../frontend/src/lib/foodImage.ts)，Agent 见 [meal_analysis.py](../agent/app/meal_analysis.py) 与 [meal.py](../agent/recognition/meal.py)，原子保存见 [diet_batch.go](../backend/internal/handler/diet_batch.go)。
+
+新版视觉请求固定发送至 `https://api.deepseek.com/chat/completions`，`FOOD_VISION_API_KEY` 可单独配置；聊天配置指向 DeepSeek 官方时可复用 `LLM_API_KEY`，不会把其他供应商密钥转发到 DeepSeek。模型别名可能随供应商升级。照片分析单次总时限 48 秒，同一用户最多一个未完成分析，单进程最多四个；结果缓存一小时、最多 500 张，每次命中前仍校验图片归属。这些限制不是跨副本限额。
+
+旧 APK 继续调用 `/identify-food` 的 Chinese-CLIP Top-5 接口及 `/calculate-intake`，默认克重仍来自食物分类。新流程需要升级 APK。照片估重、隐藏配料和用油均存在误差；范围由模型估计，不是统计置信区间，尚无称重样本集准确率评测。
 
 ### 5.3 RAG 检索
 
@@ -159,6 +163,7 @@ Agent 默认限制单条提问长度、工具执行时间、循环轮数、上�
 | POST | `/api/images/upload` | 上传图片 | JWT |
 | DELETE | `/api/images/:id` | 删除自己的未关联图片 | JWT + 用户归属 |
 | POST / GET | `/api/diet/logs` | 创建、按日期查询明细 | JWT |
+| POST | `/api/diet/logs/batch` | 原子保存多项食物、提交编号防重 | JWT + 图片归属 |
 | PUT / DELETE | `/api/diet/logs/:id` | 编辑、删除自己的明细 | JWT + 用户归属 |
 | GET | `/api/diet/summaries` | 日期区间汇总、分页 | JWT |
 | GET | `/api/internal/auth/verify` | 实时检查访问令牌与用户状态 | 内部令牌 + JWT，网关阻断 |
@@ -177,7 +182,8 @@ Agent 默认限制单条提问长度、工具执行时间、循环轮数、上�
 | GET | `/api/sessions`、`/api/sessions/:id` | 会话列表、历史 | JWT + 会话归属 |
 | POST | `/api/sessions/:id/regenerate` | 重新生成最后回复，返回 SSE | JWT + 会话归属 |
 | DELETE / PATCH | `/api/sessions/:id` | 删除、重命名会话 | JWT + 会话归属 |
-| POST | `/api/identify-food` | 照片识别 | JWT + 图片归属 |
+| POST | `/api/analyze-meal` | DeepSeek 多食物与克重营养估算 | JWT + 图片归属 |
+| POST | `/api/identify-food` | 旧版 CLIP 兼容接口 | JWT + 图片归属 |
 | POST | `/api/calculate-intake` | 按食物和克数计算营养 | JWT |
 
 所有受保护 Agent 路由使用 [auth.py](../agent/app/auth.py) 的实时令牌校验，Go 不可达时拒绝受保护请求。`/ready` 仅检查数据库连通，不代表 LLM、RAG 或识别质量验收已通过。
@@ -193,6 +199,7 @@ GORM 启动时通过 `AutoMigrate` 建表；模型定义是结构来源，目前
 | `users` | 用户名唯一、bcrypt 密码哈希 |
 | `user_profiles` | 每用户一份档案；身高、体重、目标、过敏原、饮食习惯、基础病 |
 | `food_diaries` | 日期字符串、四类餐次、食物、份量、营养、备注、可空图片关联；长期保留明细 |
+| `diet_batches` | 用户与提交 UUID 唯一键、内容哈希及保存回执；防止超时重试重复入账 |
 | `food_images` | 用户归属、UUID 文件名、文件路径、MIME 类型和字节大小；文件在 uploads 目录 |
 | `daily_summaries` | 保留旧版本已删除明细对应的历史汇总基数，不再定时写入新汇总 |
 | `refresh_tokens` | 刷新令牌的 SHA-256 哈希、用户、令牌家族、有效期和吊销时间 |
@@ -228,7 +235,7 @@ GORM 启动时通过 `AutoMigrate` 建表；模型定义是结构来源，目前
 
 当前采用单实例 Go + 单实例 Agent、SQLite 和本地持久卷。SQLite 降低部署成本，但并发写入、磁盘容量和查询延迟需要按实际负载评估。
 
-IP 限流、用户并发额度、会话锁、识别缓存和推理锁都在进程内；识别使用模型级锁串行推理，限制小内存服务器上的同时计算。直接增加容器副本不能保持这些约束一致。
+IP 限流、用户并发额度、会话锁、识别缓存和推理锁都在进程内；旧版 CLIP 使用模型级锁串行推理，新版 DeepSeek 分析使用独立的用户/全局并发额度。直接增加容器副本不能保持这些约束一致。
 
 未来扩容需要同时处理共享数据库与图片存储、分布式并发控制、模型任务调度和迁移验证。迁移 PostgreSQL 还需检查 SQL 方言、数据类型、索引、事务和现存数据，不能只替换 GORM driver。
 
@@ -308,7 +315,7 @@ NutriGo/
 │   └── internal/              # handler、model、middleware、config、service
 ├── agent/
 │   ├── app/                   # FastAPI、鉴权、Agent Loop、会话、工具、业务日期
-│   ├── recognition/           # CLIP、RAG、营养计算、Go 客户端
+│   ├── recognition/           # DeepSeek 视觉、兼容 CLIP、RAG、营养计算、Go 客户端
 │   ├── tests/                 # 单元与独立运行的在线集成脚本
 │   ├── nutrition.db           # 预置营养数据
 │   └── chroma_db/             # 已提供的教材与向量索引快照

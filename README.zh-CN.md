@@ -52,7 +52,7 @@ AI 聊天演示：输入问题、查看回复，以及展开健康档案和饮�
 
 ## ✨ 功能特性
 
-- **📷 拍照识别** — Chinese-CLIP 零样本识别食物，Top-5 候选，510+ 道家常菜
+- **📷 拍照分析** — DeepSeek V4.1 Flash 估算多种食物、克重范围及营养，支持修改后统一确认保存
 - **🤖 AI 对话** — Agent Loop + 5 个工具，SSE 流式实况输出，Markdown + 思维链展示
 - **📚 RAG 知识库** — ChromaDB 2277 条《营养学》教材文档，回答专业营养问题
 - **📊 营养分析** — 8407 条真实营养数据，按克数精确换算，多日趋势洞察
@@ -113,14 +113,14 @@ npm run android:dev
 flowchart LR
     App[Android / iOS · Tauri 2 + React] -->|HTTPS · JWT| Caddy
     Caddy -->|/api/*| Go[Go + SQLite]
-    Caddy -->|/agent-api/*| Agent[FastAPI · CLIP · RAG · LLM]
+    Caddy -->|/agent-api/*| Agent[FastAPI · Vision API · RAG · LLM]
     Agent -->|Internal Token| Go
 ```
 
 - **Agent Loop** — LLM 自主决定调用工具，支持思维链（reasoning_content）流式推送
 - **5 个工具** — 查营养 / 查档案 / 查饮食记录 / 查营养趋势 / 搜知识库
 - **RAG** — BGE-small-zh 嵌入 + ChromaDB 向量检索
-- **多模态** — Chinese-CLIP 零样本食物识别
+- **多模态** — DeepSeek V4.1 Flash 图片分析与营养库参考值；保留旧 APK 的 Chinese-CLIP 接口
 
 详细设计见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 

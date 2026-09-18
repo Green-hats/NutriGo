@@ -143,6 +143,12 @@ export const goApi = {
       body: JSON.stringify(data)
     }),
 
+  createDietBatch: (requestId: string, records: DietLogInput[]) =>
+    request<DietRecord[]>('/diet/logs/batch', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, records })
+    }),
+
   getDietLogs: (date: string) =>
     request<DietRecord[]>(`/diet/logs?date=${date}`),
 

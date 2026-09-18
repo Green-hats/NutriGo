@@ -9,7 +9,7 @@ flowchart LR
     Gateway -->|/agent-api/* → /api/*| Agent[Python Agent]
     Agent -->|内部令牌| Go
     Go --> Data[(用户 / 饮食 / 图片)]
-    Agent --> AI[CLIP / RAG / LLM API]
+    Agent --> AI[DeepSeek Vision / RAG / LLM API]
 ```
 
 ## 开发环境
@@ -189,3 +189,7 @@ npm run android:preview -- --ci
 - 保存失败保留当前表单；不会显示保存成功。网络中断时服务器可能已经收到请求，应重新查看记录后再决定是否提交。本版本不提供离线缓存、离线 AI 或自动同步。
 
 云端 API 部署完成后，可以设置 GitHub 仓库 Actions 变量 `NUTRIGO_API_BASE_URL` 为实际 HTTPS 源地址。CI 会额外保留 `NutriGo-online-arm64.apk`，供连接云端服务的实机测试；未配置时仅上传离线预览包。两者都是调试签名，不能作为商店发布包。
+
+## 0.1.3 照片分析
+
+拍照后用 DeepSeek V4.1 Flash（`deepseek-flash`）生成多项食物草稿，克重和热量均可修正；确认才写入日记。服务端必须先上线 `/agent-api/analyze-meal` 和 `/api/diet/logs/batch`，再安装新 APK。旧 APK 仍使用 CLIP 候选流程。API Key 只在服务器，照片会由服务器提交至 DeepSeek 官方；离线体验包不会上传。
