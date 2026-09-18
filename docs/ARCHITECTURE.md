@@ -20,7 +20,15 @@ Android Release 使用现有测试签名和 `com.greenhats.nutrigo.debug` 包名
 
 ## 二、整体架构
 
+[![NutriGo 系统架构：手机端、云端服务、AI、数据与可选运维接入](diagrams/architecture-zh.svg)](diagrams/architecture-zh.svg)
+
+点击图可查看完整矢量版本。[图源与生成方式](diagrams/README.md)统一维护中英文配色、布局和文案；下方保留细化到持久卷的依赖关系。
+
+<details>
+<summary>展开详细组件与持久卷关系</summary>
+
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, PingFang SC, Microsoft YaHei","fontSize":"16px","primaryColor":"#edf5ef","primaryTextColor":"#233d34","primaryBorderColor":"#b8ccc0","lineColor":"#668174","secondaryColor":"#eef4fa","tertiaryColor":"#fff8ed","clusterBkg":"#f7faf6","clusterBorder":"#d4e2d7","edgeLabelBackground":"#ffffff","actorBkg":"#eaf3ec","actorBorder":"#b8ccc0","actorTextColor":"#233d34","signalColor":"#557668","signalTextColor":"#233d34","noteBkgColor":"#fff7e8","noteTextColor":"#754f28","noteBorderColor":"#ddc6a7","activationBkgColor":"#e6f2f0","activationBorderColor":"#88b5ad"},"flowchart":{"curve":"basis","padding":20,"nodeSpacing":36,"rankSpacing":48},"sequence":{"actorMargin":36,"width":160,"height":60,"boxMargin":12,"messageMargin":35,"noteMargin":12,"mirrorActors":false}}}%%
 flowchart TB
     App["Android / iOS App<br/>Tauri 2 + React + MUI"]
     LLM["外部 LLM API<br/>由服务端配置供应商和模型"]
@@ -56,6 +64,8 @@ flowchart TB
     Agent -->|"LiteLLM / 服务端 API Key"| LLM
     Agent -->|"httpx / base64 照片 / 服务端 API Key"| Vision
 ```
+
+</details>
 
 只有网关公开 80 / 443；Go 和 Agent 在 Compose 内网通信。图片、用户数据库、会话、向量库、模型与证书分别持久化；重建容器不等于重建这些卷。配置见 [compose.yml](../deploy/cloud/compose.yml)。
 
@@ -106,6 +116,7 @@ SSE 事件包括 `session_id`、`chunk`、`thinking`、`tool_call`、`tool_resul
 ### 5.1 AI 对话与用户数据工具
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, PingFang SC, Microsoft YaHei","fontSize":"16px","primaryColor":"#edf5ef","primaryTextColor":"#233d34","primaryBorderColor":"#b8ccc0","lineColor":"#668174","secondaryColor":"#eef4fa","tertiaryColor":"#fff8ed","clusterBkg":"#f7faf6","clusterBorder":"#d4e2d7","edgeLabelBackground":"#ffffff","actorBkg":"#eaf3ec","actorBorder":"#b8ccc0","actorTextColor":"#233d34","signalColor":"#557668","signalTextColor":"#233d34","noteBkgColor":"#fff7e8","noteTextColor":"#754f28","noteBorderColor":"#ddc6a7","activationBkgColor":"#e6f2f0","activationBorderColor":"#88b5ad"},"flowchart":{"curve":"basis","padding":20,"nodeSpacing":36,"rankSpacing":48},"sequence":{"actorMargin":36,"width":160,"height":60,"boxMargin":12,"messageMargin":35,"noteMargin":12,"mirrorActors":false}}}%%
 sequenceDiagram
     participant App as 手机 App
     participant Gateway as Caddy
@@ -139,6 +150,7 @@ Agent 默认限制单条提问长度、工具执行时间、循环轮数、上�
 ### 5.2 拍照识别与记账
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, PingFang SC, Microsoft YaHei","fontSize":"16px","primaryColor":"#edf5ef","primaryTextColor":"#233d34","primaryBorderColor":"#b8ccc0","lineColor":"#668174","secondaryColor":"#eef4fa","tertiaryColor":"#fff8ed","clusterBkg":"#f7faf6","clusterBorder":"#d4e2d7","edgeLabelBackground":"#ffffff","actorBkg":"#eaf3ec","actorBorder":"#b8ccc0","actorTextColor":"#233d34","signalColor":"#557668","signalTextColor":"#233d34","noteBkgColor":"#fff7e8","noteTextColor":"#754f28","noteBorderColor":"#ddc6a7","activationBkgColor":"#e6f2f0","activationBorderColor":"#88b5ad"},"flowchart":{"curve":"basis","padding":20,"nodeSpacing":36,"rankSpacing":48},"sequence":{"actorMargin":36,"width":160,"height":60,"boxMargin":12,"messageMargin":35,"noteMargin":12,"mirrorActors":false}}}%%
 sequenceDiagram
     actor User as 用户
     participant App as 手机 App
@@ -333,14 +345,21 @@ IP 限流、用户并发额度、会话锁、识别缓存和推理锁都在进�
 Android 体积优化脚本清理旧 APK 构建输出，对 Rust 启用体积优化、Thin LTO 和符号移除，按 ARM64 单架构分发。它仍使用兼容旧安装的 debug 应用标识；普通 CI Artifacts 使用临时签名。
 
 ```mermaid
-flowchart LR
-    Trigger["main 手动运行<br/>或 android-v版本 标签"] --> Prepare["核对源码、版本、HTTPS 配置<br/>已有标签与 Release"]
-    Prepare --> CI["复用完整六组 CI"]
-    CI --> Download["下载本次运行的联网 APK"]
-    Download --> Sign["使用 Actions Secrets 固定签名"]
-    Sign --> Verify["核对包名、版本、证书、ARM64<br/>ZIP、16 KB 对齐、20 MiB 上限"]
-    Verify --> Draft["创建或续传本提交的草稿<br/>上传 APK、SHA256SUMS、manifest"]
-    Draft --> Publish["核对远端大小与 SHA-256<br/>公开预发布 Release"]
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, PingFang SC, Microsoft YaHei","fontSize":"16px","primaryColor":"#edf5ef","primaryTextColor":"#233d34","primaryBorderColor":"#b8ccc0","lineColor":"#668174","secondaryColor":"#eef4fa","tertiaryColor":"#fff8ed","clusterBkg":"#f7faf6","clusterBorder":"#d4e2d7","edgeLabelBackground":"#ffffff","actorBkg":"#eaf3ec","actorBorder":"#b8ccc0","actorTextColor":"#233d34","signalColor":"#557668","signalTextColor":"#233d34","noteBkgColor":"#fff7e8","noteTextColor":"#754f28","noteBorderColor":"#ddc6a7","activationBkgColor":"#e6f2f0","activationBorderColor":"#88b5ad"},"flowchart":{"curve":"basis","padding":20,"nodeSpacing":36,"rankSpacing":48},"sequence":{"actorMargin":36,"width":160,"height":60,"boxMargin":12,"messageMargin":35,"noteMargin":12,"mirrorActors":false}}}%%
+flowchart TB
+    subgraph PrepareStage["01 · 准备与持续集成"]
+        direction LR
+        Trigger["main 手动运行<br/>或 android-v版本 标签"] --> Prepare["核对源码、版本、HTTPS 配置<br/>已有标签与 Release"] --> CI["复用完整六组 CI"]
+    end
+    subgraph BuildStage["02 · 签名与产物校验"]
+        direction LR
+        Download["下载本次运行的联网 APK"] --> Sign["使用 Actions Secrets<br/>固定签名"] --> Verify["核对包名、版本、证书、ARM64<br/>ZIP、16 KB 对齐、20 MiB 上限"]
+    end
+    subgraph ReleaseStage["03 · 发布"]
+        direction LR
+        Draft["创建或续传本提交的草稿<br/>上传 APK、SHA256SUMS、manifest"] --> Publish["核对远端大小与 SHA-256<br/>公开预发布 Release"]
+    end
+    PrepareStage --> BuildStage --> ReleaseStage
 ```
 
 发布入口为 [android-release.yml](../.github/workflows/android-release.yml)。版本须在 Tauri 配置、Cargo.toml 和 Cargo.lock 中一致；标签匹配应用版本，提交须在 main 历史中。发布串行执行，拒绝移动已有标签或覆盖已公开版本，仅允许继续同一提交创建的未发布草稿。

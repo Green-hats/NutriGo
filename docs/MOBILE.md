@@ -6,17 +6,7 @@ NutriGo 使用 **Tauri 2 + React 19 + MUI 9** 构建 Android 和 iOS App。React
 
 当前已发布 [Android 0.1.6 ARM64 测试版](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)，约 16.1 MiB；可覆盖此前同签名的 Release 版本。iOS 已有原生工程和 CI 检查，尚未发布 IPA / TestFlight。
 
-```mermaid
-flowchart LR
-    App["Android / iOS<br/>Tauri 2 + React + MUI"] -->|"原生 HTTP · JWT · SSE"| Gateway["Caddy HTTPS 网关"]
-    Gateway -->|"/api/*"| Go["Go 业务服务"]
-    Gateway -->|"/agent-api/* → /api/*"| Agent["Python Agent"]
-    Agent -->|"内部令牌 · 归属校验"| Go
-    Go --> Data[("用户 / 饮食 / 图片 / 提交回执")]
-    Agent -->|"照片分析"| Vision["DeepSeek V4.1 Flash API"]
-    Agent -->|"对话"| LLM["聊天模型 API"]
-    Agent --> RAG["云端 BGE + ChromaDB"]
-```
+[![NutriGo 手机 App 与云端服务架构](diagrams/architecture-zh.svg)](diagrams/architecture-zh.svg)
 
 ## 开发环境
 

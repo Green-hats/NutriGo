@@ -104,6 +104,7 @@ Agent HTTP 错误沿用 FastAPI 的 `detail` 格式，与 Go 的 `{code,message}
 系统提示词每次请求 LLM 前按 `APP_TIMEZONE` 刷新日期，旧会话和重新生成也使用当前业务日期；不修改历史消息原文。App 的餐次预选使用手机本地时间；目前尚未保存每用户业务时区，跨时区旅行时两者可能不同。
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, PingFang SC, Microsoft YaHei","fontSize":"16px","primaryColor":"#edf5ef","primaryTextColor":"#233d34","primaryBorderColor":"#b8ccc0","lineColor":"#668174","secondaryColor":"#eef4fa","tertiaryColor":"#fff8ed","clusterBkg":"#f7faf6","clusterBorder":"#d4e2d7","edgeLabelBackground":"#ffffff","actorBkg":"#eaf3ec","actorBorder":"#b8ccc0","actorTextColor":"#233d34","signalColor":"#557668","signalTextColor":"#233d34","noteBkgColor":"#fff7e8","noteTextColor":"#754f28","noteBorderColor":"#ddc6a7","activationBkgColor":"#e6f2f0","activationBorderColor":"#88b5ad"},"flowchart":{"curve":"basis","padding":20,"nodeSpacing":36,"rankSpacing":48},"sequence":{"actorMargin":36,"width":160,"height":60,"boxMargin":12,"messageMargin":35,"noteMargin":12,"mirrorActors":false}}}%%
 sequenceDiagram
     participant App as App
     participant Agent as Agent

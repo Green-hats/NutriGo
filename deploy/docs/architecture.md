@@ -4,26 +4,7 @@
 
 ## 请求路径
 
-```mermaid
-flowchart TB
-    App["Tauri App<br/>本地 React 资源"] -->|"HTTPS 443 · REST / SSE"| Gateway
-    subgraph Host["云服务器"]
-        Gateway["Caddy<br/>证书及公网访问边界"]
-        Go["Go :3333<br/>认证、档案、日记、图片"]
-        Agent["Agent :8000<br/>会话、工具、照片草稿"]
-        User[("backend-data<br/>SQLite + uploads")]
-        Chat[("agent-data<br/>会话 SQLite")]
-        RAG[("chroma-data + model-data<br/>教材向量及本地模型")]
-        Gateway -->|"/api/*"| Go
-        Gateway -->|"/agent-api/* 转 /api/*"| Agent
-        Agent -->|"内部令牌 / 归属校验"| Go
-        Go --> User
-        Agent --> Chat
-        Agent --> RAG
-    end
-    Agent -->|"照片"| Vision["DeepSeek 官方 API"]
-    Agent -->|"对话与相关工具上下文"| LLM["配置的聊天 LLM"]
-```
+[![NutriGo 云端服务与外部接口架构](../../docs/diagrams/architecture-zh.svg)](../../docs/diagrams/architecture-zh.svg)
 
 Caddy 对外提供 80 / 443；Go 和 Agent 只暴露在 Compose 网络中。`/api/internal/*`、图片内部读取及 `/api/metrics` 等路径被公网网关阻断。API Key 仅由服务端使用，手机携带用户 JWT。当前照片识别固定调用 DeepSeek，教材向量检索在服务器本地执行。
 
@@ -46,7 +27,8 @@ Caddy 对外提供 80 / 443；Go 和 Agent 只暴露在 Compose 网络中。`/ap
 ## 备份与检测
 
 ```mermaid
-flowchart LR
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, PingFang SC, Microsoft YaHei","fontSize":"16px","primaryColor":"#edf5ef","primaryTextColor":"#233d34","primaryBorderColor":"#b8ccc0","lineColor":"#668174","secondaryColor":"#eef4fa","tertiaryColor":"#fff8ed","clusterBkg":"#f7faf6","clusterBorder":"#d4e2d7","edgeLabelBackground":"#ffffff","actorBkg":"#eaf3ec","actorBorder":"#b8ccc0","actorTextColor":"#233d34","signalColor":"#557668","signalTextColor":"#233d34","noteBkgColor":"#fff7e8","noteTextColor":"#754f28","noteBorderColor":"#ddc6a7","activationBkgColor":"#e6f2f0","activationBorderColor":"#88b5ad"},"flowchart":{"curve":"basis","padding":20,"nodeSpacing":36,"rankSpacing":48},"sequence":{"actorMargin":36,"width":160,"height":60,"boxMargin":12,"messageMargin":35,"noteMargin":12,"mirrorActors":false}}}%%
+flowchart TB
     Timer["每日备份 timer"] --> Run["operations.py run<br/>磁盘检查"]
     Run --> Snapshot["Go / Agent SQLite 快照<br/>复制图片"]
     Snapshot --> Verify["哈希 / 完整性 / 行数<br/>隔离恢复验证"]

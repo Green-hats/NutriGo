@@ -114,25 +114,7 @@ npm run android:dev
 
 ## 🏗️ 架构
 
-```mermaid
-flowchart LR
-    App["Android / iOS App<br/>Tauri 2 + React + MUI"]
-    subgraph Cloud["云服务器 · Docker Compose"]
-        Caddy["Caddy · HTTPS 网关"]
-        Go["Go + SQLite<br/>账号、日记、照片"]
-        Agent["FastAPI<br/>对话、照片分析、工具"]
-        Nutrition[("食物营养库")]
-        RAG["BGE + ChromaDB<br/>营养知识库"]
-        Caddy -->|"/api/*"| Go
-        Caddy -->|"/agent-api/*"| Agent
-        Agent -->|"内部令牌 · 归属校验"| Go
-        Agent --> Nutrition
-        Agent --> RAG
-    end
-    App -->|"HTTPS · JWT · REST / SSE"| Caddy
-    Agent -->|"照片 + 服务端 API Key"| Vision["DeepSeek V4.1 Flash<br/>deepseek-flash"]
-    Agent -->|"LiteLLM · 服务端 API Key"| LLM["聊天模型 API"]
-```
+[![NutriGo 系统架构：手机端、云端服务、AI 与数据](docs/diagrams/architecture-zh.svg)](docs/diagrams/architecture-zh.svg)
 
 - **Agent Loop** — LLM 自主决定调用工具，仅在模型返回 `reasoning_content` 时推送分析过程
 - **5 个工具** — 查营养 / 查档案 / 查饮食记录 / 查营养趋势 / 搜知识库

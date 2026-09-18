@@ -43,14 +43,22 @@ Node.js 需 22.12+，CI 使用 Node.js 24。开发时 Vite 代理 Go 与 Agent�
 ## 当前照片记录流程
 
 ```mermaid
-flowchart LR
-    Pick["拍照 / 相册"] --> Upload["压缩并上传 Go"]
-    Upload --> Analyze["Agent 调用 DeepSeek"]
-    Analyze --> Draft["多项食物草稿"]
-    Draft --> Edit["修改克重、营养和餐次"]
-    Edit --> Save["UUID 批量保存"]
-    Save --> Diary["刷新对应日期日记"]
-    Analyze -->|"失败或无食物"| Manual["重试 / 手动记录"]
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, PingFang SC, Microsoft YaHei","fontSize":"16px","primaryColor":"#edf5ef","primaryTextColor":"#233d34","primaryBorderColor":"#b8ccc0","lineColor":"#668174","secondaryColor":"#eef4fa","tertiaryColor":"#fff8ed","clusterBkg":"#f7faf6","clusterBorder":"#d4e2d7","edgeLabelBackground":"#ffffff","actorBkg":"#eaf3ec","actorBorder":"#b8ccc0","actorTextColor":"#233d34","signalColor":"#557668","signalTextColor":"#233d34","noteBkgColor":"#fff7e8","noteTextColor":"#754f28","noteBorderColor":"#ddc6a7","activationBkgColor":"#e6f2f0","activationBorderColor":"#88b5ad"},"flowchart":{"curve":"basis","padding":20,"nodeSpacing":36,"rankSpacing":48},"sequence":{"actorMargin":36,"width":160,"height":60,"boxMargin":12,"messageMargin":35,"noteMargin":12,"mirrorActors":false}}}%%
+flowchart TB
+    subgraph CaptureStage["01 · 选择照片"]
+        direction LR
+        Pick["拍照 / 相册"] --> Upload["压缩并上传 Go"]
+    end
+    subgraph AnalysisStage["02 · 分析与确认"]
+        direction LR
+        Analyze["Agent 调用 DeepSeek"] --> Draft["多项食物草稿"] --> Edit["修改克重、营养和餐次"]
+        Analyze -->|"失败或无食物"| Manual["重试 / 手动记录"]
+    end
+    subgraph RecordStage["03 · 保存"]
+        direction LR
+        Save["UUID 批量保存"] --> Diary["刷新对应日期日记"]
+    end
+    CaptureStage --> AnalysisStage --> RecordStage
 ```
 
 当前入口是多模态整餐分析；旧版“CLIP 候选 → 选择菜名 → 调克数”的流程仅保留服务端兼容接口。

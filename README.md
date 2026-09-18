@@ -114,25 +114,7 @@ Stop any existing Vite process first to free port 5173. See the [mobile guide](d
 
 ## 🏗️ Architecture
 
-```mermaid
-flowchart LR
-    App["Android / iOS App<br/>Tauri 2 + React + MUI"]
-    subgraph Cloud["Cloud server · Docker Compose"]
-        Caddy["Caddy · HTTPS gateway"]
-        Go["Go + SQLite<br/>Accounts, diary, photos"]
-        Agent["FastAPI<br/>Chat, photo analysis, tools"]
-        Nutrition[("Nutrition database")]
-        RAG["BGE + ChromaDB<br/>Nutrition knowledge base"]
-        Caddy -->|"/api/*"| Go
-        Caddy -->|"/agent-api/*"| Agent
-        Agent -->|"Internal token · ownership checks"| Go
-        Agent --> Nutrition
-        Agent --> RAG
-    end
-    App -->|"HTTPS · JWT · REST / SSE"| Caddy
-    Agent -->|"Photo + server API key"| Vision["DeepSeek V4.1 Flash<br/>deepseek-flash"]
-    Agent -->|"LiteLLM · server API key"| LLM["Chat model API"]
-```
+[![NutriGo architecture: mobile app, cloud services, AI and data](docs/diagrams/architecture-en.svg)](docs/diagrams/architecture-en.svg)
 
 - **Agent Loop** — the LLM autonomously decides which tool to call; streams model reasoning when the provider returns `reasoning_content`
 - **5 Tools** — look up nutrition / get profile / get diet history / get nutrition trends / search knowledge base
