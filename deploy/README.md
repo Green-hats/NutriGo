@@ -1,6 +1,6 @@
 # NutriGo 部署入口
 
-更新日期：2026-09-18。当前产品为 **Tauri 2 Android / iOS App + 单机云端 API**。新部署使用 [cloud/README.md](cloud/README.md)：Caddy 提供 HTTPS，Go / Agent 仅在 Compose 内网运行。前端资源随 App 安装包分发，无需单独的静态网页节点。
+更新日期：2026-09-20。当前产品为 **Tauri 2 Android / iOS App + 单机云端 API**，生产服务基线为 `6ddfe4d3`。新部署使用 [cloud/README.md](cloud/README.md)：Caddy 提供 HTTPS，Go / Agent 仅在 Compose 内网运行。前端资源随 App 安装包分发，无需单独的静态网页节点。
 
 | 工作 | 文档 |
 |---|---|

@@ -67,6 +67,8 @@
 
 ARM64 正式 release 构建，要求 Android 8.0+、Android System WebView 117+，已关闭 Android 调试能力和明文 HTTP。正式包名与早期 `.debug` 测试版不同，两者会并存；iOS 已有源码和原生检查，尚未发布 IPA / TestFlight。
 
+生产 API 已部署提交 `6ddfe4d3`。Android 1.0.0 使用 `POST /agent-api/chat`，聊天正文不进入 URL 或访问日志。早期测试 APK 仍可使用账号、档案、日记及保留的 CLIP 照片接口，但其旧 `GET /chat` 客户端已不能聊天。测试旧安装包前请查看[手机端版本兼容表](docs/MOBILE.md#版本兼容性)。
+
 ### 环境要求
 
 | 工具 | 版本 |
@@ -121,6 +123,7 @@ npm run android:dev
 - **RAG** — BGE-small-zh 嵌入 + ChromaDB 向量检索
 - **多模态** — DeepSeek V4.1 Flash 图片分析与营养库参考值；保留旧 APK 的 Chinese-CLIP 接口
 - **整餐记录** — 上传照片 → 核验归属 → 分析食物与营养 → 在 App 修改草稿 → Go 事务统一保存；同一批次重试不会重复入账。
+- **客户端兼容** — Android 1.0.0 支持完整当前协议；旧 APK 保留核心数据与 CLIP 流程，旧 URL 聊天接口出于隐私原因停用
 
 App 按本地时间默认选中早餐、午餐、晚餐或加餐，用户可直接切换；估重范围和假设收进可展开的营养详情。API Key 仅保留在服务器，React 页面随安装包分发。
 

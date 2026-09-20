@@ -1,6 +1,8 @@
 # 手机 App 的云端服务
 
-核对日期：2026-09-18，服务端数据修复基线 `f72677b`。本文是当前生产部署入口；[数据管理](../../docs/DATA_MANAGEMENT.md)说明保留、删除与恢复边界，[部署架构](../docs/architecture.md)说明请求及备份拓扑。
+核对日期：2026-09-20，当前运行代码与生产部署基线为 `6ddfe4d3`；之后的纯文档提交不要求重建服务。本文是当前生产部署入口；[数据管理](../../docs/DATA_MANAGEMENT.md)说明保留、删除与恢复边界，[部署架构](../docs/architecture.md)说明请求及备份拓扑。
+
+生产验收已确认 Backend / Agent 健康与就绪、POST 聊天协议、DeepSeek 实际响应、2,277 条 RAG 文档及 510 个 CLIP 候选预热。Android 1.0.0 与该服务端基线配套；Actions 只发布 APK，不自动部署服务器。
 
 该模板在一台服务器运行 Caddy + Go + Python Agent。手机界面随 Tauri 安装包分发，服务器只提供 API，不托管前端页面。现有 SQLite 与图片目录使用独立持久卷，适合单实例起步。
 
@@ -62,6 +64,8 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml logs --t
 | `/api/health`、`/api/ready` | Go 探活 |
 | 其他路径 | 404；内部图片读取和 Go 内部接口不经公网代理 |
 
+聊天只允许 `POST /agent-api/chat`，正文放在 64 KiB 上限的 JSON 中。旧 APK 使用的 `GET /agent-api/chat?message=...` 已停用，生产应返回 `405`；重新开放会让聊天内容重新进入 URL、代理日志和诊断记录。旧 APK 的账号、档案、日记以及 `/agent-api/identify-food`、`/agent-api/calculate-intake` 仍保持兼容，不应把“旧版聊天不可用”误写成“旧版整包不可用”。完整矩阵见[手机端版本兼容性](../../docs/MOBILE.md#版本兼容性)。
+
 Agent 的所有受保护接口在本地验签后，会通过容器内网调用 Go 的
 `GET /api/internal/auth/verify`，同时携带服务令牌与用户访问令牌。
 Go 使用与普通 API 相同的 JWT 黑名单校验，因此退出登录后，已吊销的访问令牌
@@ -72,7 +76,15 @@ Go 不可达或无法查询吊销状态时，Agent 返回 503，不会降级放�
 ```bash
 curl https://api.your-domain.com/api/health
 curl https://api.your-domain.com/agent-api/health
+curl -o /dev/null -w '%{http_code}\n' -X POST \
+  -H 'Content-Type: application/json' \
+  --data '{"message":"route-check"}' \
+  https://api.your-domain.com/agent-api/chat
+curl -o /dev/null -w '%{http_code}\n' \
+  'https://api.your-domain.com/agent-api/chat?message=route-check'
 ```
+
+无 JWT 的 POST 应返回 `401`，证明新路由存在且鉴权生效；GET 应返回 `405`，证明旧协议没有重新开放。这只是路由验收。真实模型还需使用专用测试账号完成一次不含敏感数据的对话，确认获得 SSE `done`；不要把真实用户聊天写进部署脚本或报告。
 
 随后将同一 HTTPS 源地址写入 App 的 `VITE_API_BASE_URL`，按 [手机端文档](../../docs/MOBILE.md) 重新打包。原生 HTTP 插件不依赖浏览器 CORS；如果还要从浏览器跨域调试 Agent，可单独设置 `CORS_ORIGINS`。
 
@@ -89,7 +101,7 @@ docker compose --env-file deploy/cloud/.env -f deploy/cloud/compose.yml up -d ag
 
 如果模型下载网络不可达，保留 `AI_ENABLED=false`，待缓存准备完成后再启用。API Key 仅保存在服务器，不能放进 `VITE_*` 或 APK。
 
-## DeepSeek V4.1 照片分析（Android 0.1.3 起）
+## DeepSeek V4.1 照片分析（Android 1.0.0 正式版）
 
 新版 App 使用 `/agent-api/analyze-meal`。在服务器配置 `AI_ENABLED=true`、`FOOD_RECOGNITION_ENABLED=true`、`FOOD_VISION_MODEL=deepseek-flash`。`FOOD_VISION_API_KEY` 只填在服务器；若聊天也使用 DeepSeek 官方端点和 `deepseek/` 模型，可留空并复用 `LLM_API_KEY`。如果聊天用其他供应商或代理，必须单独配置视觉密钥。
 

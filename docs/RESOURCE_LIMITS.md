@@ -1,6 +1,6 @@
 # 请求与资源限制
 
-核对日期：2026-09-20，适用于单实例 Go + Agent。升级不会删除已有照片或饮食记录；达到配额后拒绝新的上传。
+核对日期：2026-09-20，适用于生产基线 `6ddfe4d3` 的单实例 Go + Agent。升级不会删除已有照片或饮食记录；达到配额后拒绝新的上传。
 
 ## 请求入口
 
@@ -14,7 +14,7 @@
 | Agent 请求体读取期限 | 总计 15 秒 | `408`；连接断开时无法保证响应 |
 | Caddy | 普通请求 64 KiB、上传 11 MiB；请求头 5 秒、请求体 30 秒 | `413` / 中止超时连接 |
 
-网关和应用分别限制字节。Go 上传在鉴权和准入后才解析 multipart；Go 还有 60 秒写入/空闲超时。聊天使用受 64 KiB 限制的 POST JSON，正文不进入 URL；Caddy 不设置短 SSE 写入超时，聊天保留 15 秒心跳及 `CHAT_TIMEOUT` 总生成期限。网关使用 Caddy [request_body](https://caddyserver.com/docs/caddyfile/directives/request_body) 和 [timeouts](https://caddyserver.com/docs/caddyfile/options#timeouts)。云端和 CI 固定使用 2.11.4；Ubuntu 自带的 2.6.2 对超限代理请求的错误状态不同，不用于此契约验收。
+网关和应用分别限制字节。Go 上传在鉴权和准入后才解析 multipart；Go 还有 60 秒写入/空闲超时。聊天使用受 64 KiB 限制的 POST JSON，正文不进入 URL；旧 GET 聊天不属于兼容面，避免查询参数进入代理和诊断日志。Caddy 不设置短 SSE 写入超时，聊天保留 15 秒心跳及 `CHAT_TIMEOUT` 总生成期限。网关使用 Caddy [request_body](https://caddyserver.com/docs/caddyfile/directives/request_body) 和 [timeouts](https://caddyserver.com/docs/caddyfile/options#timeouts)。云端和 CI 固定使用 2.11.4；Ubuntu 自带的 2.6.2 对超限代理请求的错误状态不同，不用于此契约验收。
 
 ## 图片配额与上传
 

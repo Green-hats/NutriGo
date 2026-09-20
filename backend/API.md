@@ -1,6 +1,6 @@
 # NutriGo Go 后端 API 文档
 
-核对日期：2026-09-18，服务端基线 `f72677b`。开发地址为 `http://localhost:3333`，云端经 HTTPS 网关访问 `/api/*`。业务响应主要为 JSON；图片读取返回二进制，指标返回文本。Agent 接口另见 [Agent 文档](../docs/agent.md)。
+核对日期：2026-09-20，Go 运行实现与生产部署基线 `6ddfe4d3`。开发地址为 `http://localhost:3333`，云端经 HTTPS 网关访问 `/api/*`。业务响应主要为 JSON；图片读取返回二进制，指标返回文本。Agent 接口及旧客户端聊天兼容边界另见 [Agent 文档](../docs/agent.md)。
 
 内部接口只供受信服务使用，公网网关阻断内部查询、图片读取及指标。数据保留与删除的完整规则见[数据管理](../docs/DATA_MANAGEMENT.md)。
 

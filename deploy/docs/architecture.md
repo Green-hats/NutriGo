@@ -1,14 +1,16 @@
 # 云端部署与恢复架构
 
-更新日期：2026-09-18。本文聚焦当前单机云端拓扑；系统设计见[架构文档](../../docs/ARCHITECTURE.md)，执行步骤见[云端部署](../cloud/README.md)。旧网页部署已不再作为当前产品入口，迁移边界见[部署索引](../README.md#从旧网页部署迁移)。
+更新日期：2026-09-20。本文聚焦当前单机云端拓扑，生产部署与 Android 1.0.0 均对应提交 `6ddfe4d3`；系统设计见[架构文档](../../docs/ARCHITECTURE.md)，执行步骤见[云端部署](../cloud/README.md)。旧网页部署已不再作为当前产品入口，迁移边界见[部署索引](../README.md#从旧网页部署迁移)。
 
 ## 请求路径
 
 [![NutriGo 云端服务与外部接口架构](../../docs/diagrams/architecture-zh.svg)](../../docs/diagrams/architecture-zh.svg)
 
-Caddy 对外提供 80 / 443；Go 和 Agent 只暴露在 Compose 网络中。`/api/internal/*`、图片内部读取及 `/api/metrics` 等路径被公网网关阻断。API Key 仅由服务端使用，手机携带用户 JWT。当前照片识别固定调用 DeepSeek，教材向量检索在服务器本地执行。
+Caddy 对外提供 80 / 443；Go 和 Agent 只暴露在 Compose 网络中。`/api/internal/*`、图片内部读取及 `/api/metrics` 等路径被公网网关阻断。API Key 仅由服务端使用，手机携带用户 JWT。当前照片识别固定调用 DeepSeek，教材向量检索在服务器本地执行。聊天正文通过 `POST /agent-api/chat` 的 JSON 发送并以 SSE 返回，不进入 URL；原始 Uvicorn 访问日志关闭，应用日志只记录方法、路径、状态和耗时。
 
 新照片流程为上传 → 归属校验 → 多模态草稿 → 用户修正 → Go 批量事务保存。旧版 CLIP 接口继续提供兼容；它不代表当前 App 仍走候选菜名选择流程。
+
+早期 `.debug` APK 的账号、档案、日记和旧 CLIP 照片流程仍可工作，但旧客户端使用的 `GET /chat` 已因 URL 日志泄露风险停用，所以旧版 AI 对话不可用。Android 1.0.0 使用 POST 聊天并支持完整当前流程。服务端不能为了兼容旧聊天重新开放 GET；其他兼容接口的移除应另设迁移计划。
 
 ## 持久化
 

@@ -1,6 +1,6 @@
 # NutriGo — 架构设计文档
 
-更新日期：2026-09-20。本文核对 Android 1.0.0 正式版与对应云端服务，覆盖请求限制、照片分析、数据一致性与备份编排；安装包发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
+更新日期：2026-09-20。运行代码、Android 1.0.0 Release 与生产服务均核对到提交 `6ddfe4d3`；之后的纯文档提交不改变该运行基线。本文覆盖请求限制、客户端兼容、照片分析、数据一致性与备份编排；安装包发布状态以 GitHub Release 为准，尚未实现的改进单独列于末节。
 
 移动端运行与签名见 [MOBILE.md](MOBILE.md)，云端部署、模型准备和恢复操作见 [部署说明](../deploy/cloud/README.md)。数据保留和删除边界见[数据管理](DATA_MANAGEMENT.md)，后续优先级见[路线图](ROADMAP.md)。具体配置和接口以本文链接的源码为准。
 
@@ -16,7 +16,19 @@ NutriGo 是 **Tauri 2 手机 App + 单机云端服务**。React 页面、样式�
 | AI 服务 | Python 管理用户会话和工具编排；调用外部 LLM，执行云端照片识别和 RAG 检索 |
 | 离线能力 | 正常 App 有断网提示和错误恢复；独立 preview 包展示模拟数据。尚无真实数据离线缓存与自动同步 |
 
-Android 1.0.0 使用 release variant 和正式包名 `com.greenhats.nutrigo`，关闭调试能力与明文 HTTP。GitHub 工作流使用固定签名发布直装 APK；早期 `.debug` 测试包会与正式版并存，当前尚未上架应用商店。
+Android 1.0.0 使用 release variant 和正式包名 `com.greenhats.nutrigo`，关闭调试能力与明文 HTTP。GitHub 工作流使用固定签名发布直装 APK；早期 `.debug` 测试包会与正式版并存，当前尚未上架应用商店。生产服务器也已部署 `6ddfe4d3`，所以正式 APK 与云端的聊天、整餐分析和批量保存协议一致。
+
+### 客户端兼容边界
+
+| 能力 | Android 1.0.0 | 早期 `.debug` APK | 服务端策略 |
+|---|---|---|---|
+| 账号、档案、日记、汇总 | 支持 | 继续支持 | Go 现有公开路由保持兼容 |
+| AI 对话 | POST JSON + SSE | 不可用；旧客户端使用 GET 查询参数 | 只保留 `POST /agent-api/chat`，避免正文进入 URL 和访问日志 |
+| 新整餐照片流程 | DeepSeek 草稿 + Go 批量事务 | 客户端没有该流程 | 保留 `/analyze-meal` 与 `/diet/logs/batch` |
+| 旧照片流程 | 不使用 | 继续支持 CLIP 候选与克重计算 | 暂时保留 `/identify-food`、`/calculate-intake` |
+| 本机登录状态 | 正式包独立保存 | 测试包独立保存 | 包名不同，不共享 WebView localStorage |
+
+旧 APK 不是全部失效；基础数据和兼容照片接口仍可用。旧聊天 GET 路由属于已修复的隐私边界，不重新开放。以后移除其余兼容接口应先统计使用情况、给出迁移版本和期限，再更新手机端、部署说明和本表。
 
 ## 二、整体架构
 
@@ -250,6 +262,8 @@ sequenceDiagram
 | POST | `/api/identify-food` | 旧版 CLIP 兼容接口 | JWT + 图片归属 |
 | POST | `/api/calculate-intake` | 按食物和克数计算营养 | JWT |
 
+路由表没有 `GET /api/chat`：该旧协议已停止服务。生产验收中，无凭据 POST 返回 `401` 表示路由存在且鉴权生效，GET 返回 `405` 表示旧方法未开放；这两项与健康探针 `200` 一起检查。
+
 所有受保护 Agent 路由使用 [auth.py](../agent/app/auth.py) 的实时令牌校验，Go 不可达时拒绝受保护请求。`/ready` 仅检查数据库连通，不代表 LLM、RAG 或识别质量验收已通过。
 
 ## 七、数据模型与持久化
@@ -346,7 +360,7 @@ IP 限流、用户并发额度、会话锁、识别缓存和推理锁都在进�
 
 真实 LLM、模型准确率、完整手机 UI 自动化和 iOS 签名发版不在这六组检查的验收范围。Agent 的在线集成脚本不属于默认 pytest 单元集合。
 
-Android 体积优化脚本清理旧 APK 构建输出，对 Rust 启用体积优化、Thin LTO 和符号移除，按 ARM64 单架构分发。它仍使用兼容旧安装的 debug 应用标识；普通 CI Artifacts 使用临时签名。
+Android 体积优化脚本清理旧 APK 构建输出，对 Rust 启用体积优化、Thin LTO 和符号移除，按 ARM64 单架构分发。正式候选和 Release 使用 `com.greenhats.nutrigo`；离线 preview 与早期测试包使用 `.debug` 标识。普通 CI 候选不作为公开正式包，只有 Release 工作流使用固定签名并执行证书、非调试、HTTPS、ZIP 与 16 KB 对齐检查。
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, PingFang SC, Microsoft YaHei","fontSize":"16px","primaryColor":"#edf5ef","primaryTextColor":"#233d34","primaryBorderColor":"#b8ccc0","lineColor":"#668174","secondaryColor":"#eef4fa","tertiaryColor":"#fff8ed","clusterBkg":"#f7faf6","clusterBorder":"#d4e2d7","edgeLabelBackground":"#ffffff","actorBkg":"#eaf3ec","actorBorder":"#b8ccc0","actorTextColor":"#233d34","signalColor":"#557668","signalTextColor":"#233d34","noteBkgColor":"#fff7e8","noteTextColor":"#754f28","noteBorderColor":"#ddc6a7","activationBkgColor":"#e6f2f0","activationBorderColor":"#88b5ad"},"flowchart":{"curve":"basis","padding":20,"nodeSpacing":36,"rankSpacing":48},"sequence":{"actorMargin":36,"width":160,"height":60,"boxMargin":12,"messageMargin":35,"noteMargin":12,"mirrorActors":false}}}%%

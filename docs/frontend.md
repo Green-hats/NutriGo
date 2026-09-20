@@ -1,6 +1,6 @@
 # 手机端界面与交互
 
-核对日期：2026-09-18。前端使用 **Tauri 2 + Rust + React 19 + TypeScript + Vite + MUI 9 + Emotion + Zustand**。页面和样式随安装包分发，浏览器 `:5173` 用于开发预览；Android / iOS 工具链、签名与 Release 见 [MOBILE.md](MOBILE.md)。
+核对日期：2026-09-20，Android 1.0.0 源码基线 `6ddfe4d3`。前端使用 **Tauri 2 + Rust + React 19 + TypeScript + Vite + MUI 9 + Emotion + Zustand**。页面和样式随安装包分发，浏览器 `:5173` 用于开发预览；Android / iOS 工具链、签名、兼容矩阵与 Release 见 [MOBILE.md](MOBILE.md)。
 
 ## 开发与结构
 

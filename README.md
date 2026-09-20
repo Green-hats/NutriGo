@@ -67,6 +67,8 @@
 
 ARM64 stable release build for Android 8.0+ with Android System WebView 117+. Android debugging and cleartext HTTP are disabled. Its production package ID differs from the earlier `.debug` test builds, so both can coexist; iOS source and native checks are available, but no IPA or TestFlight release is published yet.
 
+The production API is deployed from commit `6ddfe4d3`. Android 1.0.0 uses `POST /agent-api/chat`, keeping message text out of URLs and access logs. Older test APKs can still use accounts, profiles, diaries and the retained CLIP photo endpoints, but their legacy `GET /chat` client can no longer chat. See the [mobile compatibility table](docs/MOBILE.md#版本兼容性) before testing an older build.
+
 ### Requirements
 
 | Tool | Version |
@@ -121,6 +123,7 @@ Stop any existing Vite process first to free port 5173. See the [mobile guide](d
 - **RAG** — BGE-small-zh embeddings + ChromaDB vector retrieval
 - **Multimodal** — DeepSeek V4.1 Flash vision API with nutrition database references; Chinese-CLIP retained for older APKs
 - **Meal workflow** — upload a photo → verify ownership → analyze food and nutrition → edit the draft in the app → save all items in one Go transaction. Retrying the same batch does not create duplicate records.
+- **Client compatibility** — Android 1.0.0 has the complete current protocol; older APKs retain core data and CLIP flows, while legacy URL-based chat is intentionally disabled
 
 The app preselects breakfast, lunch, dinner or a snack using local time. Users can change it directly; estimated weight ranges and assumptions are tucked into expandable nutrition details. API keys stay on the server, and React assets ship inside the app.
 

@@ -8,6 +8,19 @@ NutriGo 使用 **Tauri 2 + React 19 + MUI 9** 构建 Android 和 iOS App。React
 
 [![NutriGo 手机 App 与云端服务架构](diagrams/architecture-zh.svg)](diagrams/architecture-zh.svg)
 
+## 版本兼容性
+
+生产 API 于 2026-09-20 部署提交 `6ddfe4d3`，与 Android 1.0.0 Release 使用同一源码基线。当前兼容边界如下：
+
+| 客户端 | 账号 / 档案 / 日记 | AI 对话 | 照片流程 | 安装与数据 |
+|---|---|---|---|---|
+| Android 1.0.0 正式版 | 支持 | 支持 `POST /agent-api/chat` | DeepSeek 整餐分析、编辑与批量保存 | 包名 `com.greenhats.nutrigo`；后续正式版可覆盖升级 |
+| 早期 `.debug` 测试 APK | 仍支持 | **不支持**；客户端仍调用已停用的 `GET /chat` | 保留 `/identify-food`、`/calculate-intake` 的 CLIP 兼容流程 | 包名不同，会与正式版并存；本地登录状态不共享 |
+| 离线 preview APK | 模拟数据 | 不调用 AI | 只做本机照片预览 | 调试签名，仅用于界面体验，不连接生产数据 |
+| iOS 工程 | 源码具备 | 协议与 1.0.0 相同 | 协议与 1.0.0 相同 | 尚无已签名 IPA / TestFlight，不作为公开交付物 |
+
+旧版聊天接口把消息放在 URL 查询参数中，可能进入代理、访问日志或诊断记录，因此生产只保留 POST JSON 聊天，不为旧 APK 重新开放 GET。旧版并非整包失效：基础数据和旧 CLIP 照片接口继续可用。需要完整能力时应升级到 1.0.0；以后移除其他兼容接口前须另设迁移期并更新本表。
+
 ## 开发环境
 
 公共依赖：Node.js 22.12+（CI 使用 24）、Rust stable；本地后端建议 Go 1.26.5+、Python 3.13。Android 需 Android Studio、SDK 36、NDK、JDK 21；iOS 需 macOS、Xcode、XcodeGen、CocoaPods。具体安装步骤见 [Tauri 官方前置要求](https://v2.tauri.app/start/prerequisites/)。
@@ -88,6 +101,8 @@ VITE_API_BASE_URL=https://你的API地址 npm run android:compact -- --ci
 
 正式包使用 `com.greenhats.nutrigo`。CI 先验证未签名 release 候选包不含 `application-debuggable`，Release 工作流再用仓库 Secrets 中保存的固定 keystore 签署并检查证书指纹。早期测试包使用 `com.greenhats.nutrigo.debug`，因此不能覆盖升级到正式包；首次安装正式版后，后续正式版可沿用包名和签名升级。GitHub 直装发布与 Google Play 上架是两套交付流程，目前尚未上架商店。
 
+1.0.0 为保持既有安装身份，使用此前授权的固定 keystore；当前证书主题仍是 Android 工具生成的 `Android Debug`。这只描述签名身份，不代表 APK 可调试：CI 和发布后检查均确认 manifest 未启用 `application-debuggable`。该密钥适合当前 GitHub 直装更新；准备上架商店前应制定独立的商店签名与迁移方案，不能在已发布包上随意更换密钥。
+
 ### 自动发布 GitHub Release
 
 工作流入口：[Actions → Android Release](https://github.com/Green-hats/NutriGo/actions/workflows/android-release.yml)。
@@ -150,7 +165,7 @@ cargo check --locked --manifest-path src-tauri/Cargo.toml
 
 截至 2026-09-20，Android 1.0.0 使用正式 release variant 发布；iOS 只有工程和原生检查，尚无 IPA / TestFlight。CI 会验证前端、Rust、iOS 目标与 Android 构建，不能替代每台设备的权限、键盘和拍照验收。测试数量和依赖审计结果以对应提交的 CI 为准，不沿用早期迁移时的数字。
 
-服务端 `f72677b` 增加照片删除一致性与备份检测，无需重装 APK 即可生效。删除日记、照片、提交回执及备份有不同保留规则，见[数据管理](DATA_MANAGEMENT.md)。界面资产继续使用 MUI 和本地系统字体，模拟预览只用于验证交互与布局。
+生产服务已部署 `6ddfe4d3`：Backend / Agent 健康和就绪探针通过，POST 聊天路由、DeepSeek 实际调用、2,277 条 RAG 资料及旧版 CLIP 预热均已验收。删除日记、照片、提交回执及备份有不同保留规则，见[数据管理](DATA_MANAGEMENT.md)。界面资产继续使用 MUI 和本地系统字体，模拟预览只用于验证交互与布局。
 
 ## 离线界面体验 APK
 

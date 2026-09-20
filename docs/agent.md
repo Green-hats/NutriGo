@@ -1,6 +1,6 @@
 # Python Agent
 
-核对日期：2026-09-18。FastAPI 服务运行于 `8000`，负责聊天工具编排、照片营养草稿和 RAG 检索。生产通过 Caddy 的 `/agent-api/*` 进入，转发为 Agent 的 `/api/*`。用户数据由 Go 管理，聊天历史由 Agent 的 SQLite 保存。
+核对日期：2026-09-20，Agent 运行实现与生产部署基线 `6ddfe4d3`。FastAPI 服务运行于 `8000`，负责聊天工具编排、照片营养草稿和 RAG 检索。生产通过 Caddy 的 `/agent-api/*` 进入，转发为 Agent 的 `/api/*`。用户数据由 Go 管理，聊天历史由 Agent 的 SQLite 保存。
 
 ## 启动与配置
 
@@ -68,6 +68,8 @@ LITELLM_LOCAL_MODEL_COST_MAP=true uv run uvicorn app.main:app --port 8000
 | POST | `/api/analyze-meal` | JSON `{"image_id":42}`，返回可编辑的整餐草稿 |
 | POST | `/api/identify-food` | 旧 APK 的 CLIP 候选识别 |
 | POST | `/api/calculate-intake` | 旧流程按食物及克重计算摄入 |
+
+`GET /api/chat` 已移除：旧 APK 把正文放在查询参数里，可能进入 URL、代理和诊断日志。生产只接受 POST JSON；因此旧 APK 的 AI 对话不可用，但会话查看、账号 / 档案 / 日记以及旧 CLIP 照片接口并未因此整体失效。Android 1.0.0 使用当前 POST 协议。
 
 Agent HTTP 错误沿用 FastAPI 的 `detail` 格式，与 Go 的 `{code,message}` 不同。SSE 已建立后还可能通过 `error` 事件报告错误。未授权返回 `401`；他人会话返回 `404`；Go 无法确认令牌状态时返回 `503`，不绕过鉴权。
 

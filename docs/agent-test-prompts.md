@@ -1,6 +1,6 @@
 # Agent 与照片流程验收清单
 
-核对日期：2026-09-18。本文是人工验收清单，不保证与 `tests/integration/test_agent_prompts.py` 的用例一一对应。自动单测以 `cd agent && uv run pytest` 为准，CI 不依赖真实模型生成固定答案。
+核对日期：2026-09-20，适用于 POST 聊天协议与 Android 1.0.0。本文是人工验收清单，不保证与 `tests/integration/test_agent_prompts.py` 的用例一一对应。自动单测以 `cd agent && uv run pytest` 为准，CI 不依赖真实模型生成固定答案。
 
 ## 准备
 

@@ -10,12 +10,14 @@ COPY = {
     'zh': {
         'title': 'NutriGo 系统架构',
         'subtitle': '从手机交互到 AI 与数据服务',
-        'status': '当前架构 · 单机云端',
+        'status': '生产已部署 · 6ddfe4d3',
         'app': '手机应用', 'app_body': 'Tauri 2 · React 19 · MUI',
         'app_note': '页面随安装包分发', 'android': 'Android · 1.0.0 正式版', 'ios': 'iOS · 工程与编译检查',
+        'compat_note': '旧版：基础功能 / CLIP 可用，聊天停用',
         'cloud': '云端服务', 'cloud_note': 'Docker Compose · 私有网络',
         'external': '外部服务', 'external_note': 'AI 密钥仅保存在服务端',
         'gateway': 'Caddy · HTTPS 网关', 'gateway_note': '统一入口 · 路由转发 · SSE 流式响应',
+        'chat_protocol': 'POST 聊天 · SSE',
         'go': 'Go 数据服务', 'go_body': ['Gin · GORM', '账号 / 档案 / 饮食 / 图片'],
         'agent': 'Python Agent', 'agent_body': ['FastAPI · Agent Loop', 'AI 对话 / 照片草稿 / 5 个工具'],
         'internal': ['内部鉴权', '用户数据'],
@@ -30,16 +32,18 @@ COPY = {
         'ops_note': '用户库与照片纳入备份；模型和向量库另行恢复',
         'legend': ['手机与入口', '业务数据', 'AI 编排', '外部服务'],
         'footer': '实现与限制详见架构文档',
-        'desc': '手机通过 HTTPS 和 JWT 访问 Caddy，再进入 Go 数据服务或 Python Agent。Agent 通过内部鉴权查询 Go，访问本地会话、营养库和 RAG，并调用外部聊天模型与 DeepSeek 视觉 API。异地备份和通知入口尚未配置。',
+        'desc': 'Android 1.0.0 通过 HTTPS 和 JWT 访问 Caddy，再进入 Go 数据服务或 Python Agent；生产已部署提交 6ddfe4d3。聊天只接受 POST JSON 和 SSE。旧客户端仍可使用基础数据与 CLIP 接口，但旧 GET 聊天已停用。Agent 访问本地会话、营养库和 RAG，并调用外部聊天模型与 DeepSeek 视觉 API。异地备份和通知入口尚未配置。',
     },
     'en': {
         'title': 'NutriGo architecture', 'subtitle': 'From the mobile experience to AI and data services',
-        'status': 'Current design · single server',
+        'status': 'Production · 6ddfe4d3',
         'app': 'Mobile app', 'app_body': 'Tauri 2 · React 19 · MUI',
         'app_note': 'UI bundled with the app', 'android': 'Android · 1.0.0 stable', 'ios': 'iOS · native checks',
+        'compat_note': 'Older builds: core + CLIP work; chat disabled',
         'cloud': 'Cloud services', 'cloud_note': 'Docker Compose · private network',
         'external': 'External services', 'external_note': 'AI keys stay on the server',
         'gateway': 'Caddy · HTTPS gateway', 'gateway_note': 'One API origin · routing · SSE streaming',
+        'chat_protocol': 'POST chat · SSE',
         'go': 'Go data service', 'go_body': ['Gin · GORM', 'Accounts / profile / diary / photos'],
         'agent': 'Python Agent', 'agent_body': ['FastAPI · Agent Loop', 'Chat / meal drafts / 5 tools'],
         'internal': ['Auth +', 'user data'],
@@ -54,7 +58,7 @@ COPY = {
         'ops_note': 'Backups: user DBs + photos. Restore models and vectors separately.',
         'legend': ['App & gateway', 'Business data', 'AI orchestration', 'External services'],
         'footer': 'See architecture docs for implementation details',
-        'desc': 'The app calls Caddy over HTTPS with JWT. Caddy routes to Go or the Python Agent. The Agent queries Go with internal authentication, accesses local session, nutrition and RAG data, and calls external chat and DeepSeek vision APIs. Offsite storage and notifications are not configured.',
+        'desc': 'Android 1.0.0 calls Caddy over HTTPS with JWT; production runs commit 6ddfe4d3. Chat accepts POST JSON and streams SSE. Older clients retain core data and CLIP endpoints, while legacy GET chat is disabled. The Agent accesses local session, nutrition and RAG data and calls external chat and DeepSeek vision APIs. Offsite storage and notifications are not configured.',
     },
 }
 
@@ -149,7 +153,8 @@ def build(locale):
     icon('phone', 91, 177, '#FFFFFF', 1.08)
     text(162, 184, c['app'], 25, GREEN, 650)
     text(162, 222, c['app_body'], 22, INK)
-    text(588, 203, c['app_note'], 20, MUTED)
+    text(588, 191, c['app_note'], 20, MUTED)
+    text(588, 226, c['compat_note'], 17, MUTED, 500)
     pill(1068, 158, 300, c['android'], '#D9EBDD', GREEN)
     pill(1068, 204, 300, c['ios'], '#FFFFFF', MUTED)
     out.append('</g>')
@@ -171,6 +176,7 @@ def build(locale):
     icon('gateway', 104, 417, '#FFFFFF')
     text(156, 427, c['gateway'], 25, '#FFFFFF', 650)
     text(156, 460, c['gateway_note'], 19, '#DFEDE5')
+    pill(674, 419, 160, c['chat_protocol'], '#3C6D5C', '#FFFFFF')
     pill(854, 419, 112, '80 / 443', '#3C6D5C', '#FFFFFF')
     out.append('</g>')
 
