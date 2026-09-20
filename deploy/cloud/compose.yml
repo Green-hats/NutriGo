@@ -2,7 +2,7 @@ name: nutrigo-cloud
 
 services:
   gateway:
-    image: caddy:2
+    image: caddy:2.11.4
     restart: unless-stopped
     environment:
       API_DOMAIN: ${API_DOMAIN:?请配置 API_DOMAIN}

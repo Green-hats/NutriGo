@@ -264,7 +264,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Caddy
-        run: sudo apt-get update && sudo apt-get install -y caddy
+        env:
+          CADDY_VERSION: '2.11.4'
+        run: |
+          mkdir -p "$RUNNER_TEMP/nutrigo-caddy"
+          cd "$RUNNER_TEMP/nutrigo-caddy"
+          curl -fLsS --retry 3 -O "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_amd64.tar.gz"
+          curl -fLsS --retry 3 -O "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_checksums.txt"
+          sha256sum --check --ignore-missing "caddy_${CADDY_VERSION}_checksums.txt"
+          tar -xzf "caddy_${CADDY_VERSION}_linux_amd64.tar.gz" caddy
+          sudo install -m 755 caddy /usr/local/bin/caddy
+          caddy version
       - name: Validate cloud Compose
         env:
           API_DOMAIN: api.example.com
