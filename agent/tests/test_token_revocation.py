@@ -7,7 +7,7 @@ import pytest
 from test_auth import make_token, valid_payload
 
 PROTECTED_ROUTES = [
-    ("GET", "/api/chat?message=hello", None),
+    ("POST", "/api/chat", {"message": "hello", "session_id": None}),
     ("POST", "/api/sessions/12/regenerate", None),
     ("GET", "/api/sessions", None),
     ("GET", "/api/sessions/12", None),

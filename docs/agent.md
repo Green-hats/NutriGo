@@ -58,7 +58,7 @@ LITELLM_LOCAL_MODEL_COST_MAP=true uv run uvicorn app.main:app --port 8000
 |---|---|---|
 | GET | `/api/health` | 进程健康 |
 | GET | `/api/ready` | 会话数据库连接检查 |
-| GET | `/api/chat?message=&session_id=` | SSE；不传会话 ID 时创建会话 |
+| POST | `/api/chat` | JSON `{message,session_id}`，返回 SSE；正文不进入 URL 或访问日志 |
 | POST | `/api/sessions/:id/regenerate` | 重新生成最后一条回复，SSE |
 | GET | `/api/sessions?limit=&offset=` | 分页会话列表，`items/total/limit/offset` |
 | GET | `/api/sessions/:id` | 会话详情，仅本人 |
@@ -130,7 +130,7 @@ SSE 事件包括 `session_id`、`thinking`、`chunk`、`tool_call`、`tool_resul
 
 默认最多 15 轮 Agent 循环，单条消息最多 2,000 字符，上下文最多 40 条 / 8,000 token 预算，单次 LLM 超时 120 秒、工具超时 30 秒，同用户最多一个活跃对话。具体重试和上下文处理以配置及源码为准；用户停止或离开对话页面会取消流。
 
-聊天和重新生成共用 `ChatStreamingResponse`：队列无消息时阻塞等待，不轮询 `Request.is_disconnected()`，由 Starlette 监听断线。空闲每 15 秒发送一次 SSE 注释心跳，客户端忽略注释；心跳不会重建队列读取任务或延长生成总期限。整次生成默认最多 300 秒（`CHAT_TIMEOUT`），覆盖模型连接、流式读取、工具和保存。模型异常、超时或未发送结束事件就返回时，发送友好的 `error` 事件并结束连接；供应商异常原文不发送到客户端。正常完成、客户端断开或发送失败都会取消并等待后台任务结束，释放用户并发名额。
+聊天和重新生成共用 `ChatStreamingResponse`：队列无消息时阻塞等待，不轮询 `Request.is_disconnected()`，由 Starlette 监听断线。聊天正文只接受 POST JSON；Uvicorn 原始访问日志关闭，应用日志只记 path，不记查询串或请求体；模型供应商异常只记异常类型。空闲每 15 秒发送一次 SSE 注释心跳，客户端忽略注释；心跳不会重建队列读取任务或延长生成总期限。整次生成默认最多 300 秒（`CHAT_TIMEOUT`），覆盖模型连接、流式读取、工具和保存。模型异常、超时或未发送结束事件就返回时，发送友好的 `error` 事件并结束连接；供应商异常原文不发送到客户端。正常完成、客户端断开或发送失败都会取消并等待后台任务结束，释放用户并发名额。
 
 ## 知识库与兼容模型
 

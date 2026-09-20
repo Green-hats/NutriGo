@@ -140,10 +140,8 @@ async def chat(client: httpx.AsyncClient, prompt: str, session_id: int | None = 
                headers: dict | None = None) -> dict:
     """发一条消息，返回解析后的 SSE 事件统计"""
     import re
-    params = {"message": prompt}
-    if session_id:
-        params["session_id"] = str(session_id)
-    resp = await client.get(f"{BASE}/api/chat", params=params, headers=headers or auth_headers(),
+    payload = {"message": prompt, "session_id": session_id}
+    resp = await client.post(f"{BASE}/api/chat", json=payload, headers=headers or auth_headers(),
                             timeout=120.0)
     text = resp.text
 
@@ -231,8 +229,8 @@ async def run_multi_turn(client: httpx.AsyncClient):
             return
         sid = sessions[0]["id"]
         # 第二轮：带上 session_id，问名字
-        resp2 = await client.get(f"{BASE}/api/chat",
-                                 params={"message": "我叫什么？", "session_id": str(sid)},
+        resp2 = await client.post(f"{BASE}/api/chat",
+                                 json={"message": "我叫什么？", "session_id": sid},
                                  headers=auth_headers(), timeout=120.0)
         text2 = resp2.text
         chunks = "".join(re.findall(r"^data: (.+)$", text2, re.MULTILINE))

@@ -25,7 +25,7 @@ class Upstream(BaseHTTPRequestHandler):
         self.respond()
 
     def respond(self):
-        if self.path.startswith('/api/chat?'):
+        if self.path == '/api/chat' and self.command == 'POST':
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.end_headers()
@@ -131,7 +131,8 @@ try:
         assert status == 404 and json.loads(data)['path'] == '/api/missing'
         print('PASS private routes blocked, no static site, upstream errors preserved', flush=True)
         conn = http.client.HTTPConnection('127.0.0.1', port, timeout=3)
-        conn.request('GET', '/agent-api/chat?message=hello&session_id=1')
+        conn.request('POST', '/agent-api/chat', body='{"message":"hello","session_id":1}',
+                     headers={'Content-Type': 'application/json'})
         response = conn.getresponse()
         assert response.status == 200
         assert response.readline() == b'event: chunk\n'

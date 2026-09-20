@@ -106,9 +106,9 @@ async def main():
             # 这会触发 Agent Loop，但因为没 API Key 会返回 error 事件
             # SSE 连接会得到一些事件然后断开
             print("\n📌 2. SSE 对话（basic）")
-            resp = await client.get(
+            resp = await client.post(
                 f"{BASE}/api/chat",
-                params={"message": "你好"},
+                json={"message": "你好", "session_id": None},
                 headers=auth_headers(),
                 timeout=15.0,
             )

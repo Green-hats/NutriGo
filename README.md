@@ -63,9 +63,9 @@
 
 ### Android download
 
-[Download Android 0.1.6 APK](https://github.com/Green-hats/NutriGo/releases/download/android-v0.1.6/NutriGo-Android-arm64-0.1.6.apk) · [Release notes and checksums](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)
+[Download Android 1.0.0 APK](https://github.com/Green-hats/NutriGo/releases/download/android-v1.0.0/NutriGo-Android-arm64-1.0.0.apk) · [Release notes and checksums](https://github.com/Green-hats/NutriGo/releases/tag/android-v1.0.0)
 
-ARM64 test build, about **16.1 MiB**, for Android 8.0+ with Android System WebView 117+. It connects to the configured cloud API and can update earlier Release installations using the same signing identity. iOS source and native checks are available; no IPA or TestFlight release is published yet.
+ARM64 stable release build for Android 8.0+ with Android System WebView 117+. Android debugging and cleartext HTTP are disabled. Its production package ID differs from the earlier `.debug` test builds, so both can coexist; iOS source and native checks are available, but no IPA or TestFlight release is published yet.
 
 ### Requirements
 

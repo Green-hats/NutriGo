@@ -1,7 +1,7 @@
 import { useAuthStore } from '../stores/auth'
 import { assertSessionCurrent, refreshForRequest } from './authSession'
 import { apiUrl } from './config'
-import { ConnectionError } from '../lib/connection'
+import { ConnectionError, httpStatusMessage } from '../lib/connection'
 import { apiFetch } from './http'
 import type {
   IdentifyResult,
@@ -46,13 +46,14 @@ async function request<T>(
     throw new Error('登录已过期，请重新登录')
   }
 
-  if (resp.status >= 500) {
+  // 照片分析 504 含可操作的安全提示；其他 5xx 不把上游细节暴露给界面。
+  if (resp.status >= 500 && resp.status !== 504) {
     void resp.body?.cancel().catch(() => {})
     throw new ConnectionError('service')
   }
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ detail: resp.statusText }))
-    throw new Error(err.detail || err.message || `HTTP ${resp.status}`)
+    const err = await resp.json().catch(() => ({ detail: httpStatusMessage(resp.status) }))
+    throw new Error(err.detail || err.message || httpStatusMessage(resp.status))
   }
   const data = await resp.json()
   assertSessionCurrent(sessionVersion)

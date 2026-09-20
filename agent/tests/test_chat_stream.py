@@ -183,25 +183,29 @@ async def test_routes_recover_after_disconnect_and_model_error(agent_app, monkey
             model_stopped.set()
 
     monkeypatch.setattr(main, "run_agent_loop", idle_model)
-    method = "POST" if regenerate else "GET"
+    method = "POST"
     path = "/api/sessions/12/regenerate" if regenerate else "/api/chat"
     token = make_token(valid_payload())
     headers = {"Authorization": f"Bearer {token}"}
     scope = {
         "type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"},
         "http_version": "1.1", "method": method, "scheme": "http", "path": path,
-        "raw_path": path.encode(), "query_string": b"message=hello", "root_path": "",
-        "headers": [(b"authorization", headers["Authorization"].encode())],
+        "raw_path": path.encode(), "query_string": b"", "root_path": "",
+        "headers": [
+            (b"authorization", headers["Authorization"].encode()),
+            (b"content-type", b"application/json"),
+        ],
         "server": ("test", 80), "client": ("127.0.0.1", 1234),
     }
 
     body_read = False
+    body = b"{}" if regenerate else b'{"message":"hello","session_id":null}'
 
     async def receive():
         nonlocal body_read
         if not body_read:
             body_read = True
-            return {"type": "http.request", "body": b"", "more_body": False}
+            return {"type": "http.request", "body": body, "more_body": False}
         await first_body.wait()
         return {"type": "http.disconnect"}
 
@@ -223,7 +227,12 @@ async def test_routes_recover_after_disconnect_and_model_error(agent_app, monkey
     transport = httpx.ASGITransport(app=main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         async with asyncio.timeout(1):
-            result = await client.request(method, path, params={"message": "hello"}, headers=headers)
+            result = await client.request(
+                method,
+                path,
+                json={} if regenerate else {"message": "hello", "session_id": None},
+                headers=headers,
+            )
     assert result.status_code == 200
     assert "event: error" in result.text
     assert 7 not in rate_limit._user_active

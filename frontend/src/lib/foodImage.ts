@@ -1,7 +1,10 @@
 /** 将手机大图压缩为后端支持的 JPEG，避免原始相机照片超过上传限制。 */
+export const MAX_FOOD_IMAGE_BYTES = 10 * 1024 * 1024
+
 export async function prepareFoodImage(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) throw new Error('请选择食物照片')
-  if (file.size > 25 * 1024 * 1024) throw new Error('照片过大，请选择小于 25MB 的图片')
+  if (file.size > MAX_FOOD_IMAGE_BYTES)
+    throw new Error('照片超过 10 MiB，请选择更小的图片后重试')
   const url = URL.createObjectURL(file)
   try {
     const image = new Image()
@@ -23,7 +26,8 @@ export async function prepareFoodImage(file: File): Promise<File> {
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((result) => result ? resolve(result) : reject(new Error('照片处理失败')), 'image/jpeg', 0.85)
     })
-    if (blob.size > 10 * 1024 * 1024) throw new Error('照片仍然过大，请换一张图片')
+    if (blob.size > MAX_FOOD_IMAGE_BYTES)
+      throw new Error('照片处理后仍超过 10 MiB，请换一张图片')
     return new File([blob], 'meal.jpg', { type: 'image/jpeg' })
   } finally {
     URL.revokeObjectURL(url)

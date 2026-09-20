@@ -20,7 +20,7 @@ export interface ChatStreamHandle {
 
 /**
  * 用 fetch + ReadableStream 解析 SSE，支持自定义 Authorization 头。
- * mode='chat'：GET /api/chat?message=...；mode='regenerate'：POST /api/sessions/{id}/regenerate
+ * 聊天正文始终放在 POST JSON 中，避免进入 URL、代理和访问日志。
  * 返回 { cancel }，可手动中断连接。
  */
 export function createChatStream(
@@ -39,19 +39,19 @@ export function createChatStream(
 
   const run = async () => {
     try {
-      const params = new URLSearchParams({ message: message || '' })
-      if (sessionId) params.set('session_id', String(sessionId))
       const regenerating = mode === 'regenerate' && sessionId !== null
       const path = regenerating
         ? `/sessions/${sessionId}/regenerate`
-        : `/chat?${params}`
+        : '/chat'
       const send = (accessToken: string | null) =>
         apiFetch(apiUrl('agent', path), {
-          method: regenerating ? 'POST' : 'GET',
+          method: 'POST',
           headers: {
             ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-            Accept: 'text/event-stream'
+            Accept: 'text/event-stream',
+            'Content-Type': 'application/json'
           },
+          body: regenerating ? undefined : JSON.stringify({ message: message || '', session_id: sessionId }),
           signal: controller.signal,
           timeoutMs: 60_000
         })

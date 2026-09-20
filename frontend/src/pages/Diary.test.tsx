@@ -14,6 +14,7 @@ import { useAuthStore } from '../stores/auth'
 import type { DietRecord, MealAnalysis } from '../types'
 
 vi.mock('../lib/foodImage', () => ({
+  MAX_FOOD_IMAGE_BYTES: 10 * 1024 * 1024,
   prepareFoodImage: async (file: File) => file
 }))
 
@@ -156,6 +157,20 @@ describe('Diary DeepSeek 照片分析', () => {
     })
     await screen.findAllByLabelText('食物名称')
   }
+
+  it('选择超过 10 MiB 的照片时立即提示且不上传', async () => {
+    getDietLogsMock.mockResolvedValue([])
+    render(<Diary />)
+    fireEvent.click(screen.getByRole('button', { name: '添加记录' }))
+    fireEvent.change(screen.getByLabelText('选择食物照片'), {
+      target: {
+        files: [new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'large.jpg', { type: 'image/jpeg' })],
+      },
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('照片超过 10 MiB')
+    expect(uploadImageMock).not.toHaveBeenCalled()
+    expect(analyzeMealMock).not.toHaveBeenCalled()
+  })
 
   it('识别多项食物，修改实际克重后即时重算并统一保存', async () => {
     createDietBatchMock.mockResolvedValue([record])

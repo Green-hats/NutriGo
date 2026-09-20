@@ -63,9 +63,9 @@
 
 ### Android 下载
 
-[下载 Android 0.1.6 APK](https://github.com/Green-hats/NutriGo/releases/download/android-v0.1.6/NutriGo-Android-arm64-0.1.6.apk) · [更新说明与校验文件](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)
+[下载 Android 1.0.0 APK](https://github.com/Green-hats/NutriGo/releases/download/android-v1.0.0/NutriGo-Android-arm64-1.0.0.apk) · [更新说明与校验文件](https://github.com/Green-hats/NutriGo/releases/tag/android-v1.0.0)
 
-ARM64 测试包约 **16.1 MiB**，要求 Android 8.0+、Android System WebView 117+。安装包连接已配置的云端 API，沿用同一签名，可覆盖此前 Release 版本。iOS 已有源码和原生检查，尚未发布 IPA / TestFlight。
+ARM64 正式 release 构建，要求 Android 8.0+、Android System WebView 117+，已关闭 Android 调试能力和明文 HTTP。正式包名与早期 `.debug` 测试版不同，两者会并存；iOS 已有源码和原生检查，尚未发布 IPA / TestFlight。
 
 ### 环境要求
 

@@ -5,7 +5,7 @@ FastAPI 应用入口
   uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 API 路由：
-  GET  /api/chat            — SSE 流式对话
+  POST /api/chat            — JSON 请求、SSE 流式对话
   GET  /api/sessions         — 列出会话
   GET  /api/sessions/:id     — 获取会话详情
   DELETE /api/sessions/:id   — 删除会话
@@ -20,7 +20,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
@@ -108,8 +108,14 @@ async def request_logging(request: Request, call_next: Callable[[Request], Await
     start = time.monotonic()
     try:
         response = await call_next(request)
-    except Exception:
-        logger.exception("请求处理异常 method=%s path=%s", request.method, request.url.path)
+    except Exception as exc:
+        # 异常正文可能包含模型响应或用户输入；访问日志仅保留类型和路径。
+        logger.error(
+            "请求处理异常 method=%s path=%s type=%s",
+            request.method,
+            request.url.path,
+            type(exc).__name__,
+        )
         raise
     duration_ms = (time.monotonic() - start) * 1000
     client_ip = request.client.host if request.client else "-"
@@ -168,20 +174,24 @@ async def _load_or_create_conv(session_id: int | None, user_id: int, message: st
     return conv
 
 
-@app.get("/api/chat")
+class ChatRequest(BaseModel):
+    message: str
+    session_id: int | None = None
+
+
+@app.post("/api/chat")
 async def chat(
     request: Request,
-    message: str = Query(..., description="用户消息"),
-    session_id: int | None = Query(None, description="会话ID"),
+    req: ChatRequest,
 ) -> StreamingResponse:
-    """SSE 流式对话（需 JWT）"""
+    """SSE 流式对话；正文只接受 JSON，避免进入 URL 与访问日志。"""
 
     # 从 Authorization 头解析用户，不再信任 URL 里的 user_id
     user_id = await require_user_id(request.headers.get("Authorization"))
     require_ai_enabled()
 
     # 输入长度限制，防 token 轰炸
-    if len(message) > settings.MAX_MESSAGE_LENGTH:
+    if len(req.message) > settings.MAX_MESSAGE_LENGTH:
         raise HTTPException(
             status_code=400,
             detail=f"消息过长（最多 {settings.MAX_MESSAGE_LENGTH} 字符）",
@@ -196,7 +206,7 @@ async def chat(
         raise HTTPException(status_code=429, detail="您有对话正在进行中，请等待完成后再试")
 
     try:
-        conv = await _load_or_create_conv(session_id, user_id, message)
+        conv = await _load_or_create_conv(req.session_id, user_id, req.message)
     except BaseException:
         await release_user(user_id)
         raise

@@ -45,8 +45,14 @@ async def run_agent_loop(conv: Conversation, tools: ToolRegistry, chat_io: ChatI
                 break
             except TimeoutError:
                 logger.warning(f"第 {iteration+1} 轮 LLM 超时 (尝试 {attempt+1}/3)")
-            except Exception as e:
-                logger.warning(f"第 {iteration+1} 轮 LLM 调用失败: {e} (尝试 {attempt+1}/3)")
+            except Exception as exc:
+                # 上游异常文本可能包含请求正文、响应内容或认证信息，只记录类型。
+                logger.warning(
+                    "第 %d 轮 LLM 调用失败 type=%s (尝试 %d/3)",
+                    iteration + 1,
+                    type(exc).__name__,
+                    attempt + 1,
+                )
             if attempt < 2:
                 await asyncio.sleep(_backoff(attempt))
         if response is None:

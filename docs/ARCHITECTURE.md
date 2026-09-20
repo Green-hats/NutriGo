@@ -1,6 +1,6 @@
 # NutriGo — 架构设计文档
 
-更新日期：2026-09-18。本文核对服务端 `f72677b` 与 Android 0.1.6，覆盖照片分析、数据一致性与备份编排；安装包发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
+更新日期：2026-09-20。本文核对 Android 1.0.0 正式版与对应云端服务，覆盖请求限制、照片分析、数据一致性与备份编排；安装包发布状态以 GitHub Release 为准。尚未实现的改进单独列于末节。
 
 移动端运行与签名见 [MOBILE.md](MOBILE.md)，云端部署、模型准备和恢复操作见 [部署说明](../deploy/cloud/README.md)。数据保留和删除边界见[数据管理](DATA_MANAGEMENT.md)，后续优先级见[路线图](ROADMAP.md)。具体配置和接口以本文链接的源码为准。
 
@@ -10,13 +10,13 @@ NutriGo 是 **Tauri 2 手机 App + 单机云端服务**。React 页面、样式�
 
 | 部分 | 当前实现与交付状态 |
 |---|---|
-| Android | 已发布 [0.1.6 ARM64 测试 APK](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)，约 16.1 MiB；要求 Android 8.0+、WebView 117+；GitHub Actions 自动签名和 Release 发布已跑通 |
+| Android | [1.0.0 ARM64 正式 APK](https://github.com/Green-hats/NutriGo/releases/tag/android-v1.0.0)；release variant、不可调试、仅 HTTPS；要求 Android 8.0+、WebView 117+ |
 | iOS | 已有原生工程，最低 iOS 17；CI 检查 iOS Rust 目标，尚无自动签名、IPA / TestFlight 发布流程 |
 | 数据服务 | Go 管理账号、健康档案、饮食记录、汇总、图片和令牌状态 |
 | AI 服务 | Python 管理用户会话和工具编排；调用外部 LLM，执行云端照片识别和 RAG 检索 |
 | 离线能力 | 正常 App 有断网提示和错误恢复；独立 preview 包展示模拟数据。尚无真实数据离线缓存与自动同步 |
 
-Android Release 使用现有测试签名和 `com.greenhats.nutrigo.debug` 包名，以兼容已安装测试版；这不代表已完成应用商店正式发布。
+Android 1.0.0 使用 release variant 和正式包名 `com.greenhats.nutrigo`，关闭调试能力与明文 HTTP。GitHub 工作流使用固定签名发布直装 APK；早期 `.debug` 测试包会与正式版并存，当前尚未上架应用商店。
 
 ## 二、整体架构
 
@@ -79,7 +79,7 @@ flowchart TB
 | Python | FastAPI / LiteLLM / aiosqlite / httpx；负责 Agent Loop、工具调用与用户会话持久化 |
 | 识别与检索 | DeepSeek V4.1 Flash 远程视觉 API、营养库参考值、BGE-small-zh、ChromaDB；旧版兼容接口保留 Chinese-CLIP，权重不进入 APK |
 | 云端入口 | Caddy HTTPS、路径路由和 SSE 转发；支持域名证书和单独的公网 IP 证书配置 |
-| 交付 | GitHub Actions CI、Android APK 优化构建、固定签名、GitHub 预发布 Release |
+| 交付 | GitHub Actions CI、Android release APK 优化构建、固定签名、GitHub 正式 Release |
 
 Python **保存用户聊天会话及工具结果**，但不直接写 Go 的账号、档案或饮食记录数据库。当前 Agent 工具以查询为主，饮食记录由 App 确认后调用 Go 接口保存。LLM API Key 只在服务端使用。
 
@@ -127,8 +127,8 @@ sequenceDiagram
     participant Agent as Python Agent
     participant Go as Go 数据服务
     participant LLM as 外部 LLM
-    App->>Gateway: GET /agent-api/chat，Bearer + message
-    Gateway->>Agent: GET /api/chat
+    App->>Gateway: POST /agent-api/chat，Bearer + JSON
+    Gateway->>Agent: POST /api/chat（JSON，不把正文放入 URL）
     Agent->>Agent: 校验 JWT 签名与有效期
     Agent->>Go: /api/internal/auth/verify，内部令牌 + Bearer
     Go-->>Agent: 当前用户与令牌有效状态
@@ -241,7 +241,7 @@ sequenceDiagram
 | 方法 | 内部路径 | 说明 | 认证 |
 |---|---|---|---|
 | GET | `/api/health`、`/api/ready` | 存活、会话数据库就绪 | 无 |
-| GET | `/api/chat?message=&session_id=` | 提问并建立 SSE 流 | JWT + Go 实时校验 |
+| POST | `/api/chat` | JSON `{message,session_id}`，建立 SSE 流 | JWT + Go 实时校验 |
 | GET | `/api/sessions`、`/api/sessions/:id` | 会话列表、历史 | JWT + 会话归属 |
 | POST | `/api/sessions/:id/regenerate` | 重新生成最后回复，返回 SSE | JWT + 会话归属 |
 | DELETE / PATCH | `/api/sessions/:id` | 删除、重命名会话 | JWT + 会话归属 |
@@ -361,7 +361,7 @@ flowchart TB
     end
     subgraph ReleaseStage["03 · 发布"]
         direction LR
-        Draft["创建或续传本提交的草稿<br/>上传 APK、SHA256SUMS、manifest"] --> Publish["核对远端大小与 SHA-256<br/>公开预发布 Release"]
+        Draft["创建或续传本提交的草稿<br/>上传 APK、SHA256SUMS、manifest"] --> Publish["核对远端大小与 SHA-256<br/>公开正式 Release"]
     end
     PrepareStage --> BuildStage --> ReleaseStage
 ```

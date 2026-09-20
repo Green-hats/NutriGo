@@ -70,10 +70,10 @@ jobs:
         with:
           packages: build-tools;36.0.0
           log-accepted-android-sdk-licenses: false
-      - name: Download this run's checked online APK
+      - name: Download this run's checked release candidate
         uses: actions/download-artifact@v8
         with:
-          name: NutriGo-online-arm64.apk
+          name: NutriGo-online-arm64-unsigned.apk
           path: release-input
           # APK is itself a ZIP; keep it intact.
           skip-decompress: true

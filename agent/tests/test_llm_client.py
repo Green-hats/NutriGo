@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import logging
 import sys
 import types
 from types import SimpleNamespace
@@ -260,18 +261,23 @@ async def test_retry_after_transient_failure(monkeypatch, registry):
     assert conv.messages[-1]["content"] == "恢复成功"
 
 
-async def test_all_attempts_fail_emits_error(monkeypatch, registry):
+async def test_all_attempts_fail_emits_error_without_logging_provider_content(monkeypatch, registry, caplog):
+    monkeypatch.setattr("app.llm_client._backoff", lambda attempt: 0)
     chat_io = RecordingChatIO()
     conv = make_conv()
+    secret = "用户聊天正文与上游响应不得写入日志"
 
     async def handler(**kwargs):
-        raise RuntimeError("总是失败")
+        raise RuntimeError(secret)
 
     set_acompletion(monkeypatch, handler)
-    await run_agent_loop(conv, registry, chat_io)
+    with caplog.at_level(logging.WARNING, logger="uvicorn"):
+        await run_agent_loop(conv, registry, chat_io)
 
     assert ("error", "LLM 调用多次失败，请稍后重试") in chat_io.events
     assert not chat_io.has("done")
+    assert secret not in caplog.text
+    assert "type=RuntimeError" in caplog.text
 
 
 async def test_timeout_emits_error(monkeypatch, registry):

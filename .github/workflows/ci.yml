@@ -217,7 +217,7 @@ jobs:
           targets: aarch64-linux-android
       - uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools
+          packages: platform-tools;build-tools;36.0.0
           log-accepted-android-sdk-licenses: false
       - name: Install Android SDK and NDK
         run: sdkmanager "platforms;android-36" "ndk;28.2.13676358"
@@ -229,16 +229,27 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ vars.NUTRIGO_API_BASE_URL || 'https://api.example.com' }}
         run: NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" npm run android:compact -- --ci
-      - name: Prepare online download
+      - name: Verify release candidate is not debuggable
         if: vars.NUTRIGO_API_BASE_URL != ''
         run: |
-          mkdir -p frontend/artifacts
-          cp frontend/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk frontend/artifacts/NutriGo-online-arm64.apk
-      - name: Upload installable online APK
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging frontend/artifacts/NutriGo-online-arm64-unsigned.apk > "$RUNNER_TEMP/nutrigo-badging.txt"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump xmltree frontend/artifacts/NutriGo-online-arm64-unsigned.apk AndroidManifest.xml > "$RUNNER_TEMP/nutrigo-manifest.txt"
+          grep -F "package: name='com.greenhats.nutrigo'" "$RUNNER_TEMP/nutrigo-badging.txt"
+          grep -E 'android:usesCleartextTraffic.*0x0$' "$RUNNER_TEMP/nutrigo-manifest.txt"
+          if grep -q '^application-debuggable' "$RUNNER_TEMP/nutrigo-badging.txt"; then
+            echo 'Release candidate is debuggable' >&2
+            exit 1
+          fi
+          if grep -E -q 'android:debuggable.*0xffffffff$' "$RUNNER_TEMP/nutrigo-manifest.txt"; then
+            echo 'Release manifest enables Android debugging' >&2
+            exit 1
+          fi
+      - name: Upload unsigned online release candidate
         if: vars.NUTRIGO_API_BASE_URL != ''
         uses: actions/upload-artifact@v7
         with:
-          path: frontend/artifacts/NutriGo-online-arm64.apk
+          name: NutriGo-online-arm64-unsigned.apk
+          path: frontend/artifacts/NutriGo-online-arm64-unsigned.apk
           archive: false
           retention-days: 14
           if-no-files-found: error
@@ -246,13 +257,10 @@ jobs:
       - name: Build offline UI preview APK
         working-directory: frontend
         run: NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" npm run android:preview -- --ci
-      - name: Prepare preview download
-        run: |
-          mkdir -p frontend/artifacts
-          cp frontend/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk frontend/artifacts/NutriGo-preview-arm64.apk
       - name: Upload installable preview APK
         uses: actions/upload-artifact@v7
         with:
+          name: NutriGo-preview-arm64.apk
           path: frontend/artifacts/NutriGo-preview-arm64.apk
           archive: false
           retention-days: 14

@@ -1,10 +1,10 @@
 # NutriGo 手机 App
 
-核对日期：2026-09-18。开发、安装与发布入口集中在本文；未来交付计划见[路线图](ROADMAP.md)。
+核对日期：2026-09-20。开发、安装与发布入口集中在本文；未来交付计划见[路线图](ROADMAP.md)。
 
 NutriGo 使用 **Tauri 2 + React 19 + MUI 9** 构建 Android 和 iOS App。React 页面随安装包分发，手机通过 HTTPS 访问云端 Go / Python 服务；模型 API 由服务器调用，本地检索模型、密钥和数据库留在云端。浏览器与 Vite 用于开发预览。
 
-当前已发布 [Android 0.1.6 ARM64 测试版](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)，约 16.1 MiB；可覆盖此前同签名的 Release 版本。iOS 已有原生工程和 CI 检查，尚未发布 IPA / TestFlight。
+当前发布 [Android 1.0.0 ARM64 正式版](https://github.com/Green-hats/NutriGo/releases/tag/android-v1.0.0)。这是不可调试、仅允许 HTTPS 的 release variant；包名 `com.greenhats.nutrigo` 与早期 `.debug` 测试版不同，两者会并存。iOS 已有原生工程和 CI 检查，尚未发布 IPA / TestFlight。
 
 [![NutriGo 手机 App 与云端服务架构](diagrams/architecture-zh.svg)](diagrams/architecture-zh.svg)
 
@@ -75,27 +75,27 @@ npm run ios:build
 
 Android 发布需要配置自己的 keystore；iOS 真机／分发需要 Apple 开发团队和签名，在本机设置 `APPLE_DEVELOPMENT_TEAM` 或 Xcode Signing。当前标识符为 `com.greenhats.nutrigo`，上线前可在 Tauri 配置与原生项目中统一修改。Android 最低版本为 8.0（API 26），iOS 最低版本为 17.0（已同步到 Tauri、Xcode 和 CocoaPods 配置）。Android 设备还需使用 Chromium 117 或更新的 Android System WebView；系统版本满足要求并不保证 WebView 版本满足要求。
 
-### 精简版 Android 测试包
+### 精简版 Android 正式包
 
-GitHub Release 和 CI 的 ARM64 测试包使用以下命令：
+GitHub Release 和 CI 的 ARM64 正式候选包使用以下命令：
 
 ```bash
 cd frontend
 VITE_API_BASE_URL=https://你的API地址 npm run android:compact -- --ci
 ```
 
-脚本先清理 Android app 构建目录，避免增量 ZIP 打包留下大块空白，再对 Rust 启用体积优化、Thin LTO、单代码生成单元并移除符号。仅这次打包覆盖 Cargo 开发配置，日常 `android:dev` 保留调试体验；未改变 panic、断言和溢出检查行为。编译选项参考 [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html)。线上包与离线预览包均有 **20 MiB** 体积上限，超限会使构建和 CI 失败。
+脚本先清理 Android app 构建目录，避免增量 ZIP 打包留下大块空白，再对 Rust release 配置启用体积优化、Thin LTO、单代码生成单元并移除符号。联网包构建 release variant；日常 `android:dev` 和独立离线预览包仍保留调试体验。编译选项参考 [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html)。线上包与离线预览包均有 **20 MiB** 体积上限，超限会使构建和 CI 失败。
 
-为了覆盖已有测试版，精简包仍使用 `com.greenhats.nutrigo.debug` 和原有 Android debug 签名。Release 工作流会使用仓库 Secrets 中保存的同一 keystore 重新签署 CI 产物，并检查证书指纹。普通 CI Artifacts 使用临时调试签名，更新手机上的 Release 版本时请下载 Release 附件。它仍是测试包，商店发布继续使用上面的正式构建与独立发布签名。
+正式包使用 `com.greenhats.nutrigo`。CI 先验证未签名 release 候选包不含 `application-debuggable`，Release 工作流再用仓库 Secrets 中保存的固定 keystore 签署并检查证书指纹。早期测试包使用 `com.greenhats.nutrigo.debug`，因此不能覆盖升级到正式包；首次安装正式版后，后续正式版可沿用包名和签名升级。GitHub 直装发布与 Google Play 上架是两套交付流程，目前尚未上架商店。
 
 ### 自动发布 GitHub Release
 
 工作流入口：[Actions → Android Release](https://github.com/Green-hats/NutriGo/actions/workflows/android-release.yml)。
 
-1. 更新 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中 NutriGo 的版本号，提交到 `main`。当前 `0.1.6` 对应 Android versionCode `1006`，下一次发版须使用新版本号。
+1. 更新 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中 NutriGo 的版本号，提交到 `main`。`1.0.0` 对应 Android versionCode `1000000`，下一次发版须使用新版本号。
 2. 在该工作流页面点击 **Run workflow**，选择 **main**；或推送与新版本一致的 `android-v<版本号>` 标签。两种方式选择一种即可。
 3. 工作流复用完整 CI，通过后下载同一次运行的联网 APK，使用固定签名签署，并校验包名、版本、ARM64 架构、签名指纹、ZIP 完整性、16 KB 对齐和 20 MiB 体积上限。
-4. 自动创建 `android-v<版本号>` 的预发布 Release，上传 APK、`SHA256SUMS.txt`、`release-manifest.json`。先上传到草稿并核对 GitHub 返回的校验值，全部一致后才公开。说明包含源码提交、安装要求和 CI 链接。
+4. 自动创建 `android-v<版本号>` 的正式 Release，上传 APK、`SHA256SUMS.txt`、`release-manifest.json`。先上传到草稿并核对 GitHub 返回的校验值，全部一致后才公开。说明包含源码提交、安装要求和 CI 链接。
 
 手动发布仅允许 `main`；标签版本必须与源码一致，提交必须已进入 `main`。已公开的 Release 不会被覆盖，已有标签不会被移动；上传中断时可重跑同一提交，继续它自己的草稿。升级签名不匹配、未配置真实 HTTPS 地址或任意 CI 失败都会阻止发布。
 
@@ -148,7 +148,7 @@ cargo check --locked --manifest-path src-tauri/Cargo.toml
 
 ### 当前验证边界
 
-截至 2026-09-18，Android 0.1.6 已作为预发布测试包提供；iOS 只有工程和原生检查，尚无 IPA / TestFlight。CI 会验证前端、Rust、iOS 目标与 Android 构建，不能替代每台设备的权限、键盘和拍照验收。测试数量和依赖审计结果以对应提交的 CI 为准，不沿用早期迁移时的数字。
+截至 2026-09-20，Android 1.0.0 使用正式 release variant 发布；iOS 只有工程和原生检查，尚无 IPA / TestFlight。CI 会验证前端、Rust、iOS 目标与 Android 构建，不能替代每台设备的权限、键盘和拍照验收。测试数量和依赖审计结果以对应提交的 CI 为准，不沿用早期迁移时的数字。
 
 服务端 `f72677b` 增加照片删除一致性与备份检测，无需重装 APK 即可生效。删除日记、照片、提交回执及备份有不同保留规则，见[数据管理](DATA_MANAGEMENT.md)。界面资产继续使用 MUI 和本地系统字体，模拟预览只用于验证交互与布局。
 
@@ -167,15 +167,17 @@ npm run android:preview -- --ci
 
 联网版的异常提示：
 
+- 选择超过 10 MiB 的照片时立即提示且不解码、不上传；后端仍独立执行同一大小限制。
+- 上传频率、个人照片配额、全站存储不足和分析超时分别保留可操作提示，可重试分析或改为手动记录。
 - 系统报告断网时，显示持续的中文提示；恢复网络后提醒手动重试，不自动重发写操作。
 - 服务器不可达、超时、服务临时故障分别提示，不误报为没有记录。
 - 普通请求连接及响应体等待最长 20 秒，AI 请求和流式回复空闲等待最长 60 秒；连续收到回复会重置计时。
 - 刷新令牌遇断网、超时、503 或限流会保留登录态，凭证确实失效才要求重新登录。
 - 保存失败保留当前表单；不会显示保存成功。照片整餐提交通过 UUID 防重，超时后锁定原提交并允许重试；手动记录等其他写操作需先核对服务器是否已保存。当前不提供离线缓存、离线 AI 或自动同步。
 
-云端 API 部署完成后，可以设置 GitHub 仓库 Actions 变量 `NUTRIGO_API_BASE_URL` 为实际 HTTPS 源地址。CI 会额外保留 `NutriGo-online-arm64.apk`，供连接云端服务的实机测试；未配置时仅上传离线预览包。两者都是调试签名，不能作为商店发布包。
+云端 API 部署完成后，可以设置 GitHub 仓库 Actions 变量 `NUTRIGO_API_BASE_URL` 为实际 HTTPS 源地址。CI 会保留未签名的 `NutriGo-online-arm64-unsigned.apk` 候选包，只有 Android Release 工作流在完整检查通过后签名并公开；未配置地址时仅上传离线预览包。
 
-## 0.1.6 照片分析与餐次选择
+## 1.0.0 照片分析与餐次选择
 
 拍照后用 DeepSeek V4.1 Flash（`deepseek-flash`）生成多项食物草稿，克重和热量均可修正；确认才写入日记。服务端必须先上线 `/agent-api/analyze-meal` 和 `/api/diet/logs/batch`，再安装新 APK。仍调用旧识别接口的 APK 使用 CLIP 候选流程。API Key 只在服务器，照片会由服务器提交至 DeepSeek 官方；离线体验包不会上传。
 

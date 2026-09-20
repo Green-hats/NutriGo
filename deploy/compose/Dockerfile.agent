@@ -77,4 +77,5 @@ SentenceTransformer('BAAI/bge-small-zh-v1.5'); \
 EXPOSE 8000
 
 WORKDIR /app/agent
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 使用应用内的脱敏结构化日志；Uvicorn 默认访问日志会记录完整查询串。
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

@@ -35,9 +35,9 @@ def metadata(config, cargo_version, event, ref, sha, api, certificate):
     android = config["bundle"]["android"]
     if android.get("autoIncrementVersionCode") or android.get("versionCode", code) != code:
         raise ValueError("Use the deterministic versionCode derived from the app version")
-    package = config["identifier"] + android.get("debugApplicationIdSuffix", ".debug")
-    if package != "com.greenhats.nutrigo.debug":
-        raise ValueError("Package must preserve the existing Android installation identity")
+    package = config["identifier"]
+    if package != "com.greenhats.nutrigo":
+        raise ValueError("Formal releases must use the production Android package")
     tag = f"android-v{version}"
     if (event, ref) not in [("workflow_dispatch", "refs/heads/main"), ("push", f"refs/tags/{tag}")]:
         raise ValueError(f"Run manually on main or push the matching tag {tag}")
@@ -146,11 +146,17 @@ def check_remote(meta):
     return release
 
 
-def validate_apk_details(meta, badging, signature):
+def validate_apk_details(meta, badging, signature, manifest):
     expected = (
         f"package: name='{meta['package']}' versionCode='{meta['code']}' versionName='{meta['version']}'"
     )
-    if expected not in badging or not re.search(r"^native-code: 'arm64-v8a'$", badging, re.MULTILINE):
+    if (
+        expected not in badging
+        or not re.search(r"^native-code: 'arm64-v8a'$", badging, re.MULTILINE)
+        or re.search(r"^application-debuggable", badging, re.MULTILINE)
+        or re.search(r"android:debuggable.*0xffffffff$", manifest, re.MULTILINE)
+        or not re.search(r"android:usesCleartextTraffic.*0x0$", manifest, re.MULTILINE)
+    ):
         raise ValueError("APK package, version or architecture does not match the release")
     certs = re.findall(r"Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)", signature)
     if [c.lower() for c in certs] != [meta["certificate"]]:
@@ -166,7 +172,7 @@ def sign(meta):
     ):
         if not os.environ.get(name):
             raise ValueError(f"Missing Actions secret: {name}")
-    source = ROOT / "release-input/NutriGo-online-arm64.apk"
+    source = ROOT / "release-input/NutriGo-online-arm64-unsigned.apk"
     sdk = Path(os.environ["ANDROID_HOME"]) / "build-tools/36.0.0"
     OUTPUT.mkdir(exist_ok=True)
     apk = OUTPUT / f"NutriGo-Android-arm64-{meta['version']}.apk"
@@ -194,7 +200,12 @@ def sign(meta):
             str(source),
         )
     signature = run(str(sdk / "apksigner"), "verify", "--print-certs", str(apk))
-    validate_apk_details(meta, run(str(sdk / "aapt"), "dump", "badging", str(apk)), signature)
+    validate_apk_details(
+        meta,
+        run(str(sdk / "aapt"), "dump", "badging", str(apk)),
+        signature,
+        run(str(sdk / "aapt"), "dump", "xmltree", str(apk), "AndroidManifest.xml"),
+    )
     run(str(sdk / "zipalign"), "-c", "-P", "16", "4", str(apk))
     if apk.stat().st_size > MAX_APK_BYTES:
         raise ValueError("Signed APK exceeds the 20 MiB budget")
@@ -211,11 +222,12 @@ def sign(meta):
         + "\n"
     )
     (OUTPUT / "RELEASE_NOTES.md").write_text(
-        f"{marker(meta)}\n\nNutriGo Android 测试版 **{meta['version']}**\n\n"
+        f"{marker(meta)}\n\nNutriGo Android 正式版 **{meta['version']}**\n\n"
         f"- ARM64 APK：{apk.stat().st_size / 1048576:.2f} MiB，Android 8.0 及以上。\n"
-        "- 沿用已发布测试版的包名和签名，可直接覆盖安装，无需卸载。\n"
+        "- 使用正式 release 构建，已关闭 Android 调试能力和明文 HTTP。\n"
         "- 已配置线上服务器；AI 对话、识别和数据同步需要联网。\n"
-        "- 此包仍使用现有测试签名，不是商店正式发布包。\n"
+        "- 正式包名为 `com.greenhats.nutrigo`；会与早期 `.debug` 测试版并存，登录数据需重新录入。\n"
+        "- 这是 GitHub 直装正式版；尚未上架 Google Play。\n"
         f"- [全部 CI 检查]({ci})通过；签名、版本、ZIP 完整性、16 KB 对齐及 20 MiB 上限已验证。\n\n"
         f"源码提交：`{meta['sha']}`。附件包含 APK、SHA256SUMS.txt 和构建信息 release-manifest.json。\n"
     )
@@ -236,7 +248,7 @@ def publish(meta):
                 "tag_name": meta["tag"],
                 "target_commitish": meta["sha"],
                 "draft": True,
-                "prerelease": True,
+                "prerelease": False,
                 "name": f"NutriGo Android {meta['version']}",
                 "body": notes.read_text(),
             },
@@ -271,10 +283,10 @@ def publish(meta):
     published = api(
         f"repos/{repo}/releases/{release['id']}",
         method="PATCH",
-        payload={"draft": False, "body": notes.read_text()},
+        payload={"draft": False, "prerelease": False, "body": notes.read_text()},
     )
-    if published["draft"]:
-        raise ValueError("Release is still a draft")
+    if published["draft"] or published.get("prerelease"):
+        raise ValueError("Release is not a published stable release")
     with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
         summary.write(f"Published [{meta['tag']}]({published['html_url']})\n\nCommit: `{meta['sha']}`\n")
     print(published["html_url"])

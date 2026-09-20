@@ -29,6 +29,7 @@ class ReleaseGuardsTest(unittest.TestCase):
 
     def test_manual_release_uses_version_and_deterministic_android_code(self):
         self.assertEqual((self.meta["tag"], self.meta["code"]), ("android-v0.1.2", 1002))
+        self.assertEqual(self.meta["package"], "com.greenhats.nutrigo")
 
     def test_matching_tag_can_trigger_release(self):
         self.args.update(event="push", ref="refs/tags/android-v0.1.2")
@@ -56,8 +57,11 @@ class ReleaseGuardsTest(unittest.TestCase):
             metadata(**{**self.args, "cargo_version": "0.1.1"})
 
     def test_changing_package_or_version_code_is_rejected(self):
+        args = copy.deepcopy(self.args)
+        args["config"]["identifier"] = "com.greenhats.other"
+        with self.assertRaises(ValueError):
+            metadata(**args)
         for override in [
-            {"debugApplicationIdSuffix": ".other"},
             {"versionCode": 1},
             {"autoIncrementVersionCode": True},
         ]:
@@ -101,26 +105,35 @@ class ReleaseGuardsTest(unittest.TestCase):
 
     def test_apk_must_match_package_version_abi_and_certificate(self):
         badging = (
-            "package: name='com.greenhats.nutrigo.debug' versionCode='1002' versionName='0.1.2'\n"
+            "package: name='com.greenhats.nutrigo' versionCode='1002' versionName='0.1.2'\n"
             "native-code: 'arm64-v8a'\n"
         )
         signature = "Signer #1 certificate SHA-256 digest: " + self.meta["certificate"]
-        validate_apk_details(self.meta, badging, signature)
+        manifest = "A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0\n"
+        validate_apk_details(self.meta, badging, signature, manifest)
         for invalid in [
-            badging.replace(".debug", ".other"),
+            badging.replace("com.greenhats.nutrigo", "com.greenhats.other"),
             badging.replace("1002", "1001"),
             badging.replace("0.1.2", "0.1.1"),
             badging.replace("'arm64-v8a'", "'arm64-v8a' 'x86_64'"),
+            badging + "application-debuggable\n",
         ]:
             with self.subTest(badging=invalid), self.assertRaises(ValueError):
-                validate_apk_details(self.meta, invalid, signature)
+                validate_apk_details(self.meta, invalid, signature, manifest)
         for invalid in [
             "",
             signature.replace("b" * 64, "c" * 64),
             signature + "\n" + signature.replace("#1", "#2"),
         ]:
             with self.subTest(signature=invalid), self.assertRaises(ValueError):
-                validate_apk_details(self.meta, badging, invalid)
+                validate_apk_details(self.meta, badging, invalid, manifest)
+        for invalid in [
+            "",
+            manifest.replace("0x0", "0xffffffff"),
+            manifest + "A: android:debuggable(0x0101000f)=(type 0x12)0xffffffff\n",
+        ]:
+            with self.subTest(manifest=invalid), self.assertRaises(ValueError):
+                validate_apk_details(self.meta, badging, signature, invalid)
 
     def test_new_draft_publishes_when_release_list_is_stale(self):
         self.check_publish(existing=False)
@@ -152,6 +165,7 @@ class ReleaseGuardsTest(unittest.TestCase):
                 def respond(path, *, method="GET", payload=None, input_file=None):
                     if method == "POST" and path == "repos/example/repo/releases":
                         self.assertTrue(payload["draft"])
+                        self.assertFalse(payload["prerelease"])
                         self.assertEqual(payload["target_commitish"], self.meta["sha"])
                         return draft
                     if method == "POST" and input_file:
@@ -167,8 +181,10 @@ class ReleaseGuardsTest(unittest.TestCase):
                     self.assertEqual(path, "repos/example/repo/releases/1")
                     if method == "PATCH":
                         self.assertFalse(payload["draft"])
+                        self.assertFalse(payload["prerelease"])
                         return {
                             "draft": False,
+                            "prerelease": False,
                             "html_url": "https://github.com/example/repo/releases/tag/test",
                         }
                     self.assertEqual(method, "GET")

@@ -2,7 +2,8 @@ import { useAuthStore } from '../stores/auth'
 import { assertSessionCurrent, refreshForRequest } from './authSession'
 import { apiUrl } from './config'
 import { isPreviewBuild, usePreviewStore } from '../lib/preview'
-import { ConnectionError } from '../lib/connection'
+import { ConnectionError, httpStatusMessage } from '../lib/connection'
+import { MAX_FOOD_IMAGE_BYTES } from '../lib/foodImage'
 import { apiFetch } from './http'
 import type {
   UserProfile,
@@ -67,16 +68,18 @@ async function request<T>(
     throw new Error('登录已过期，请重新登录')
   }
 
-  if (resp.status >= 500) {
+  // 507 是可操作的照片存储错误，保留服务端的安全提示；其他 5xx
+  // 统一隐藏内部细节。
+  if (resp.status >= 500 && resp.status !== 507) {
     void resp.body?.cancel().catch(() => {})
     throw new ConnectionError('service')
   }
   if (!resp.ok) {
     const err = (await resp
       .json()
-      .catch(() => ({ message: resp.statusText }))) as ApiErrorBody
+      .catch(() => ({ message: httpStatusMessage(resp.status) }))) as ApiErrorBody
     throw new Error(
-      err.message || err.error || err.detail || `HTTP ${resp.status}`
+      err.message || err.error || err.detail || httpStatusMessage(resp.status)
     )
   }
   const data = await resp.json()
@@ -124,6 +127,8 @@ export const goApi = {
     }),
 
   uploadImage: (file: File) => {
+    if (file.size > MAX_FOOD_IMAGE_BYTES)
+      return Promise.reject(new Error('照片超过 10 MiB，请选择更小的图片后重试'))
     const fd = new FormData()
     fd.append('image', file)
     return request<{

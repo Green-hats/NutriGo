@@ -1,6 +1,6 @@
 # 开发路线图与交付状态
 
-核对日期：2026-09-18。功能基线 `f72677b`，公开安装包为 [Android 0.1.6 测试版](https://github.com/Green-hats/NutriGo/releases/tag/android-v0.1.6)。源码提交、云端部署和 APK 是独立交付物，文档或纯服务端更新不意味着必须重新发布 APK。
+核对日期：2026-09-20。公开安装包为 [Android 1.0.0 正式版](https://github.com/Green-hats/NutriGo/releases/tag/android-v1.0.0)。源码提交、云端部署和 APK 是独立交付物，文档或纯服务端更新不意味着必须重新发布 APK。
 
 ## 当前可用能力
 

@@ -21,7 +21,7 @@
 <text x="162" y="222" font-size="22" fill="#233D34" font-weight="400" text-anchor="start">Tauri 2 · React 19 · MUI</text>
 <text x="588" y="203" font-size="20" fill="#536B62" font-weight="400" text-anchor="start">UI bundled with the app</text>
 <rect x="1068" y="158" width="300" height="34" rx="17" fill="#D9EBDD" stroke="none" stroke-width="1.5"/>
-<text x="1218.0" y="181" font-size="16" fill="#245A48" font-weight="550" text-anchor="middle">Android · test release</text>
+<text x="1218.0" y="181" font-size="16" fill="#245A48" font-weight="550" text-anchor="middle">Android · 1.0.0 stable</text>
 <rect x="1068" y="204" width="300" height="34" rx="17" fill="#FFFFFF" stroke="none" stroke-width="1.5"/>
 <text x="1218.0" y="227" font-size="16" fill="#536B62" font-weight="550" text-anchor="middle">iOS · native checks</text>
 </g>

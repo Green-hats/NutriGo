@@ -11,7 +11,7 @@ import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
 import { agentApi } from '../../api/agent'
 import { goApi } from '../../api/go'
-import { prepareFoodImage } from '../../lib/foodImage'
+import { MAX_FOOD_IMAGE_BYTES, prepareFoodImage } from '../../lib/foodImage'
 import { errorMessage } from '../../lib/connection'
 import { defaultMealType } from '../../lib/meal'
 import { isPreviewBuild } from '../../lib/preview'
@@ -107,7 +107,12 @@ export default function MealAnalysisFlow({ date, onDone, onClose, onManual }: {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (file) void start(file)
+    if (!file) return
+    if (file.size > MAX_FOOD_IMAGE_BYTES) {
+      setError('照片超过 10 MiB，请选择更小的图片后重试')
+      return
+    }
+    void start(file)
   }
   const patch = (id: number, update: Partial<Draft>) =>
     setItems(current => current.map(item => item.id === id ? { ...item, ...update } : item))

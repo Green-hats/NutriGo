@@ -22,6 +22,25 @@ export function isOffline() {
   return typeof navigator !== 'undefined' && navigator.onLine === false
 }
 
+export function httpStatusMessage(status: number): string {
+  switch (status) {
+    case 408:
+      return '请求超时，请稍后重试。'
+    case 413:
+      return '请求内容过大，请缩小后重试。'
+    case 415:
+      return '文件格式不受支持，请更换后重试。'
+    case 429:
+      return '操作过于频繁，请稍后重试。'
+    case 504:
+      return '处理超时，请稍后重试。'
+    case 507:
+      return '服务器存储空间不足，请稍后重试。'
+    default:
+      return `请求失败（HTTP ${status}）`
+  }
+}
+
 export function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof ConnectionError) return error.message
   const message = error instanceof Error ? error.message : ''

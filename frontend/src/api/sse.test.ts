@@ -32,7 +32,12 @@ it('云端 SSE 支持分片、保留空格、正常完成', async () => {
   const events = callbacks()
   createChatStream(null, 'access', events, '今天吃什么')
   await vi.waitFor(() => expect(events.onDone).toHaveBeenCalledOnce())
-  expect(fetch.mock.calls[0][0]).toContain('https://api.example.com/agent-api/chat?message=')
+  expect(fetch.mock.calls[0][0]).toBe('https://api.example.com/agent-api/chat')
+  expect(fetch.mock.calls[0][1]).toMatchObject({
+    method: 'POST',
+    body: JSON.stringify({ message: '今天吃什么', session_id: null }),
+  })
+  expect(fetch.mock.calls[0][0]).not.toContain('今天吃什么')
   expect(events.onSessionId).toHaveBeenCalledWith(12)
   expect(events.onChunk).toHaveBeenCalledWith('hello ')
   expect(events.onError).not.toHaveBeenCalled()

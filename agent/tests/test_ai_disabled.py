@@ -8,7 +8,7 @@ from test_auth import make_token, valid_payload
 
 
 @pytest.mark.parametrize("method,path,body", [
-    ("GET", "/api/chat?message=hello", None),
+    ("POST", "/api/chat", {"message": "hello", "session_id": None}),
     ("POST", "/api/sessions/12/regenerate", None),
     ("POST", "/api/identify-food", {"image_id": 12}),
 ])
@@ -40,7 +40,9 @@ async def test_disabled_ai_does_not_disable_health_or_auth(agent_app, monkeypatc
         transport=httpx.ASGITransport(app=agent_app.app), base_url="http://test",
     ) as client:
         assert (await client.get("/api/health")).status_code == 200
-        assert (await client.get("/api/chat?message=hello")).status_code == 401
+        assert (await client.post("/api/chat", json={"message": "hello"})).status_code == 401
+        # 聊天正文不再接受查询参数，避免进入 URL 和访问日志。
+        assert (await client.get("/api/chat?message=private")).status_code == 405
 
 
 async def test_chat_can_run_without_local_models(agent_app, monkeypatch):
