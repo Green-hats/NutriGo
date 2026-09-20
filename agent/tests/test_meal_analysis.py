@@ -9,6 +9,7 @@ from PIL import Image
 from pydantic import ValidationError
 from test_auth import make_token, valid_payload
 
+from app import photo_jobs
 from app.config import settings
 from recognition import meal
 
@@ -133,7 +134,7 @@ def route(agent_app, monkeypatch, vision):
     from app import meal_analysis
 
     monkeypatch.setattr(meal_analysis, "cache", {})
-    monkeypatch.setattr(meal_analysis, "active_users", set())
+    monkeypatch.setattr(photo_jobs, "active_users", set())
     item = meal.MealItem(**result_data()["items"][0], nutrition_source="model")
     monkeypatch.setattr(
         meal_analysis,
@@ -173,7 +174,7 @@ async def test_failed_analysis_releases_slot_and_does_not_cache(agent_app, route
     result = await call(agent_app)
     assert result.status_code == status
     assert "private" not in result.text
-    assert not route.active_users and not route.cache
+    assert not photo_jobs.active_users and not route.cache
 
 
 async def test_concurrent_requests_are_bounded(agent_app, route):
@@ -191,4 +192,4 @@ async def test_concurrent_requests_are_bounded(agent_app, route):
     assert (await call(agent_app)).status_code == 429
     release.set()
     assert (await first).status_code == 200
-    assert not route.active_users
+    assert not photo_jobs.active_users

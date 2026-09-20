@@ -140,6 +140,7 @@ App 按本地时间默认选中早餐、午餐、晚餐或加餐，用户可直�
 | [API 文档](backend/API.md) | Go 路由、错误、照片删除与批量保存契约 |
 | [后端文档](docs/backend.md) | Go 服务、事务与后台任务 |
 | [数据管理](docs/DATA_MANAGEMENT.md) | 保留规则、删除语义、备份范围与恢复缺口 |
+| [资源限制](docs/RESOURCE_LIMITS.md) | 请求大小、照片配额、磁盘准入和识别并发 |
 | [路线图](docs/ROADMAP.md) | 已交付能力、当前限制与后续优先级 |
 | [产品方案](docs/PROPOSAL.md) | 产品目标与验收标准 |
 | [Agent 文档](docs/agent.md) | Python Agent 设计与工具说明 |

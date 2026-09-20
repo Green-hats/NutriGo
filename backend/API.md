@@ -22,11 +22,17 @@ Go 业务处理器及认证中间件通过统一错误函数返回：
 | `NOT_FOUND` | 资源不存在 | 404 |
 | `CONFLICT` | 冲突（如用户名已存在） | 409 |
 | `RATE_LIMITED` | 请求过于频繁 | 429 |
-| `INTERNAL_ERROR` | 服务内部错误 / 数据库暂不可用 | 500 / 503 |
+| `PAYLOAD_TOO_LARGE` | 请求体或图片过大 | 413 |
+| `REQUEST_TIMEOUT` | 请求体读取超时 | 408 |
+| `UNSUPPORTED_MEDIA_TYPE` | 不接受的请求体编码 | 415 |
+| `RESOURCE_UNAVAILABLE` | 读取/上传资源不足或配额检查不可用 | 503 / 507 |
+| `INTERNAL_ERROR` | 服务内部错误 | 500 |
 
 前端按 `code` 分支处理，不依赖 `message` 文案。网关错误、未匹配路由或框架异常不保证使用该 JSON；客户端还需处理非 JSON 和连接失败。
 
 > 认证接口限流默认 5 次/分，可通过环境变量 `AUTH_RATE_LIMIT_PER_MIN` / `AUTH_RATE_LIMIT_BURST` 覆盖（部署或集成测试调参）。
+
+普通请求体最多 64 KiB，解析前按实际字节限制；单张图片 10 MiB、multipart 11 MiB。上传速率/并发超限 `429`；个人照片配额满 `409`；全站配额/磁盘不足 `507`。具体配置、默认值和旧任务迁移边界见[请求与资源限制](../docs/RESOURCE_LIMITS.md)。
 
 ## 分页约定
 

@@ -32,7 +32,7 @@ func QueueImageDeletion(db *gorm.DB, imageID, userID uint) (model.ImageDeletion,
 		if result.RowsAffected != 1 {
 			return ErrImageInUse
 		}
-		job = model.ImageDeletion{ImageID: img.ID, Path: img.Path}
+		job = model.ImageDeletion{ImageID: img.ID, Path: img.Path, UserID: img.UserID, SizeBytes: img.SizeBytes}
 		return tx.Create(&job).Error
 	})
 	return job, err

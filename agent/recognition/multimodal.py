@@ -140,7 +140,12 @@ def identify(image_bytes: bytes, labels: list[str], top_k: int = 5) -> list[dict
         text_features, labels = _encode_texts(labels)
 
         # 2. 解码图片
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        if len(image_bytes) > 10 * 1024 * 1024:
+            raise ValueError("图片过大")
+        with Image.open(io.BytesIO(image_bytes)) as original:
+            if original.width * original.height > 20_000_000 or max(original.size) > 8192:
+                raise ValueError("图片尺寸过大")
+            image = original.convert("RGB")
 
         # 3. 仅编码图片（vision encoder）并算余弦相似度
         inputs = _processor(images=image, return_tensors="pt")

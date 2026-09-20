@@ -195,7 +195,13 @@ async def test_routes_recover_after_disconnect_and_model_error(agent_app, monkey
         "server": ("test", 80), "client": ("127.0.0.1", 1234),
     }
 
+    body_read = False
+
     async def receive():
+        nonlocal body_read
+        if not body_read:
+            body_read = True
+            return {"type": "http.request", "body": b"", "more_body": False}
         await first_body.wait()
         return {"type": "http.disconnect"}
 

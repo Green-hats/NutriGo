@@ -214,6 +214,8 @@ python3 deploy/cloud/backup/backup.py restore backups/snapshot-实际备份名 -
 
 ## 更新与验收顺序
 
+请求与资源保护已加入网关、Go 和 Agent，默认值及环境变量见[资源限制](../../docs/RESOURCE_LIMITS.md)。升级需部署 Go/Agent 并重新加载当前 Caddy 配置；Go 自动为图片删除任务添加用户和字节字段，升级前先备份。仅更新 Agent 无法启用上传配额。调高限额前核对磁盘和备份空间；不要通过增加 worker 数绕过进程内限制。
+
 1. 记录当前源码提交、镜像及 Compose 项目 / 卷名；保存服务器配置，并运行备份验证。已配置异地存储时使用 `operations.py run`，确保复制和读回成功。
 2. 检查新代码对客户端和数据库的兼容性，在原 Compose 项目中更新 Go，再更新依赖它的 Agent。`AutoMigrate` 不是可逆的版本化迁移；回滚镜像前需判断是否同时恢复对应数据快照。
 3. 检查 HTTPS 和两个服务的 ready，再使用专用账号验收登录、档案、日记、照片分析 / 批量保存和聊天工具；RAG 需实际问题检索。

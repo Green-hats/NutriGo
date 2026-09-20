@@ -64,7 +64,7 @@ try:
     with tempfile.TemporaryDirectory(prefix='nutrigo-proxy-') as temp:
         root = Path(temp)
         template = (Path(__file__).resolve().parents[1] / 'Caddyfile').read_text()
-        config = ('{\n admin off\n auto_https off\n}\n' + template
+        config = (template.replace('{', '{\n admin off\n auto_https off', 1)
                   .replace('{$API_DOMAIN}', f'http://127.0.0.1:{port}')
                   .replace('backend:3333', f'127.0.0.1:{servers[0].server_port}')
                   .replace('agent:8000', f'127.0.0.1:{servers[1].server_port}')
@@ -119,6 +119,11 @@ try:
                 'authorization': 'Bearer test-token', 'body': body or '',
             }, (path, status, payload)
         print('PASS API routes, methods, query parameters, Authorization and POST bodies', flush=True)
+        for path in ('/api/auth/register', '/agent-api/identify-food'):
+            assert request(path, 'POST', 'x' * 65536)[0] == 200
+            assert request(path, 'POST', 'x' * 65537)[0] == 413
+        assert request('/api/images/upload', 'POST', 'x' * 65537)[0] == 200
+        print('PASS JSON size boundary and separate upload limit', flush=True)
         for path in ('/', '/chat', '/api/internal/users/1/profile', '/api/internal/auth/verify', '/api/metrics',
                      '/api/images/42', '/api/images/42/raw', '/api/unknown'):
             assert request(path) == (404, b'Not Found'), path

@@ -1,5 +1,7 @@
 """Go 后端 HTTP 客户端单元测试（MockTransport，不联网）"""
 
+from collections.abc import AsyncIterator
+
 import httpx
 import pytest
 
@@ -50,6 +52,25 @@ async def test_get_image_data_returns_bytes(client_config, monkeypatch):
     _patch_transport(monkeypatch, httpx.MockTransport(handler))
     data = await gc.GoClient().get_image_data(1)
     assert data == b"\x89PNG fake"
+
+
+@pytest.mark.parametrize("declared", [False, True])
+async def test_image_read_limit_stops_oversized_backend_response(client_config, monkeypatch, declared):
+    class ImageStream(httpx.AsyncByteStream):
+        reads = 0
+
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            for _ in range(300):
+                self.reads += 1
+                yield b"x" * 65536
+
+    stream = ImageStream()
+    headers = {"Content-Length": str(20 << 20)} if declared else {}
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, headers=headers, stream=stream))
+    _patch_transport(monkeypatch, transport)
+    with pytest.raises(ValueError, match="图片过大"):
+        await gc.GoClient().get_image_data(1)
+    assert stream.reads == (0 if declared else 161)
 
 
 async def test_get_image_meta_returns_owner(client_config, monkeypatch):

@@ -1,5 +1,26 @@
+{
+	servers {
+		timeouts {
+			read_header 5s
+			read_body 30s
+			idle 2m
+		}
+	}
+}
+
 {$API_DOMAIN} {
 	encode gzip
+	@upload {
+		method POST
+		path /api/images/upload
+	}
+	@ordinary not path /api/images/upload
+	request_body @upload {
+		max_size 11534336
+	}
+	request_body @ordinary {
+		max_size 65536
+	}
 
 	# 公网只开放 App 所需接口；内部服务鉴权和指标接口不经过此入口。
 	@go path /api/health /api/ready /api/auth/* /api/users/* /api/diet/* /api/images/upload

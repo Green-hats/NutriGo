@@ -140,6 +140,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detailed design.
 | [API Reference](backend/API.md) | Go routes, errors, image deletion and batch-save contracts |
 | [Backend](docs/backend.md) | Go services, transactions and background tasks |
 | [Data management](docs/DATA_MANAGEMENT.md) | Retention, deletion, backup scope and recovery gaps |
+| [Resource limits](docs/RESOURCE_LIMITS.md) | Request bounds, photo quotas, disk admission and inference concurrency |
 | [Roadmap](docs/ROADMAP.md) | Delivered capabilities, limitations and priorities |
 | [Product proposal](docs/PROPOSAL.md) | Product goals and acceptance criteria |
 | [Agent Doc](docs/agent.md) | Python Agent design & tool descriptions |

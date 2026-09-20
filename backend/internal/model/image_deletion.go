@@ -8,5 +8,7 @@ type ImageDeletion struct {
 	ID        uint   `gorm:"primaryKey"`
 	ImageID   uint   `gorm:"not null;uniqueIndex"`
 	Path      string `gorm:"not null"`
+	UserID    uint   `gorm:"not null;default:0;index"`
+	SizeBytes int64  `gorm:"not null;default:0"`
 	CreatedAt time.Time
 }

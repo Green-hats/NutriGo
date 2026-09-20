@@ -98,6 +98,8 @@ class Config:
     MAX_AGENT_ITERATIONS: int = int(os.getenv("MAX_AGENT_ITERATIONS", "15"))
     LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "120"))  # 单次 LLM 超时(秒)，网络抖动自动重试
     CHAT_TIMEOUT: int = int(os.getenv("CHAT_TIMEOUT", "300"))  # 整次聊天生成的总超时(秒)
+    PHOTO_MAX_ACTIVE: int = max(1, int(os.getenv("PHOTO_MAX_ACTIVE", "4")))
+    PHOTO_REQUEST_TIMEOUT: int = max(1, int(os.getenv("PHOTO_REQUEST_TIMEOUT", "60")))
     # 工具结果超长兜底截断阈值(字符)
     TOOL_RESULT_MAX_CHARS: int = int(os.getenv("TOOL_RESULT_MAX_CHARS", "2000"))
     MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "8000"))  # 发给 LLM 的上下文 token 预算

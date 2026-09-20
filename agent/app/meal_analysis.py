@@ -9,13 +9,13 @@ from pydantic import BaseModel, Field
 
 from app.auth import require_user_id
 from app.config import settings
+from app.photo_jobs import run_photo_job
 from recognition.go_client import go_client
 from recognition.meal import MealAnalysis, analyze_meal, vision_key
 
 router = APIRouter()
 logger = logging.getLogger("uvicorn")
 cache: dict[tuple[int, int], tuple[float, MealAnalysis]] = {}
-active_users: set[int] = set()
 
 
 class MealRequest(BaseModel):
@@ -42,14 +42,15 @@ async def analyze(req: MealRequest, request: Request) -> MealAnalysis:
     cached = cache.get(key)
     if cached and cached[0] > time.monotonic():
         return cached[1]
-    if user_id in active_users or len(active_users) >= 4:
-        raise HTTPException(429, "照片正在分析中，请稍后重试。")
-    active_users.add(user_id)
+    return await run_photo_job(user_id, lambda: _analyze_uncached(user_id, req.image_id))
+
+
+async def _analyze_uncached(user_id: int, image_id: int) -> MealAnalysis:
     try:
-        result = await analyze_meal(await go_client.get_image_data(req.image_id))
+        result = await analyze_meal(await go_client.get_image_data(image_id))
         if len(cache) >= 500:
             cache.pop(next(iter(cache)))
-        cache[key] = (time.monotonic() + 3600, result)
+        cache[(user_id, image_id)] = (time.monotonic() + 3600, result)
         return result
     except (TimeoutError, httpx.TimeoutException) as e:
         raise HTTPException(504, "照片分析超时，请重试或手动记录。") from e
@@ -57,5 +58,3 @@ async def analyze(req: MealRequest, request: Request) -> MealAnalysis:
         # 不记录供应商响应正文、照片或模型输出，避免数据和凭据进入日志。
         logger.warning("meal analysis failed type=%s", type(e).__name__)
         raise HTTPException(502, "照片分析失败，请重试或手动记录。") from e
-    finally:
-        active_users.discard(user_id)

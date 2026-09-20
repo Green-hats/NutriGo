@@ -33,6 +33,14 @@ func codeForStatus(status int) string {
 		return CodeConflict
 	case http.StatusTooManyRequests:
 		return CodeRateLimited
+	case http.StatusRequestEntityTooLarge:
+		return "PAYLOAD_TOO_LARGE"
+	case http.StatusRequestTimeout:
+		return "REQUEST_TIMEOUT"
+	case http.StatusUnsupportedMediaType:
+		return "UNSUPPORTED_MEDIA_TYPE"
+	case http.StatusServiceUnavailable, http.StatusInsufficientStorage:
+		return "RESOURCE_UNAVAILABLE"
 	default:
 		return CodeInternalError
 	}

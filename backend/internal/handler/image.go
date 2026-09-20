@@ -7,15 +7,18 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"nutri.go/backend/internal/httperr"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"nutri.go/backend/internal/config"
 	"nutri.go/backend/internal/model"
 	"nutri.go/backend/internal/service"
 )
@@ -25,13 +28,30 @@ const maxFileSize = 10 << 20 // 10MB
 
 // ImageHandler 处理图片上传和获取
 type ImageHandler struct {
-	DB *gorm.DB
+	DB         *gorm.DB
+	Uploads    *service.UploadGuard
+	uploadOnce sync.Once
 }
 
 // Upload POST /api/images/upload
 // 接收 multipart/form-data，字段名 "image"
 func (h *ImageHandler) Upload(c *gin.Context) {
 	userID := c.GetUint("userID")
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		httperr.Response(c, http.StatusInternalServerError, "创建目录失败")
+		return
+	}
+	h.uploadOnce.Do(func() {
+		if h.Uploads == nil {
+			h.Uploads = service.NewUploadGuard(config.LoadUploadLimits(), uploadDir)
+		}
+	})
+	finish, err := h.Uploads.Begin(userID)
+	if err != nil {
+		uploadLimitError(c, err)
+		return
+	}
+	defer finish()
 
 	// 限制整个 multipart 请求，并释放解析时产生的临时文件。
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxFileSize+(1<<20))
@@ -43,6 +63,16 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 	// 读取上传文件
 	file, header, err := c.Request.FormFile("image")
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		var timeout net.Error
+		if errors.As(err, &tooLarge) {
+			httperr.Response(c, http.StatusRequestEntityTooLarge, "图片请求不能超过 11 MiB")
+			return
+		}
+		if errors.As(err, &timeout) && timeout.Timeout() {
+			httperr.Response(c, http.StatusRequestTimeout, "上传请求超时，请重试")
+			return
+		}
 		httperr.Response(c, http.StatusBadRequest, "请上传图片文件")
 		return
 	}
@@ -50,7 +80,11 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 
 	// 大小校验
 	if header.Size > maxFileSize {
-		httperr.Response(c, http.StatusBadRequest, "图片大小不能超过 10MB")
+		httperr.Response(c, http.StatusRequestEntityTooLarge, "图片大小不能超过 10 MiB")
+		return
+	}
+	if err := h.Uploads.Reserve(h.DB, userID, header.Size); err != nil {
+		uploadLimitError(c, err)
 		return
 	}
 
@@ -70,12 +104,6 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 	ext := map[string]string{"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[mimeType]
 	filename := uuid4() + ext
 	savePath := filepath.Join(uploadDir, filename)
-
-	// 确保 uploads 目录存在
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		httperr.Response(c, http.StatusInternalServerError, "创建目录失败")
-		return
-	}
 
 	// 重置文件指针到头，写入磁盘
 	if _, err := file.Seek(0, 0); err != nil {
@@ -129,6 +157,20 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		"mime_type": image.MimeType,
 		"size":      image.SizeBytes,
 	})
+}
+
+func uploadLimitError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrUploadBusy):
+		c.Header("Retry-After", "10")
+		httperr.Response(c, http.StatusTooManyRequests, err.Error())
+	case errors.Is(err, service.ErrImageQuota):
+		httperr.Response(c, http.StatusConflict, err.Error())
+	case errors.Is(err, service.ErrUploadStorage):
+		httperr.Response(c, http.StatusInsufficientStorage, err.Error())
+	default:
+		httperr.Response(c, http.StatusServiceUnavailable, "暂时无法检查照片存储额度，请稍后重试")
+	}
 }
 
 // GetMeta GET /api/images/:id（内部路由）

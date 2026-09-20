@@ -88,9 +88,20 @@ class GoClient:
         return response.json()
 
     async def get_image_data(self, image_id: int) -> bytes:
-        """GET /api/images/:id/data → 图片二进制"""
-        resp = await self._request("GET", f"/api/images/{image_id}/data")
-        return resp.content
+        """流式读取最多 10 MiB，总计 30 秒；不先无限读入 resp.content。"""
+        limit = 10 * 1024 * 1024
+        async with asyncio.timeout(30), self._get_client().stream(
+            "GET", f"{self.base}/api/images/{image_id}/data", headers=self.headers,
+        ) as response:
+            response.raise_for_status()
+            if int(response.headers.get("content-length", "0")) > limit:
+                raise ValueError("图片过大")
+            data = bytearray()
+            async for chunk in response.aiter_bytes(64 * 1024):
+                if len(data) + len(chunk) > limit:
+                    raise ValueError("图片过大")
+                data.extend(chunk)
+            return bytes(data)
 
     async def get_user_profile(self, user_id: int) -> dict:
         """GET /api/internal/users/:id/profile → 用户档案"""

@@ -33,6 +33,8 @@ LITELLM_LOCAL_MODEL_COST_MAP=true uv run uvicorn app.main:app --port 8000
 
 ## 源码分工
 
+普通请求体在解析前限制为 64 KiB/15 秒；照片分析通过 `app/photo_jobs.py` 共享用户和全局名额，旧 CLIP 额外限制 1 个在途任务。取消或响应超时不会提前释放仍运行的线程名额，详见[请求与资源限制](RESOURCE_LIMITS.md)。
+
 | 文件 | 职责 |
 |---|---|
 | [app/main.py](../agent/app/main.py) | 服务初始化、聊天、会话、旧识别接口与探针 |

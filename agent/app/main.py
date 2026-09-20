@@ -35,7 +35,9 @@ from app.llm_client import run_agent_loop
 from app.logging_setup import configure_logging, new_request_id, request_id_var
 from app.meal_analysis import router as meal_router
 from app.models import PagedSessions, SessionDetail
+from app.photo_jobs import run_photo_job
 from app.rate_limit import acquire_user, get_session_lock, prune_session_locks, release_user
+from app.request_limits import RequestLimits
 from app.tools import registry as tool_registry
 from recognition.db import get_by_name, get_portion, list_names, seed_data
 
@@ -116,6 +118,9 @@ async def request_logging(request: Request, call_next: Callable[[Request], Await
         request.method, request.url.path, response.status_code, duration_ms, client_ip,
     )
     return response
+
+
+app.add_middleware(RequestLimits)
 
 
 # ============================================================
@@ -390,11 +395,15 @@ async def identify_food(req: IdentifyRequest, request: Request) -> list:
     if cached is not None:
         return cached
 
-    # 1. 从 Go 获取图片
+    return await run_photo_job(user_id, lambda: _identify_uncached(req.image_id), legacy=True)
+
+
+async def _identify_uncached(image_id: int) -> list:
+    # 1. 获得准入后才下载图片、进入线程池。
     try:
-        image_bytes = await go_client.get_image_data(req.image_id)
+        image_bytes = await go_client.get_image_data(image_id)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"获取图片失败 (image_id={req.image_id}): {e}") from e
+        raise HTTPException(status_code=502, detail="获取图片失败，请稍后重试") from e
 
     # 2. CLIP 识别（仅用家常菜，避免 8407 个 labels 太慢）
     #    同步推理放到线程池，不阻塞 asyncio 事件循环
@@ -405,7 +414,7 @@ async def identify_food(req: IdentifyRequest, request: Request) -> list:
     try:
         candidates = await asyncio.to_thread(identify, image_bytes, labels, 5)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"图片识别失败: {e}") from e
+        raise HTTPException(status_code=502, detail="图片识别失败，请重试或手动记录") from e
 
     # 3. 查询营养 + 份量
     results = []
@@ -425,7 +434,7 @@ async def identify_food(req: IdentifyRequest, request: Request) -> list:
             "default_portion": portion,
         })
 
-    _cache_set(req.image_id, results)
+    _cache_set(image_id, results)
     return results
 
 

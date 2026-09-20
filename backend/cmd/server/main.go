@@ -55,6 +55,7 @@ func main() {
 
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(middleware.RequestLimits())
 	metrics := middleware.NewMetrics()
 	r.Use(metrics.Middleware())
 
@@ -139,6 +140,9 @@ func main() {
 		Addr:              ":3333",
 		Handler:           r,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// 启动 HTTP 服务（goroutine 内运行，主协程等待退出信号）

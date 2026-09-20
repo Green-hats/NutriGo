@@ -101,7 +101,7 @@ func TestImageUploadRejectsNonImage(t *testing.T) {
 	}
 }
 
-// 测试 Upload：超过 10MB 返回 400
+// 测试 Upload：超过 10MB 返回 413
 func TestImageUploadRejectsTooLarge(t *testing.T) {
 	t.Chdir(t.TempDir())
 	gin.SetMode(gin.TestMode)
@@ -117,8 +117,8 @@ func TestImageUploadRejectsTooLarge(t *testing.T) {
 	c.Request = newUploadRequest(t, "big.png", content)
 
 	h.Upload(c)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("状态码 = %d, 期望 400", w.Code)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("状态码 = %d, 期望 413", w.Code)
 	}
 }
 
@@ -305,7 +305,7 @@ func TestImageMetaHidesPath(t *testing.T) {
 func TestImageUploadDatabaseFailureRemovesFile(t *testing.T) {
 	t.Chdir(t.TempDir())
 	db := setupTestDB(t)
-	if err := db.Migrator().DropTable(&model.FoodImage{}); err != nil {
+	if err := db.Exec("CREATE TRIGGER reject_image BEFORE INSERT ON food_images BEGIN SELECT RAISE(FAIL, 'write failed'); END").Error; err != nil {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()

@@ -101,6 +101,8 @@ App 的 API 源由构建时 `VITE_API_BASE_URL` 决定，正式构建要求 HTTP
 
 ### 4.2 REST 与 SSE
 
+请求入口由 Caddy 和服务端分别限制：普通请求 64 KiB、图片 multipart 11 MiB；解析前拒绝超限与慢请求。上传有用户/全站照片配额、磁盘低水位、速率和在途预留；新旧照片分析共用名额，旧 CLIP 只允许 1 个任务。默认值、取消语义和单实例边界见[请求与资源限制](RESOURCE_LIMITS.md)。
+
 对话使用 **fetch + ReadableStream 解析 SSE**，并非浏览器 `EventSource`。因此可以携带 Authorization 请求头，并通过 `AbortController` 取消请求。Go 请求默认 20 秒，Agent 请求及对话默认 60 秒超时；超时覆盖连接和每次响应体读取，流式数据到达后重新计算读取等待时间。
 
 SSE 事件包括 `session_id`、`chunk`、`thinking`、`tool_call`、`tool_result`、`done`、`error`。是否出现 thinking 内容取决于模型及服务端配置。前端保留 Markdown 空白，单波浪号数值范围不作为删除线解析。实现见 [sse.ts](../frontend/src/api/sse.ts) 和 [Chat.tsx](../frontend/src/pages/Chat.tsx)。
@@ -412,7 +414,7 @@ NutriGo/
 | 知识可信度 | 需要结构化来源、相关度判断、资料版本审校与固定问答质量评测 |
 | 手机凭证 | 将现有 localStorage 凭证迁移到系统安全存储，并保持退出与账号隔离 |
 | 运维恢复 | 异地存储与通知接收端待配置；外部服务异常监控、整机恢复演练待补 |
-| 数据治理 | 账号导出 / 注销、会话与回执保留期、版本化迁移和用户存储配额待补 |
+| 数据治理 | 照片配额已实现；账号导出 / 注销、会话与回执保留期、版本化迁移待补 |
 | 移动端交付 | App 内检查更新、完整手机 UI 回归、iOS 真机验收与签名发布 |
 
 后续修改路由、数据归属、持久卷、鉴权、日期规则或发布流程时，应同步更新本文对应章节；运行参数和操作命令集中维护在移动端与部署文档中。

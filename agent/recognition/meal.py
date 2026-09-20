@@ -94,7 +94,7 @@ def image_data_url(data: bytes) -> str:
         raise ValueError("图片过大")
     with Image.open(io.BytesIO(data)) as img:
         mime = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}.get(img.format or "")
-        if not mime or max(img.size) > 8192:
+        if not mime or max(img.size) > 8192 or img.width * img.height > 20_000_000:
             raise ValueError("图片格式或尺寸不支持")
         img.verify()
     return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
