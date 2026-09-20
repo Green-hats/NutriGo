@@ -217,10 +217,10 @@ jobs:
           targets: aarch64-linux-android
       - uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools;build-tools;36.0.0
+          packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Install Android SDK and NDK
-        run: sdkmanager "platforms;android-36" "ndk;28.2.13676358"
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
       - name: Install app dependencies
         working-directory: frontend
         run: npm ci
