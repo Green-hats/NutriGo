@@ -38,6 +38,20 @@ it('云端 SSE 支持分片、保留空格、正常完成', async () => {
   expect(events.onError).not.toHaveBeenCalled()
 })
 
+it('空闲心跳与正文分片交错时忽略注释并正常完成', async () => {
+  fetch.mockResolvedValue(response(
+    ': keep-',
+    'alive\n\nevent: chunk\ndata: 第一段\n\n: keep-alive\n\n',
+    'event: chunk\ndata: 第二段\n\nevent: done\ndata: \n\n',
+  ))
+  const events = callbacks()
+  createChatStream(null, 'access', events, 'hello')
+  await vi.waitFor(() => expect(events.onDone).toHaveBeenCalledOnce())
+  expect(events.onChunk.mock.calls).toEqual([['第一段'], ['第二段']])
+  expect(events.onThinking).not.toHaveBeenCalled()
+  expect(events.onError).not.toHaveBeenCalled()
+})
+
 it('App 恢复后令牌过期时刷新并重新打开流', async () => {
   useAuthStore.getState().setAuth('expired', { id: 7, username: 'user' }, 'refresh-old')
   fetch.mockResolvedValueOnce(new Response('{}', { status: 401 }))

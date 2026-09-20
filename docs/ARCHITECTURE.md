@@ -105,6 +105,8 @@ App 的 API 源由构建时 `VITE_API_BASE_URL` 决定，正式构建要求 HTTP
 
 SSE 事件包括 `session_id`、`chunk`、`thinking`、`tool_call`、`tool_result`、`done`、`error`。是否出现 thinking 内容取决于模型及服务端配置。前端保留 Markdown 空白，单波浪号数值范围不作为删除线解析。实现见 [sse.ts](../frontend/src/api/sse.ts) 和 [Chat.tsx](../frontend/src/pages/Chat.tsx)。
 
+Agent 的 [chat_stream.py](../agent/app/chat_stream.py) 为聊天和重新生成统一管理流生命周期：阻塞等待事件队列，由框架监听断线，空闲每 15 秒发注释心跳。`CHAT_TIMEOUT` 默认 300 秒限制整次生成，心跳不会延长此期限；模型异常、超时或缺少结束事件时发送 `error`。完成、断线及发送失败均回收模型/队列任务并释放用户并发名额，避免忙轮询或长时间占用名额。
+
 - 401 会尝试轮换刷新令牌并重试一次；断网、超时或暂时服务故障不会直接清空登录态。
 - 切换账号会使旧请求失效，避免旧响应写入新账号界面。
 - 离开聊天页面会取消当前流；服务端检测连接断开后取消本次 Agent 任务并释放并发名额。

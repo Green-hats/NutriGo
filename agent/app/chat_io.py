@@ -26,6 +26,11 @@ class SSEChatIO(ChatIO):
     def __init__(self) -> None:
         self._queue: asyncio.Queue[tuple[str, str | None]] = asyncio.Queue()
         self._cancel_event = asyncio.Event()
+        self._closed = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
 
     @property
     def cancelled(self) -> bool:
@@ -37,7 +42,8 @@ class SSEChatIO(ChatIO):
         self._cancel_event.set()
 
     async def _push(self, event: str, data: str = "") -> None:
-        await self._queue.put((event, data))
+        if not self._closed:
+            self._queue.put_nowait((event, data))
 
     async def emit_session_id(self, session_id: int) -> None:
         await self._push("session_id", str(session_id))
@@ -85,4 +91,6 @@ class SSEChatIO(ChatIO):
         return self._format(event, data or "")
 
     async def close(self) -> None:
-        await self._queue.put(("__done__", ""))
+        if not self._closed:
+            self._closed = True
+            self._queue.put_nowait(("__done__", ""))

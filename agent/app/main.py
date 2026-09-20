@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from app import db
 from app.auth import require_user_id
 from app.chat_io import SSEChatIO
+from app.chat_stream import ChatStreamingResponse
 from app.config import settings
 from app.conversation import Conversation
 from app.llm_client import run_agent_loop
@@ -196,7 +197,7 @@ async def chat(
         raise
 
     chat_io = SSEChatIO()
-    return _sse_response(request, conv, chat_io, user_id)
+    return _sse_response(conv, chat_io, user_id)
 
 
 @app.post("/api/sessions/{session_id}/regenerate")
@@ -229,58 +230,16 @@ async def regenerate(session_id: int, request: Request) -> StreamingResponse:
         raise
 
     chat_io = SSEChatIO()
-    return _sse_response(request, conv, chat_io, user_id)
+    return _sse_response(conv, chat_io, user_id)
 
 
-def _sse_response(request: Request, conv: Conversation, chat_io: SSEChatIO,
-                  user_id: int) -> StreamingResponse:
-    """生成 SSE 流式响应：后台跑 agent loop，实时推送事件；断开/结束释放用户名额"""
-    async def event_generator() -> AsyncGenerator[str, None]:
-        # 先推送会话 ID，前端拿到后能触发"重新生成"等功能
-        await chat_io.emit_session_id(conv.session_id)
-        # Agent 作为后台任务运行
-        task = asyncio.create_task(run_agent_loop(conv, tool_registry, chat_io))
-        try:
-            # 同时监听"下一个事件"和"客户端断开"，任一先到即处理
-            while True:
-                event_task = asyncio.create_task(chat_io.next_event())
-                disconnected_task = asyncio.create_task(request.is_disconnected())
-                done, pending = await asyncio.wait(
-                    {event_task, disconnected_task},
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                # 取消另一个未完成的任务
-                for p in pending:
-                    p.cancel()
-
-                if disconnected_task in done and disconnected_task.result():
-                    # 客户端断开：取消 agent，退出
-                    chat_io.cancel()
-                    task.cancel()
-                    break
-
-                if event_task in done:
-                    sse_event = event_task.result()
-                    if sse_event is None:
-                        break  # 流正常结束
-                    yield sse_event
-        finally:
-            if not task.done():
-                task.cancel()
-            try:
-                await task
-            except BaseException:
-                pass
-            await release_user(user_id)
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+def _sse_response(conv: Conversation, chat_io: SSEChatIO, user_id: int) -> StreamingResponse:
+    return ChatStreamingResponse(
+        conv.session_id,
+        chat_io,
+        lambda: run_agent_loop(conv, tool_registry, chat_io),
+        lambda: release_user(user_id),
+        timeout=settings.CHAT_TIMEOUT,
     )
 
 

@@ -25,6 +25,7 @@ LITELLM_LOCAL_MODEL_COST_MAP=true uv run uvicorn app.main:app --port 8000
 | `RAG_MODEL_PATH` | BGE 模型标识或已准备的绝对目录；本地目录只从磁盘加载 |
 | `FOOD_MODEL_PATH`、`FOOD_MODEL_PRELOAD`、`FOOD_MODEL_INT8` | 旧版 CLIP 兼容接口的模型与预热 / 量化选项 |
 | `DATABASE_PATH` | 会话数据库路径，默认 `agent.db` |
+| `CHAT_TIMEOUT` | 整次聊天生成的总超时，默认 300 秒，包含模型流式读取、工具调用和保存 |
 
 当前照片请求在 [meal.py](../agent/recognition/meal.py) 中固定发往 `https://api.deepseek.com/chat/completions`，不会把第三方聊天代理 Key 自动发送到该地址。模型是否可用应以实际供应商响应验收，配置字符串本身不能证明开通了相应能力。
 
@@ -37,6 +38,7 @@ LITELLM_LOCAL_MODEL_COST_MAP=true uv run uvicorn app.main:app --port 8000
 | [app/main.py](../agent/app/main.py) | 服务初始化、聊天、会话、旧识别接口与探针 |
 | [app/auth.py](../agent/app/auth.py) | 本地 JWT 验签并请求 Go 检查令牌状态 |
 | [app/llm_client.py](../agent/app/llm_client.py) | Agent Loop、流式输出、工具执行、超时和重试 |
+| [app/chat_stream.py](../agent/app/chat_stream.py)、[app/chat_io.py](../agent/app/chat_io.py) | SSE 阻塞队列、空闲心跳、生成总超时和断线资源回收 |
 | [app/conversation.py](../agent/app/conversation.py)、[app/db.py](../agent/app/db.py) | 上下文裁剪和按用户隔离的会话持久化 |
 | [app/tools.py](../agent/app/tools.py) | 工具注册、身份绑定与结果处理 |
 | [app/meal_analysis.py](../agent/app/meal_analysis.py) | 照片归属、并发限制和短期缓存 |
@@ -125,6 +127,8 @@ sequenceDiagram
 SSE 事件包括 `session_id`、`thinking`、`chunk`、`tool_call`、`tool_result`、`done`、`error`。`thinking` 只转发配置模型实际返回的 `reasoning_content`；没有该字段时正文和工具仍可正常运行，不能把缺少思考面板当作失败。
 
 默认最多 15 轮 Agent 循环，单条消息最多 2,000 字符，上下文最多 40 条 / 8,000 token 预算，单次 LLM 超时 120 秒、工具超时 30 秒，同用户最多一个活跃对话。具体重试和上下文处理以配置及源码为准；用户停止或离开对话页面会取消流。
+
+聊天和重新生成共用 `ChatStreamingResponse`：队列无消息时阻塞等待，不轮询 `Request.is_disconnected()`，由 Starlette 监听断线。空闲每 15 秒发送一次 SSE 注释心跳，客户端忽略注释；心跳不会重建队列读取任务或延长生成总期限。整次生成默认最多 300 秒（`CHAT_TIMEOUT`），覆盖模型连接、流式读取、工具和保存。模型异常、超时或未发送结束事件就返回时，发送友好的 `error` 事件并结束连接；供应商异常原文不发送到客户端。正常完成、客户端断开或发送失败都会取消并等待后台任务结束，释放用户并发名额。
 
 ## 知识库与兼容模型
 

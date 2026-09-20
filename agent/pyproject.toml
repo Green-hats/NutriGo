@@ -5,6 +5,7 @@ description = "NutriGo AI Agent — 营养分析、食物识别、RAG 对话"
 requires-python = ">=3.11"
 
 dependencies = [
+    "anyio>=4.0",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "litellm>=1.50",
